@@ -57,6 +57,7 @@ const PATHS = {
   flipV: '<path d="M2 8h12" stroke-dasharray="1.5 1.5"/><path d="M4.5 2.5L8 7.5l3.5-5z"/><path d="M4.5 13.5L8 8.5l3.5 5z"/>',
   rotate: '<path d="M13 8.2A5 5 0 1 1 11.6 4.4"/><path d="M12.6 1.8v3h-3"/>',
   resize: '<path d="M2.5 13.5v-4M2.5 13.5h4M13.5 2.5v4M13.5 2.5h-4M2.5 13.5l11-11"/>',
+  envelope: '<rect x="2.2" y="3.9" width="11.6" height="8.6" rx=".6"/><path d="M2.6 4.6L8 8.9l5.4-4.3"/>',
 };
 
 export function icon(name) {

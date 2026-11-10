@@ -162,6 +162,7 @@ export const buildUiMethods = {
           { scope: 'editor', label: 'Save now', shortcut: 'Ctrl+S', action: () => this.persist() },
           { scope: 'editor', label: 'Save version now', disabled: !this.entry, action: () => this.saveVersionNow() },
           { scope: 'editor', label: 'Version history…', disabled: !this.entry, action: () => this.showVersions() },
+          { scope: 'editor', label: 'Seal as time capsule…', disabled: !this.entry, action: () => this.sealEntry() },
           'sep',
           { scope: 'editor', label: 'Export as Markdown…', shortcut: 'Ctrl+E', disabled: !this.entry, action: () => this.exportMarkdown() },
           { scope: 'editor', label: 'Export drawing as PNG…', disabled: !this.entry || this.drawing.isEmpty, action: () => this.exportDrawing() },

@@ -43,6 +43,7 @@ import { exportMethods } from './controller/export-actions.js';
 import { keyboardMethods } from './controller/keyboard.js';
 import { focusMethods } from './controller/focus-mode.js';
 import { navigationMethods } from './controller/navigation.js';
+import { capsuleActionMethods } from './controller/capsule-actions.js';
 
 
 
@@ -133,6 +134,7 @@ export class QuireApp {
     this.session = null; // { id, base }: the open entry and its word count when this session began
     this.goalCelebrated = false; // the goal chime has played for this session
     this.typeFrame = 0; // the pending animation frame for typewriter scrolling
+    this.capsuleScanDay = null; // the day the arrival notices were last checked
   }
 
   async start() {
@@ -177,6 +179,7 @@ export class QuireApp {
       getReminder: () => this.prefs.reminder ?? REMINDER_DEFAULTS,
       saveReminder: (reminder) => this.setPref({ reminder }),
       hasEntryOn: async (day) => (await this.store.list()).some((entry) => entry.date === day),
+      onCapsuleCheck: (send) => this.announceArrivedCapsules(send),
     });
     await this.seedSampleEntry();
     // The site opens on the dashboard. A reload on an entry keeps that entry.
@@ -241,3 +244,4 @@ Object.assign(QuireApp.prototype, keyboardMethods);
 
 Object.assign(QuireApp.prototype, focusMethods);
 Object.assign(QuireApp.prototype, navigationMethods);
+Object.assign(QuireApp.prototype, capsuleActionMethods);

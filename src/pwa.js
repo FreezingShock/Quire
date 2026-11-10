@@ -107,10 +107,11 @@ export function reminderDue(reminder, now = new Date()) {
   return now >= due && reminder.lastDay !== localISODate(now);
 }
 
-async function notify(body, day) {
+/** Shows one notice. `tag` replaces any earlier notice with the same tag, so each one is sent once. */
+async function notify(body, tag) {
   const options = {
     body,
-    tag: `${TAG_PREFIX}-${day}`,
+    tag,
     icon: 'assets/icon-192.png',
     data: { url: new URL('./', location.href).href },
   };
@@ -123,20 +124,26 @@ async function notify(body, day) {
  * Checks the reminder once a minute, when the tab returns to the front, and on
  * start. It skips the reminder when an entry already exists for today. It
  * records each day it runs so the reminder sends at most once a day.
+ *
+ * With reminders on and notifications allowed, `onCapsuleCheck(send)` runs on
+ * the same schedule. A time capsule that has arrived gets its notice through
+ * `send(body, tag)`. Both only run while Quire is open.
  */
-export function startReminders({ getReminder, saveReminder, hasEntryOn }) {
+export function startReminders({ getReminder, saveReminder, hasEntryOn, onCapsuleCheck }) {
   let busy = false;
   const check = async () => {
     if (busy) return;
     const reminder = getReminder() ?? REMINDER_DEFAULTS;
-    if (!reminderDue(reminder)) return;
     if (globalThis.Notification?.permission !== 'granted') return;
     busy = true;
     try {
-      const today = localISODate();
-      const wroteToday = await hasEntryOn(today).catch(() => false);
-      if (!wroteToday) await notify('Nothing written yet today. A line is enough.', today);
-      saveReminder({ ...reminder, lastDay: today });
+      if (reminderDue(reminder)) {
+        const today = localISODate();
+        const wroteToday = await hasEntryOn(today).catch(() => false);
+        if (!wroteToday) await notify('Nothing written yet today. A line is enough.', `${TAG_PREFIX}-${today}`);
+        saveReminder({ ...reminder, lastDay: today });
+      }
+      if (reminder.enabled && onCapsuleCheck) await onCapsuleCheck(notify);
     } catch (error) {
       console.warn('Reminder could not be shown:', error);
     } finally {

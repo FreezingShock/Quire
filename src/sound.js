@@ -22,6 +22,13 @@ const SOUNDS = {
   ],
   // A falling sweep for a deleted entry.
   delete: [{ at: 0, freq: 660, to: 180, dur: 0.28, gain: 0.12, type: 'triangle' }],
+  // A small music-box run for a time capsule opening: a rising arpeggio that ends on a held note.
+  unseal: [
+    { at: 0, freq: 659.25, dur: 0.22, gain: 0.12, type: 'triangle' },
+    { at: 0.16, freq: 783.99, dur: 0.22, gain: 0.12, type: 'triangle' },
+    { at: 0.32, freq: 987.77, dur: 0.22, gain: 0.12, type: 'triangle' },
+    { at: 0.48, freq: 1318.5, dur: 0.9, gain: 0.12, type: 'triangle' },
+  ],
   // A faint tick as the mouse reaches a button or entry tile. Off unless sound effects are on.
   hover: [{ at: 0, freq: 1760, to: 2100, dur: 0.045, gain: 0.02, type: 'sine' }],
   // One soft bell for a finished export.
