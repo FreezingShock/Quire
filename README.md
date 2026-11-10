@@ -24,6 +24,7 @@ You can also open `index.html` through any static server.
 - **Prompts and reflection:** the top of the entries list shows a writing prompt for today. Write to it, or click Another for the next one. Its text starts a new journal as a quote. The On this day card lists entries from this date in earlier years. Both can be hidden in Options, on the Home tab.
 - **Mood chart:** the chart button in the view bar plots each day's mood for 30 days, 90 days, a year, or all time (weekly averages for the longer ranges), with the average and how often each mood came up.
 - **Dashboard:** the home page opens on a dashboard with a greeting, the streak, this month's entries and words, today's prompt, recent entries, a mini calendar, and the last seven days. Click a day on any of them to open it in the calendar. The Dashboard button in the view bar shows it, and the other views still show the full list.
+- **Sidebar gadgets:** a column beside the dashboard holds small panels: a clock, a streak meter, a mood gauge, a word of the day, a sticky note, and a slideshow of your drawings. Add a calendar from Add gadget. Drag a gadget by its title bar to reorder it, or use Alt with the up and down arrows. The × removes one. The sticky note is saved on this device and sealed by the passcode lock like the rest of the store. Options (Home tab) turns the column off.
 - **First run:** a new library starts with one sample entry, "Welcome to Quire", and a Getting started card with four short tips. Click Got it to hide the tips. Options (Home tab) brings them back. The sample is written once, so deleting it keeps it gone, and it does not count toward your streak.
 - **Calendar and streaks:** a month view shows how many entries each day has and its mood. The toolbar counts days in a row with at least one entry. Today's entry (Alt+T) opens today's journal, or starts one.
 - **Writing:** a live preview. Headings, quotes, lists, checklists, rules, code, bold, italics, links, and colors render as you type, and the Markdown markup shows only on the line you are editing. Enter continues lists. Select text and click a color to color it.
@@ -85,7 +86,9 @@ src/versions.js     version rules: when a copy is kept and what it holds (no DOM
 src/history.js      version history dialog
 src/skins.js        skin list, skin choice from saved prefs, and accent colors (no DOM)
 src/options.js      Options dialog: the tabbed settings that the View and Skin menus used to hold
-styles/             app chrome, live editor, rendered-text styles, Vista extras, skins, the lock dialogs, and focus mode (loaded last)
+src/gadgets.js      sidebar gadgets: the catalog, saved order, clock hands, mood gauge, streak goal, word of the day (no DOM)
+src/gadget-views.js sidebar gadgets: their panels, drag to reorder, the Add menu, and the slideshow
+styles/             app chrome, live editor, rendered-text styles, Vista extras, skins, the sidebar gadgets, the lock dialogs, and focus mode (loaded last)
 tests/              node:test unit tests (including the passcode vault and the sealed store)
 scripts/serve.js    dependency-free static server
 ```

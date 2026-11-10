@@ -18,6 +18,9 @@ const DEFAULTS = Object.freeze({
   sound: false,
   showPrompts: true,
   showOnThisDay: true,
+  // The Vista-style sidebar of gadgets beside the dashboard, and the gadgets it shows, in order.
+  showGadgets: true,
+  gadgets: ['clock', 'streak', 'mood', 'word', 'note', 'slides'],
   // Getting-started tips on the dashboard. "Got it" sets this. Options (Home tab) brings them back.
   tipsDismissed: false,
   // The first-run sample entry is written once. Deleting it does not bring it back.

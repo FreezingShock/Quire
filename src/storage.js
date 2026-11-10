@@ -17,6 +17,7 @@
  *   setCipher(vault | null)    -> void                null stores plain rows; a vault (see vault.js) seals them
  *   reseal(vault | null)       -> Promise<void>       rewrites every row, picture and version under that cipher, in one transaction
  *   getMeta / setMeta / removeMeta(key)  -> small records kept beside the rows (the passcode lock lives here)
+ *   getNote / setNote(text)    -> the sticky note's text, sealed with the rows when the lock is on
  *   clear()                    -> Promise<void>       erases every row and record
  *
  * Pictures and sketches live in their own `media` store, so the entries list
@@ -41,6 +42,9 @@ const BY_ENTRY_TIME = 'entryAt';
 const BY_ENTRY = 'entryId';
 
 const LOCKED = Symbol('locked');
+
+/** The sticky note's record in the meta store. Its text is sealed like entries when the lock is on. */
+const NOTE_META = 'sticky-note';
 
 export class LockedError extends Error {
   constructor() {
@@ -135,6 +139,17 @@ function createCodec() {
       if (!stored.sealed) return stored;
       const { reason, content } = await openSealed('version', stored.id, stored.sealed);
       return { id: stored.id, entryId: stored.entryId, savedAt: stored.savedAt, reason, content };
+    },
+    async encodeNote(text) {
+      const vault = active();
+      return vault ? { sealed: await vault.seal('note', NOTE_META, { text }) } : { text };
+    },
+    /** The note's text. Empty when nothing is saved. */
+    async decodeNote(stored) {
+      if (!stored) return '';
+      if (!stored.sealed) return stored.text ?? '';
+      const { text } = await openSealed('note', NOTE_META, stored.sealed);
+      return text ?? '';
     },
   };
 }
@@ -266,23 +281,27 @@ function createIndexedDBStore(db) {
       codec.ready();
       const previous = codec.current();
       try {
-        const { rows, records, versions } = await readTransaction(db, [STORE, MEDIA, VERSIONS], async (tx) => ({
+        const { rows, records, versions, note } = await readTransaction(db, [STORE, MEDIA, VERSIONS, META], async (tx) => ({
           rows: await requestToPromise(tx.objectStore(STORE).getAll()),
           records: await requestToPromise(tx.objectStore(MEDIA).getAll()),
           versions: await requestToPromise(tx.objectStore(VERSIONS).getAll()),
+          note: await requestToPromise(tx.objectStore(META).get(NOTE_META)),
         }));
         const plainRows = await Promise.all(rows.map((row) => codec.decodeRow(row)));
         const plainRecords = await Promise.all(records.map((record) => codec.decodeMedia(record)));
         const plainVersions = await Promise.all(versions.map((version) => codec.decodeVersion(version)));
+        const plainNote = note ? await codec.decodeNote(note) : null;
         codec.set(next);
         const sealedRows = await Promise.all(plainRows.map((row) => codec.encodeRow(row)));
         const sealedRecords = await Promise.all(plainRecords.map((record) => codec.encodeMedia(record)));
         const sealedVersions = await Promise.all(plainVersions.map((version) => codec.encodeVersion(version)));
+        const sealedNote = plainNote === null ? null : await codec.encodeNote(plainNote);
         // One transaction: either every row moves to the new cipher or none does.
-        await writeTransaction(db, [STORE, MEDIA, VERSIONS], (tx) => {
+        await writeTransaction(db, [STORE, MEDIA, VERSIONS, META], (tx) => {
           for (const row of sealedRows) tx.objectStore(STORE).put(row);
           for (const record of sealedRecords) tx.objectStore(MEDIA).put(record);
           for (const version of sealedVersions) tx.objectStore(VERSIONS).put(version);
+          if (sealedNote) tx.objectStore(META).put(sealedNote, NOTE_META);
         });
       } catch (error) {
         codec.set(previous); // rows still hold the old cipher, so keep writing with it
@@ -385,6 +404,14 @@ function createIndexedDBStore(db) {
     async removeMeta(key) {
       await writeTransaction(db, META, (tx) => tx.objectStore(META).delete(key));
     },
+    async getNote() {
+      const stored = await readTransaction(db, META, (tx) => requestToPromise(tx.objectStore(META).get(NOTE_META)));
+      return codec.decodeNote(stored);
+    },
+    async setNote(text) {
+      const sealed = await codec.encodeNote(text);
+      await writeTransaction(db, META, (tx) => tx.objectStore(META).put(sealed, NOTE_META));
+    },
     async clear() {
       await writeTransaction(db, [STORE, VERSIONS, MEDIA, META], (tx) => {
         for (const name of [STORE, VERSIONS, MEDIA, META]) tx.objectStore(name).clear();
@@ -415,16 +442,19 @@ export function createMemoryStore() {
         const plainRows = await Promise.all([...rows.values()].map((row) => codec.decodeRow(clone(row))));
         const plainRecords = await Promise.all([...media.values()].map((record) => codec.decodeMedia(clone(record))));
         const plainVersions = await Promise.all([...versions.values()].map((version) => codec.decodeVersion(clone(version))));
+        const plainNote = metas.has(NOTE_META) ? await codec.decodeNote(clone(metas.get(NOTE_META))) : null;
         codec.set(next);
         const sealedRows = await Promise.all(plainRows.map((row) => codec.encodeRow(row)));
         const sealedRecords = await Promise.all(plainRecords.map((record) => codec.encodeMedia(record)));
         const sealedVersions = await Promise.all(plainVersions.map((version) => codec.encodeVersion(version)));
+        const sealedNote = plainNote === null ? null : await codec.encodeNote(plainNote);
         rows.clear();
         media.clear();
         versions.clear();
         for (const row of sealedRows) rows.set(row.id, clone(row));
         for (const record of sealedRecords) media.set(record.key, clone(record));
         for (const version of sealedVersions) versions.set(version.id, clone(version));
+        if (sealedNote) metas.set(NOTE_META, clone(sealedNote));
       } catch (error) {
         codec.set(previous);
         throw error;
@@ -491,6 +521,12 @@ export function createMemoryStore() {
     },
     async removeMeta(key) {
       metas.delete(key);
+    },
+    async getNote() {
+      return codec.decodeNote(metas.get(NOTE_META) ?? null);
+    },
+    async setNote(text) {
+      metas.set(NOTE_META, await codec.encodeNote(text));
     },
     async clear() {
       rows.clear();
