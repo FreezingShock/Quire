@@ -2005,13 +2005,19 @@ export class QuireApp {
   async showVersions() {
     if (!this.entry) return;
     await this.persist();
-    const { id } = this.entry;
+    const entry = this.entry;
     historyDialog({
-      load: () => this.store.listVersions(id),
+      load: () => this.store.listVersions(entry.id),
       onRestore: (version) => this.restoreVersion(version),
       onSaveNow: () => this.saveVersionNow(),
       onDelete: (version) => this.deleteVersion(version),
-      media: mediaResolver(this.entry),
+      // Pictures are kept with the entry. Sketches come from the version's own strokes, falling back to the current ones.
+      mediaFor: (version) =>
+        mediaResolver({
+          images: entry.images,
+          sketches: { ...entry.sketches, ...(version.content.sketches ?? {}) },
+          pageColor: version.content.pageColor,
+        }),
     });
   }
 
@@ -2023,6 +2029,11 @@ export class QuireApp {
 
     const c = structuredClone(version.content);
     Object.assign(this.entry, { title: c.title, date: c.date, kind: c.kind, tags: c.tags, pageColor: c.pageColor });
+    // Sketches are restored in place, so the sketch pads on the page show the restored strokes.
+    for (const [id, sketch] of Object.entries(c.sketches ?? {})) {
+      if (Object.hasOwn(this.entry.sketches, id)) Object.assign(this.entry.sketches[id], sketch);
+      else this.entry.sketches[id] = sketch;
+    }
     this.dom.editor.value = c.body;
     this.dom.title.value = c.title;
     this.dom.date.value = c.date;
@@ -2087,7 +2098,7 @@ export class QuireApp {
 
   async backup() {
     await this.persist();
-    const entries = await this.store.list();
+    const entries = await this.store.listFull();
     const versions = await this.store.listAllVersions();
     downloadBlob(makeBackup(entries, versions), `quire-backup-${localISODate()}.json`);
     this.showStatus(`Backed up ${entries.length} entries and ${versions.length} versions`);
