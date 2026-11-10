@@ -42,6 +42,8 @@ export const chromeMethods = {
       showPrompts: Boolean(this.prefs.showPrompts),
       showOnThisDay: Boolean(this.prefs.showOnThisDay),
       showTips: !this.prefs.tipsDismissed,
+      showGadgets: this.prefs.showGadgets !== false,
+      gadgets: this.prefs.gadgets,
     });
     const ribbonHidden = Boolean(this.prefs.ribbonHidden);
     this.dom.app.dataset.ribbon = ribbonHidden ? 'minimized' : 'shown';
@@ -52,6 +54,14 @@ export const chromeMethods = {
     // Focus mode: the ambient sound follows the sound setting, and the word goal follows Options.
     this.syncAmbient();
     this.refreshWordStatus();
+  },
+
+  /** The sticky note is sealed by the passcode lock like the rest of the store, so it waits a moment and writes once the typing pauses. */
+  saveSidebarNote(text) {
+    clearTimeout(this.noteTimer);
+    this.noteTimer = setTimeout(() => {
+      this.store?.setNote(text).catch(() => this.showStatus('The sticky note could not be saved.', true));
+    }, 400);
   },
 
   setPref(patch) {
