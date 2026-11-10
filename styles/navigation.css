@@ -1,0 +1,232 @@
+/*
+ * Finding and moving around: the command palette (Ctrl+K), right-click menus,
+ * and the path above an open entry. Menus reuse the menu-bar classes, so each
+ * skin's menu look carries over. Skin overrides for these live in skins.css.
+ */
+
+/* ---------- right-click menus ---------- */
+
+/* A context menu floats where the pointer was, not under the menu bar. */
+.menu-panel.context-menu {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 70;
+  min-width: 212px;
+  max-width: calc(100vw - 12px);
+  border-radius: 4px;
+}
+
+.context-menu .menu-item {
+  padding-right: 12px;
+}
+
+/* ---------- command palette ---------- */
+
+.palette-dialog {
+  width: min(620px, calc(100vw - 24px));
+  margin: 10vh auto 0;
+}
+
+.palette-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 12px;
+}
+
+.palette-input {
+  height: 32px;
+  padding: 0 10px;
+  font-size: 14px;
+}
+
+.palette-scroll {
+  max-height: min(50vh, 380px);
+  overflow-y: auto;
+  border: 1px solid var(--field-edge);
+  border-radius: 3px;
+  background: var(--field);
+  box-shadow: inset 0 1px 2px rgba(20, 40, 70, 0.12);
+}
+
+.palette-list {
+  margin: 0;
+  padding: 3px;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.palette-option {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 5px 10px;
+  border: 1px solid transparent;
+  border-radius: 2px;
+  color: var(--text);
+  cursor: default;
+}
+
+.palette-option[aria-selected="true"] {
+  background: linear-gradient(to bottom, #a9d4fa 0%, #5a9de0 50%, #3273c4 51%, #4f8fd8 100%);
+  border-color: #2a63a8;
+  color: var(--accent-ink);
+}
+
+.palette-option[aria-selected="true"] .palette-meta,
+.palette-option[aria-selected="true"] .menu-shortcut {
+  color: inherit;
+  opacity: 0.9;
+}
+
+.palette-label {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.palette-meta {
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 45%;
+  margin-left: auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.palette-option .menu-shortcut {
+  flex: none;
+}
+
+.palette-empty {
+  margin: 0;
+  padding: 10px 12px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.palette-hint {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+/* ---------- path above the open entry ---------- */
+
+.entry-path {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 5px 10px;
+  background: linear-gradient(to bottom, var(--panel-hi), var(--panel-lo));
+  border-bottom: 1px solid var(--panel-edge);
+}
+
+.app[data-view="home"] .entry-path {
+  display: none;
+}
+
+.entry-back {
+  flex: none;
+  width: 26px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  background: transparent;
+  color: var(--tile-ink);
+  cursor: default;
+}
+
+.entry-back svg {
+  width: 14px;
+  height: 14px;
+}
+
+.entry-back:hover {
+  background: linear-gradient(to bottom, var(--glow-hi), var(--glow-lo));
+  border-color: var(--hover-edge);
+}
+
+.entry-back:active {
+  background: linear-gradient(to bottom, var(--press-hi), var(--press-lo));
+}
+
+.entry-path .entry-path-box {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.entry-path-icon {
+  display: inline-flex;
+  color: var(--muted);
+}
+
+.entry-path-icon svg {
+  width: 14px;
+  height: 14px;
+}
+
+.entry-path-link {
+  flex: none;
+  max-width: 28ch;
+  padding: 1px 4px;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: default;
+}
+
+.entry-path-link:hover {
+  background: linear-gradient(to bottom, var(--glow-hi), var(--glow-lo));
+  border-color: var(--hover-edge);
+}
+
+.entry-path-link:focus-visible,
+.entry-back:focus-visible,
+.palette-option:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+@media (max-width: 560px) {
+  .entry-path {
+    padding: 4px 6px;
+    gap: 6px;
+  }
+
+  .entry-path-icon {
+    display: none;
+  }
+
+  .entry-path-link {
+    max-width: 10ch;
+  }
+
+  .palette-meta {
+    display: none;
+  }
+}
+
+/* A menu title hidden for the current view (Format and Insert on the entries list). */
+.menu-title[hidden] {
+  display: none;
+}

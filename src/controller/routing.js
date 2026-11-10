@@ -9,6 +9,7 @@ export const routingMethods = {
   setView(view) {
     this.view = view;
     this.dom.app.dataset.view = view;
+    this.menubar?.refresh();
     this.keyPen?.refresh();
     if (view === 'editor') this.applyPrefs();
   },
@@ -42,6 +43,7 @@ export const routingMethods = {
   },
 
   updateHomeChrome(count) {
+    this.renderEntryPath();
     this.dom.windowTitle.textContent = 'All entries';
     document.title = 'All entries · Quire';
     this.dom.statusDate.textContent = '';

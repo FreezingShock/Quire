@@ -42,6 +42,7 @@ import { versionActionMethods } from './controller/version-actions.js';
 import { exportMethods } from './controller/export-actions.js';
 import { keyboardMethods } from './controller/keyboard.js';
 import { focusMethods } from './controller/focus-mode.js';
+import { navigationMethods } from './controller/navigation.js';
 
 
 
@@ -78,6 +79,7 @@ export class QuireApp {
       focusProgress: $('#focus-progress'),
       focusFill: $('#focus-fill'),
       focusSave: $('#focus-save'),
+      entryPath: $('#entry-path'),
     };
     this.dom.editor = new LiveEditor(this.dom.editorEl, {
       onChange: () => this.onEditorChanged(),
@@ -124,6 +126,7 @@ export class QuireApp {
     this.frame = 0;
     this.syncFrame = 0;
     this.menubar = null;
+    this.menuDefs = []; // the menu bar's definitions, which the command palette reads
     this.view = 'home'; // 'home' or 'editor'; the landing page is the entries list
     this.home = null;
     this.focusMode = false; // F11 focus writing mode; a session setting, not saved
@@ -237,3 +240,4 @@ Object.assign(QuireApp.prototype, exportMethods);
 Object.assign(QuireApp.prototype, keyboardMethods);
 
 Object.assign(QuireApp.prototype, focusMethods);
+Object.assign(QuireApp.prototype, navigationMethods);

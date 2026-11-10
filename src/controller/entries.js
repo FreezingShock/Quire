@@ -107,6 +107,7 @@ export const entryMethods = {
     const saved = await this.store.save({ ...current, ...fields });
     if (this.entry?.id === id) {
       this.entry = { ...this.entry, notebook: saved.notebook, pinned: saved.pinned, favorite: saved.favorite };
+      this.renderEntryPath();
     }
     await this.refreshHome();
   },

@@ -71,6 +71,10 @@ export const keyboardMethods = {
           event.preventDefault();
           this.openOptions();
           break;
+        case 'k':
+          event.preventDefault();
+          this.openPalette();
+          break;
         case 'z':
         case 'y': {
           if (typing && this.lastSurface === 'text') break; // native text undo
