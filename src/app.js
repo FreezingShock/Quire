@@ -56,6 +56,9 @@ const FONT_LABELS = { serif: 'Serif', sans: 'Sans', mono: 'Monospace' };
 const $ = (selector) => document.querySelector(selector);
 const prevent = (event) => event.preventDefault();
 
+/** Pen pressure rounded to two places. Pens without a reading fall back to a typical press. */
+const penPressure = (event) => (event.pressure > 0 ? Math.round(event.pressure * 100) / 100 : 0.5);
+
 /** Routes are plain hashes: #/ is the home view, #/entry/<id> is one entry. */
 const HOME_ROUTE = '#/';
 const entryRoute = (id) => `#/entry/${encodeURIComponent(id)}`;
@@ -122,6 +125,7 @@ export class QuireApp {
     this.size = 3;
     this.fg = PALETTE[0];
     this.live = null;
+    this.livePen = false;
     this.pointerId = null;
     this.lastSurface = 'text';
     this.saveTimer = 0;
@@ -769,9 +773,11 @@ export class QuireApp {
     const w = Math.round(strokeWidth(this.tool, this.size) * 100) / 100;
     // With snap to grid on, a drag starts on the nearest grid node.
     const start = this.prefs.snapGrid ? snapToGrid([p.x, p.y]) : [p.x, p.y];
+    // Only pen input records pressure, and the highlighter ignores it, so mouse and touch strokes stay as they were.
+    this.livePen = event.pointerType === 'pen' && this.tool !== 'marker';
     this.live = SHAPE_TOOLS.has(this.tool)
       ? { t: this.tool, c: this.fg, w, a: start, b: start }
-      : { t: 'stroke', tool: this.tool, c: this.fg, w, p: [start] };
+      : { t: 'stroke', tool: this.tool, c: this.fg, w, p: [this.livePen ? [...start, penPressure(event)] : start] };
     this.requestRedraw();
   }
 
@@ -790,10 +796,13 @@ export class QuireApp {
     this.shiftHeld = event.shiftKey;
     if (this.live.t === 'stroke') {
       const pts = this.live.p;
-      for (const sample of event.getCoalescedEvents?.() ?? [event]) {
+      const coalesced = event.getCoalescedEvents?.() ?? [];
+      for (const sample of coalesced.length ? coalesced : [event]) {
         const p = this.pointFromEvent(sample);
         const last = pts[pts.length - 1];
-        if (Math.hypot(p.x - last[0], p.y - last[1]) >= 0.5) pts.push([p.x, p.y]);
+        if (Math.hypot(p.x - last[0], p.y - last[1]) >= 0.5) {
+          pts.push(this.livePen ? [p.x, p.y, penPressure(sample)] : [p.x, p.y]);
+        }
       }
     } else {
       const p = this.pointFromEvent(event);
