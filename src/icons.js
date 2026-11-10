@@ -27,7 +27,7 @@ const PATHS = {
   details: '<path d="M2.5 4h2M6.5 4h7M2.5 8h2M6.5 8h7M2.5 12h2M6.5 12h7"/>',
   tiles: '<rect x="2.5" y="2.5" width="4.5" height="4.5"/><rect x="9" y="2.5" width="4.5" height="4.5"/><rect x="2.5" y="9" width="4.5" height="4.5"/><rect x="9" y="9" width="4.5" height="4.5"/>',
   undo: '<path d="M5.4 4.4L2.8 7l2.6 2.6"/><path d="M3 7h6.2a3.8 3.8 0 0 1 0 7.6H7"/>',
-  close: '<path d="M4 4l8 8M12 4l-8 8"/>',
+  lock: '<rect x="3.5" y="7" width="9" height="6.5" rx=".8"/><path d="M5.5 7V5a2.5 2.5 0 0 1 5 0v2"/>',
   image: '<rect x="2.5" y="3" width="11" height="10" rx=".8"/><circle cx="6" cy="6.4" r="1.1"/><path d="M2.8 11.6l3.4-3.2 2.4 2.2 1.8-1.6 3.6 3.2"/>',
   check: '<rect x="2.8" y="2.8" width="10.4" height="10.4" rx=".6"/><path d="M5.2 8.3l1.9 1.9 3.7-3.9"/>',
   chevronUp: '<path d="M3.5 10.5L8 6l4.5 4.5"/>',

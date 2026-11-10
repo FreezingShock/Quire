@@ -1,0 +1,65 @@
+/* Passcode lock dialogs. They reuse the Vista dialog chrome from app.css and add only the bits the lock needs. */
+
+.lock-dialog {
+  width: min(400px, calc(100vw - 32px));
+}
+
+.lock-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.lock-icon {
+  display: inline-grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 4px;
+  background: linear-gradient(to bottom, #ffffff, #dbe8f7);
+  border: 1px solid #5f7fa6;
+  color: #1f4f8f;
+  flex: none;
+}
+
+.lock-icon svg {
+  width: 20px;
+  height: 20px;
+}
+
+.lock-field {
+  display: grid;
+  gap: 4px;
+  font-size: 13px;
+  color: var(--text);
+}
+
+.lock-field > span {
+  font-weight: 600;
+}
+
+.lock-field .dialog-input {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.lock-check {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--text);
+}
+
+.lock-check input {
+  margin: 2px 0 0;
+}
+
+.lock-actions .btn {
+  min-width: 0;
+}
+
+html.is-locked,
+html.is-locked body {
+  overflow: hidden;
+}
