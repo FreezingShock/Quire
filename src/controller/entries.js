@@ -55,6 +55,7 @@ export const entryMethods = {
     this.dom.mood.value = next.mood ?? '';
     this.dom.weather.value = next.weather ?? '';
     this.dom.tags.value = next.tags.join(', ');
+    this.mixtape.setEntry(next.id, next.mixtape);
     this.drawing = new Drawing(next.ink.ops);
     this.layers = normalizeLayers(next.ink.layers);
     this.savedKey = contentKey(next);

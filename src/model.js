@@ -4,6 +4,7 @@
  */
 
 import { normalizeLayers, normalizeOps, visibleOps } from './drawing.js';
+import { normalizeMixtape } from './mixtape.js';
 
 export const KINDS = Object.freeze([
   { id: 'journal', label: 'Journal' },
@@ -138,6 +139,8 @@ export function normalizeEntry(raw = {}) {
     // Pictures and sketches are referenced from the body by id. Older entries have neither, so both default to empty.
     images: normalizeImages(raw.images),
     sketches: normalizeSketches(raw.sketches),
+    // Song links for the entry's mixtape. Older entries have none, so they read back as an empty list.
+    mixtape: normalizeMixtape(raw.mixtape),
     pageColor: HEX.test(raw.pageColor ?? '') ? raw.pageColor.toLowerCase() : DEFAULT_PAGE_COLOR,
     ink: {
       ops: normalizeOps(raw.ink?.ops),

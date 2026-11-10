@@ -10,6 +10,8 @@ export const routingMethods = {
     this.view = view;
     this.dom.app.dataset.view = view;
     this.menubar?.refresh();
+    // Leaving the editor stops the mixtape player, since its song would keep playing from the hidden page.
+    if (view !== 'editor') this.mixtape?.stop();
     this.keyPen?.refresh();
     if (view === 'editor') this.applyPrefs();
   },
