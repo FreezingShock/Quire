@@ -290,6 +290,12 @@ export class HomeView {
     this.render();
   }
 
+  /** The saved searches, once the store has opened (they are sealed with the lock). */
+  setSavedSearches(list) {
+    this.savedSearches = normalizeSavedSearches(list);
+    this.render();
+  }
+
   /** The sticky note's saved text, once the store has opened. */
   setNote(text) {
     this.note = text ?? '';

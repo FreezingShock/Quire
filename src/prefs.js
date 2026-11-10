@@ -21,8 +21,6 @@ const DEFAULTS = Object.freeze({
   // The Vista-style sidebar of gadgets beside the dashboard, and the gadgets it shows, in order.
   showGadgets: true,
   gadgets: ['clock', 'streak', 'mood', 'word', 'note', 'slides'],
-  // Saved searches in the entries sidebar: { id, name, query, filter } (see savedsearches.js).
-  savedSearches: [],
   // Getting-started tips on the dashboard. "Got it" sets this. Options (Home tab) brings them back.
   tipsDismissed: false,
   // The first-run sample entry is written once. Deleting it does not bring it back.
@@ -57,6 +55,21 @@ export function loadPrefs() {
   } catch {
     return { ...DEFAULTS };
   }
+}
+
+/**
+ * Removes keys from the saved prefs. Used for settings that moved into the
+ * sealed store, so they no longer sit in plain browser storage.
+ */
+export function forgetPrefs(keys) {
+  try {
+    const raw = JSON.parse(globalThis.localStorage?.getItem(KEY) ?? '{}');
+    for (const key of keys) delete raw[key];
+    globalThis.localStorage?.setItem(KEY, JSON.stringify(raw));
+  } catch {
+    // Storage is blocked. The old copy stays until a later start can remove it.
+  }
+  return loadPrefs();
 }
 
 export function savePrefs(patch) {

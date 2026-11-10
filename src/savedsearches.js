@@ -1,6 +1,6 @@
 /**
  * Saved searches: a name for a search text and list filter, kept in the
- * browser prefs. Pure, no DOM. A saved search keeps the query and one filter
+ * sealed store (see storage.js). Pure, no DOM. A saved search keeps the query and one filter
  * (for example Tag: travel); the sort order is not saved.
  */
 import { newId } from './model.js';

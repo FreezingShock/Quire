@@ -165,8 +165,9 @@ export class QuireApp {
       showTips: !this.prefs.tipsDismissed,
       showGadgets: this.prefs.showGadgets !== false,
       gadgets: this.prefs.gadgets,
-      savedSearches: this.prefs.savedSearches,
-      onSavedSearchesChange: (savedSearches) => this.setPref({ savedSearches }),
+      // Saved searches come from the sealed store once it opens (see loadSavedSearches).
+      savedSearches: [],
+      onSavedSearchesChange: (savedSearches) => this.saveSavedSearches(savedSearches),
       onHabitsChange: (habits) => this.saveHabits(habits),
       onGadgetsChange: (gadgets) => this.setPref({ gadgets }),
       navSections: this.prefs.navSections,
@@ -196,6 +197,7 @@ export class QuireApp {
     this.passcodeOn = await unlockStore(this.store);
     this.home.setNote((await this.store.getNote()) ?? '');
     this.home.setHabits(await this.store.getHabits());
+    this.home.setSavedSearches(await this.loadSavedSearches());
     startPwa({ onReady: () => this.showStatus('Quire is ready to work offline', false, 'saved') });
     startReminders({
       getReminder: () => this.prefs.reminder ?? REMINDER_DEFAULTS,
