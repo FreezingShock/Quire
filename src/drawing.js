@@ -4,11 +4,14 @@
  * keeps its shape when the window resizes. Ops are plain JSON, so they store
  * directly in the entry, and undo is just "pop the last op and replay".
  *
- * Each drawing op (stroke, line, rect, ellipse, fill, text) has a stable `id`
- * and belongs to a layer through `l`. Ops without `l` are on the first layer,
- * so entries saved before layers existed still open correctly. Later ops can
- * change earlier ones:
+ * Each drawing op (stroke, line, rect, ellipse, curve, poly, stamp, fill, text)
+ * has a stable `id` and belongs to a layer through `l`. Ops without `l` are on
+ * the first layer, so entries saved before layers existed still open correctly.
+ * A stroke with tool 'spray' is a path too, painted as scattered dots.
+ * Later ops can change earlier ones:
  *   move    { ids, dx, dy }  shifts the ops with those ids
+ *   xform   { ids, m }       maps the ops with those ids through an affine matrix
+ *                            (flip, rotate, or resize about the selection's center)
  *   delete  { ids }          removes them
  *   edit    { id, text }     replaces the text of a text box
  *   clear   { l? }           wipes one layer, or every layer when `l` is absent
@@ -36,7 +39,13 @@ export const TEXT_FONTS = {
 export const TEXT_SIZES = { 1: 20, 3: 34, 6: 56 };
 export const DEFAULT_TEXT_WIDTH = 300;
 
-const DRAW_TYPES = new Set(['stroke', 'line', 'rect', 'ellipse', 'fill', 'text']);
+const DRAW_TYPES = new Set(['stroke', 'line', 'rect', 'ellipse', 'curve', 'poly', 'stamp', 'fill', 'text']);
+
+/** Stamp sizes (box side in normalized units) for the size row at 1, 3 and 6. */
+export const STAMP_SIZES = { 1: 40, 3: 80, 6: 140 };
+export const STAMP_KINDS = ['star', 'heart', 'smile', 'arrow', 'bolt', 'cloud'];
+/** A spray stroke scatters dots out to this many times its width. */
+export const SPRAY_SPREAD = 4;
 
 export function newOpId() {
   return `o${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
@@ -192,38 +201,97 @@ export class Drawing {
   }
 }
 
-function translateOp(op, dx, dy) {
-  if (!dx && !dy) return op;
+const IDENTITY = [1, 0, 0, 1, 0, 0];
+
+/**
+ * Affine matrices use the SVG layout [a, b, c, d, e, f]: the point (x, y) maps
+ * to (a*x + c*y + e, b*x + d*y + f).
+ */
+export function translationMatrix(dx, dy) {
+  return [1, 0, 0, 1, dx, dy];
+}
+
+/** The matrix that applies `n` first, then `m`. */
+function composeMatrix(m, n) {
+  const [a1, b1, c1, d1, e1, f1] = n;
+  const [a2, b2, c2, d2, e2, f2] = m;
+  return [
+    a2 * a1 + c2 * b1,
+    b2 * a1 + d2 * b1,
+    a2 * c1 + c2 * d1,
+    b2 * c1 + d2 * d1,
+    a2 * e1 + c2 * f1 + e2,
+    b2 * e1 + d2 * f1 + f2,
+  ];
+}
+
+const isIdentity = (m) => m.every((v, i) => v === IDENTITY[i]);
+
+/**
+ * Matrix for a selection transform about the point (cx, cy): 'flip-h', 'flip-v',
+ * 'rotate-cw', 'rotate-ccw', or 'resize' with the scale factors kx and ky.
+ */
+export function selectionMatrix(kind, cx, cy, kx = 1, ky = 1) {
+  const round = (m) => m.map((v) => Math.round(v * 10000) / 10000);
+  switch (kind) {
+    case 'flip-h': return round([-1, 0, 0, 1, 2 * cx, 0]);
+    case 'flip-v': return round([1, 0, 0, -1, 0, 2 * cy]);
+    case 'rotate-cw': return round([0, 1, -1, 0, cx + cy, cy - cx]);
+    case 'rotate-ccw': return round([0, -1, 1, 0, cx - cy, cx + cy]);
+    case 'resize': return round([kx, 0, 0, ky, cx * (1 - kx), cy * (1 - ky)]);
+    default: throw new Error(`Unknown selection transform: ${kind}`);
+  }
+}
+
+/**
+ * Maps one drawable op through an affine matrix. Ids and styles are kept. Line
+ * widths, stamp sizes and font sizes scale with the matrix's area factor, so a
+ * half-size resize makes the ink half size. Text boxes stay upright: flips and
+ * rotations only move them, and a resize changes their width and font size.
+ */
+function transformOp(op, m) {
+  if (isIdentity(m)) return op;
+  const [a, b, c, d, e, f] = m;
+  const k = Math.sqrt(Math.abs(a * d - b * c));
   // Points may carry a third value, the pen pressure, which must survive a move.
-  const shift = (p) => [p[0] + dx, p[1] + dy, ...p.slice(2)];
-  if (op.t === 'stroke') return { ...op, p: op.p.map(shift) };
-  if (op.t === 'line' || op.t === 'rect' || op.t === 'ellipse' || op.t === 'text') {
-    return { ...op, a: shift(op.a), b: shift(op.b) };
+  const map = (p) => [a * p[0] + c * p[1] + e, b * p[0] + d * p[1] + f, ...p.slice(2)];
+  if (op.t === 'stroke') return { ...op, p: op.p.map(map), w: op.w * k };
+  if (op.t === 'line' || op.t === 'rect' || op.t === 'ellipse') {
+    return { ...op, a: map(op.a), b: map(op.b), w: op.w * k };
+  }
+  if (op.t === 'curve') {
+    return { ...op, a: map(op.a), b: map(op.b), c1: map(op.c1), c2: map(op.c2), w: op.w * k };
+  }
+  if (op.t === 'poly') return { ...op, pts: op.pts.map(map), w: op.w * k };
+  if (op.t === 'stamp') return { ...op, a: map(op.a), s: op.s * k, w: op.w * k };
+  if (op.t === 'text') {
+    const a0 = map(op.a);
+    const width = Math.abs(op.b[0] - op.a[0]) * k;
+    return { ...op, a: a0, b: [a0[0] + width, a0[1] + (op.b[1] - op.a[1])], s: (Number(op.s) || TEXT_SIZES[3]) * k };
   }
   return op;
 }
 
 /** A copy of a drawable op moved by (dx, dy). Used for drag previews. */
 export function moveOp(op, dx, dy) {
-  return translateOp(op, dx, dy);
+  return transformOp(op, translationMatrix(dx, dy));
 }
 
 /**
- * The drawable ops that are on the page right now, in paint order. Move, delete
- * and edit ops are applied, and clears remove the ops they wipe out.
+ * The drawable ops that are on the page right now, in paint order. Move, xform,
+ * delete and edit ops are applied in the order they were made, and clears remove
+ * the ops they wipe out.
  */
 export function resolveOps(ops) {
-  const offsets = new Map();
+  const mats = new Map();
   const removed = new Set();
   const texts = new Map();
   for (const op of ops) {
     if (op.t === 'move') {
-      for (const id of op.ids ?? []) {
-        const offset = offsets.get(id) ?? [0, 0];
-        offset[0] += op.dx;
-        offset[1] += op.dy;
-        offsets.set(id, offset);
-      }
+      const shift = translationMatrix(op.dx, op.dy);
+      for (const id of op.ids ?? []) mats.set(id, composeMatrix(shift, mats.get(id) ?? IDENTITY));
+    } else if (op.t === 'xform') {
+      for (const id of op.ids ?? []) mats.set(id, composeMatrix(op.m, mats.get(id) ?? IDENTITY));
     } else if (op.t === 'delete') {
       for (const id of op.ids ?? []) removed.add(id);
     } else if (op.t === 'edit') {
@@ -239,12 +307,64 @@ export function resolveOps(ops) {
     }
     if (!DRAW_TYPES.has(op.t) || removed.has(op.id)) continue;
     let next = op;
-    const offset = offsets.get(op.id);
-    if (offset) next = translateOp(next, offset[0], offset[1]);
+    const m = mats.get(op.id);
+    if (m) next = transformOp(next, m);
     if (op.t === 'text' && texts.has(op.id)) next = { ...next, text: texts.get(op.id) };
     live.push(next);
   }
   return live;
+}
+
+/** Control points for a straight curve from a to b: the points one third and two thirds along the chord. */
+export function straightCurve(a, b) {
+  return {
+    c1: [a[0] + (b[0] - a[0]) / 3, a[1] + (b[1] - a[1]) / 3],
+    c2: [a[0] + (2 * (b[0] - a[0])) / 3, a[1] + (2 * (b[1] - a[1])) / 3],
+  };
+}
+
+/** A point on a cubic Bezier curve at parameter t. */
+export function bezierPoint(p0, p1, p2, p3, t) {
+  const u = 1 - t;
+  const f0 = u * u * u;
+  const f1 = 3 * u * u * t;
+  const f2 = 3 * u * t * t;
+  const f3 = t * t * t;
+  return [
+    f0 * p0[0] + f1 * p1[0] + f2 * p2[0] + f3 * p3[0],
+    f0 * p0[1] + f1 * p1[1] + f2 * p2[1] + f3 * p3[1],
+  ];
+}
+
+const CURVE_STEPS = 24;
+
+/** The curve sampled into a polyline, for bounds and hit tests. */
+export function curvePoints(op) {
+  const points = [];
+  for (let i = 0; i <= CURVE_STEPS; i += 1) points.push(bezierPoint(op.a, op.c1, op.c2, op.b, i / CURVE_STEPS));
+  return points;
+}
+
+/**
+ * Moves a curve's control points so the curve passes through `target` at
+ * parameter t. 'both' moves both controls, which bends the whole middle. 'end'
+ * moves only the second control, which reshapes the far half. `snap` is the
+ * curve as it was when the bend started, so a drag never piles up.
+ */
+export function bendCurve(snap, t, target, which) {
+  const [ax, ay] = bezierPoint(snap.a, snap.c1, snap.c2, snap.b, t);
+  const dx = target[0] - ax;
+  const dy = target[1] - ay;
+  const u = 1 - t;
+  if (which === 'both') {
+    const w = 3 * t * u;
+    return {
+      c1: [snap.c1[0] + dx / w, snap.c1[1] + dy / w],
+      c2: [snap.c2[0] + dx / w, snap.c2[1] + dy / w],
+    };
+  }
+  const w = 3 * u * t * t;
+  return { c1: [...snap.c1], c2: [snap.c2[0] + dx / w, snap.c2[1] + dy / w] };
 }
 
 let measureCanvas = null;
@@ -307,6 +427,15 @@ export function opBounds(op, measure) {
   } else if (op.t === 'line' || op.t === 'rect' || op.t === 'ellipse') {
     if (!op.a || !op.b) return null;
     points = [op.a, op.b];
+  } else if (op.t === 'curve') {
+    if (!op.a || !op.b || !op.c1 || !op.c2) return null;
+    points = curvePoints(op);
+  } else if (op.t === 'poly') {
+    points = op.pts;
+  } else if (op.t === 'stamp') {
+    if (!op.a) return null;
+    const half = op.s / 2;
+    points = [[op.a[0] - half, op.a[1] - half], [op.a[0] + half, op.a[1] + half]];
   } else if (op.t === 'text') {
     if (!op.a || !op.b) return null;
     const layout = textLayout(measure ?? measureContext(), op, 1);
@@ -325,7 +454,24 @@ export function opBounds(op, measure) {
     x1 = Math.max(x1, x);
     y1 = Math.max(y1, y);
   }
-  return [x0, y0, x1, y1];
+  // A spray reaches well past its path, so its box covers the dots too.
+  const spray = op.t === 'stroke' && op.tool === 'spray' ? op.w * SPRAY_SPREAD : 0;
+  return [x0 - spray, y0 - spray, x1 + spray, y1 + spray];
+}
+
+/** The polyline a path-like op is hit-tested against. Null for ops that are hit by their box. */
+function pathOf(op) {
+  if (op.t === 'stroke') return op.p;
+  if (op.t === 'line') return [op.a, op.b];
+  if (op.t === 'curve') return curvePoints(op);
+  if (op.t === 'poly') return op.closed ? [...op.pts, op.pts[0]] : op.pts;
+  return null;
+}
+
+/** How far a path's ink reaches from the path itself. A spray reaches its whole cloud. */
+function reachOf(op) {
+  if (op.t === 'stroke' && op.tool === 'spray') return (op.w ?? 0) * SPRAY_SPREAD;
+  return (op.w ?? 0) / 2;
 }
 
 /** Largest y used by any op, in normalized units. Used to size exports. */
@@ -357,10 +503,10 @@ function distanceToSegment([px, py], [ax, ay], [bx, by]) {
 export function hitOp(ops, point, measure) {
   for (let i = ops.length - 1; i >= 0; i -= 1) {
     const op = ops[i];
-    const reach = HIT_PAD + (op.w ?? 0) / 2;
-    if (op.t === 'stroke' || op.t === 'line') {
-      const path = op.t === 'stroke' ? op.p : [op.a, op.b];
-      if (!path?.length) continue;
+    const reach = HIT_PAD + reachOf(op);
+    const path = pathOf(op);
+    if (path) {
+      if (!path.length) continue;
       if (path.length === 1) {
         if (Math.hypot(point[0] - path[0][0], point[1] - path[0][1]) <= reach) return op;
         continue;
@@ -474,6 +620,115 @@ export function sampleColor(ctx, x, y) {
   return a === 0 ? null : toHex(r, g, b);
 }
 
+/**
+ * A small seeded random generator (mulberry32). The seed comes from the point's
+ * place in the path and its position, so a spray lands the same way on every replay.
+ */
+function seededRandom(index, x, y) {
+  let s = (Math.imul(index + 1, 0x9e3779b1) ^ Math.imul(Math.round(x * 100), 0x85ebca6b) ^ Math.imul(Math.round(y * 100), 0xc2b2ae35)) >>> 0;
+  return () => {
+    s = (s + 0x6d2b79f5) >>> 0;
+    let t = s;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+/** Spray paint: every sample on the path scatters dots over a disc. */
+function drawSpray(ctx, op, scale) {
+  const radius = op.w * SPRAY_SPREAD;
+  const count = Math.round(6 + op.w * 4);
+  const dot = Math.max(1, Math.round(scale * 1.2));
+  ctx.fillStyle = op.c;
+  op.p.forEach((p, i) => {
+    const rand = seededRandom(i, p[0], p[1]);
+    for (let k = 0; k < count; k += 1) {
+      const angle = rand() * Math.PI * 2;
+      const dist = Math.sqrt(rand()) * radius;
+      ctx.fillRect(
+        Math.round((p[0] + Math.cos(angle) * dist) * scale),
+        Math.round((p[1] + Math.sin(angle) * dist) * scale),
+        dot,
+        dot,
+      );
+    }
+  });
+}
+
+/**
+ * Stamp shapes, drawn in a box centered on the stamp. Most are filled
+ * silhouettes. The smile is an outline with eyes and a mouth.
+ */
+function drawStamp(ctx, op, scale) {
+  const x = op.a[0] * scale;
+  const y = op.a[1] * scale;
+  const r = (op.s / 2) * scale;
+  // Unit coordinates run from 0 to 1 across the box.
+  const U = (u, v) => [x + (u * 2 - 1) * r, y + (v * 2 - 1) * r];
+  const polygon = (points) => {
+    ctx.beginPath();
+    points.forEach((p, i) => (i ? ctx.lineTo(...U(p[0], p[1])) : ctx.moveTo(...U(p[0], p[1]))));
+    ctx.closePath();
+    ctx.fill();
+  };
+  switch (op.k) {
+    case 'heart':
+      ctx.beginPath();
+      ctx.moveTo(...U(0.5, 0.9));
+      ctx.bezierCurveTo(...U(0.1, 0.6), ...U(0, 0.4), ...U(0, 0.25));
+      ctx.bezierCurveTo(...U(0, 0.1), ...U(0.1, 0), ...U(0.25, 0));
+      ctx.bezierCurveTo(...U(0.37, 0), ...U(0.45, 0.07), ...U(0.5, 0.15));
+      ctx.bezierCurveTo(...U(0.55, 0.07), ...U(0.63, 0), ...U(0.75, 0));
+      ctx.bezierCurveTo(...U(0.9, 0), ...U(1, 0.1), ...U(1, 0.25));
+      ctx.bezierCurveTo(...U(1, 0.4), ...U(0.9, 0.6), ...U(0.5, 0.9));
+      ctx.closePath();
+      ctx.fill();
+      break;
+    case 'star':
+      ctx.beginPath();
+      for (let i = 0; i < 10; i += 1) {
+        const angle = -Math.PI / 2 + (i * Math.PI) / 5;
+        const rad = i % 2 ? r * 0.45 : r;
+        const p = [x + Math.cos(angle) * rad, y + Math.sin(angle) * rad];
+        if (i) ctx.lineTo(...p);
+        else ctx.moveTo(...p);
+      }
+      ctx.closePath();
+      ctx.fill();
+      break;
+    case 'arrow':
+      polygon([[0, 0.36], [0.58, 0.36], [0.58, 0.08], [1, 0.5], [0.58, 0.92], [0.58, 0.64], [0, 0.64]]);
+      break;
+    case 'bolt':
+      polygon([[0.62, 0], [0.1, 0.58], [0.45, 0.58], [0.34, 1], [0.9, 0.38], [0.55, 0.38], [0.7, 0]]);
+      break;
+    case 'cloud':
+      for (const [cx, cy, rad] of [[0.25, 0.5, 0.2], [0.5, 0.36, 0.26], [0.75, 0.5, 0.2]]) {
+        ctx.beginPath();
+        ctx.arc(x + (cx * 2 - 1) * r, y + (cy * 2 - 1) * r, rad * 2 * r, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.fillRect(x - 0.7 * r, y + 0.1 * r, 1.4 * r, 0.4 * r);
+      break;
+    case 'smile':
+      ctx.beginPath();
+      ctx.arc(x, y, r * 0.9, 0, Math.PI * 2);
+      ctx.stroke();
+      for (const sign of [-1, 1]) {
+        ctx.beginPath();
+        ctx.arc(x + sign * 0.36 * r, y - 0.28 * r, Math.max(0.5, op.w * scale * 0.7), 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.beginPath();
+      ctx.arc(x, y + 0.05 * r, r * 0.52, 0.15 * Math.PI, 0.85 * Math.PI);
+      ctx.stroke();
+      break;
+    default:
+      polygon([[0.5, 0], [1, 1], [0, 1]]);
+  }
+}
+
 /** Draw one non-fill op onto a canvas context. `scale` is device pixels per normalized unit. */
 export function applyOp(ctx, op, scale) {
   const { canvas } = ctx;
@@ -491,6 +746,11 @@ export function applyOp(ctx, op, scale) {
   ctx.lineWidth = op.w * scale;
 
   if (op.t === 'stroke') {
+    if (op.tool === 'spray') {
+      drawSpray(ctx, op, scale);
+      ctx.restore();
+      return;
+    }
     if (op.tool === 'eraser') ctx.globalCompositeOperation = 'destination-out';
     if (op.tool === 'marker') ctx.globalAlpha = MARKER_ALPHA;
     const pts = op.p;
@@ -517,6 +777,18 @@ export function applyOp(ctx, op, scale) {
     ctx.moveTo(op.a[0] * scale, op.a[1] * scale);
     ctx.lineTo(op.b[0] * scale, op.b[1] * scale);
     ctx.stroke();
+  } else if (op.t === 'curve') {
+    ctx.beginPath();
+    ctx.moveTo(op.a[0] * scale, op.a[1] * scale);
+    ctx.bezierCurveTo(op.c1[0] * scale, op.c1[1] * scale, op.c2[0] * scale, op.c2[1] * scale, op.b[0] * scale, op.b[1] * scale);
+    ctx.stroke();
+  } else if (op.t === 'poly') {
+    ctx.beginPath();
+    op.pts.forEach((p, i) => (i ? ctx.lineTo(p[0] * scale, p[1] * scale) : ctx.moveTo(p[0] * scale, p[1] * scale)));
+    if (op.closed) ctx.closePath();
+    ctx.stroke();
+  } else if (op.t === 'stamp') {
+    drawStamp(ctx, op, scale);
   } else if (op.t === 'rect') {
     ctx.strokeRect(
       op.a[0] * scale,

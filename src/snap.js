@@ -55,7 +55,7 @@ export function constrainSquare(a, b) {
  */
 export function shapeEnd(tool, a, b, { shift = false, grid = false, angles = false } = {}) {
   let end = grid ? snapToGrid(b) : [b[0], b[1]];
-  if (tool === 'line') {
+  if (tool === 'line' || tool === 'curve') {
     if (shift) end = constrainLine(a, end, SHIFT_ANGLE_DEG);
     else if (angles) end = constrainLine(a, end, SNAP_ANGLE_DEG);
   } else if (shift) {

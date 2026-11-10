@@ -8,15 +8,23 @@ export const TOOLS = [
   { id: 'brush', label: 'Brush', key: 'B', icon: 'brush', hint: 'Brush: drag to paint. Choose a width under the tools.' },
   { id: 'marker', label: 'Highlighter', key: 'H', icon: 'marker', hint: 'Highlighter: drag for a see-through stroke. Overlaps stay translucent.' },
   { id: 'eraser', label: 'Eraser', key: 'E', icon: 'eraser', hint: 'Eraser: drag to rub out ink on the current layer. Markdown text is not affected.' },
+  { id: 'spray', label: 'Spray can', key: 'K', icon: 'spray', hint: 'Spray can: drag, or hold still to build up a spot. The width under the tools sets the spread.' },
   { id: 'line', label: 'Line', key: 'L', icon: 'line', hint: 'Line: drag to draw a straight line. Hold Shift for 45° steps.' },
+  { id: 'curve', label: 'Curve', key: 'C', icon: 'curve', hint: 'Curve: drag a line, then drag to bend it. Drag again for the other half. Enter finishes.' },
   { id: 'rect', label: 'Rectangle', key: 'R', icon: 'rect', hint: 'Rectangle: drag from one corner to the other. Hold Shift for a square.' },
   { id: 'ellipse', label: 'Ellipse', key: 'O', icon: 'ellipse', hint: 'Ellipse: drag to set the size of the oval. Hold Shift for a circle.' },
-  { id: 'select', label: 'Select', key: 'S', icon: 'select', hint: 'Select: drag a box around ink or text, or press on one piece to move it. Delete removes it. Arrow keys nudge it.' },
+  { id: 'polygon', label: 'Polygon', key: 'N', icon: 'polygon', hint: 'Polygon: drag out each side. Click the first point to close, or double-click to finish.' },
+  { id: 'stamp', label: 'Stamps', key: 'J', icon: 'stamp', hint: 'Stamps: pick a shape, then click to place it in the ink color.' },
+  { id: 'select', label: 'Select', key: 'S', icon: 'select', hint: 'Select: drag a box around ink or text. Flip, turn or resize with the row under the tools.' },
   { id: 'text', label: 'Text box', key: 'A', icon: 'textbox', hint: 'Text box: drag to set the width, then type. Click existing text to edit it. Escape finishes.' },
+  { id: 'magnifier', label: 'Magnifier', key: 'M', icon: 'magnifier', hint: 'Magnifier: click to zoom in on a spot. Shift-click zooms back out.' },
 ];
 
-export const POINTER_TOOLS = new Set(['pick', 'fill', 'pencil', 'brush', 'marker', 'eraser', 'line', 'rect', 'ellipse', 'select', 'text']);
-export const SHAPE_TOOLS = new Set(['line', 'rect', 'ellipse']);
+export const POINTER_TOOLS = new Set([
+  'pick', 'fill', 'pencil', 'brush', 'marker', 'eraser', 'spray', 'line', 'curve', 'rect', 'ellipse',
+  'polygon', 'stamp', 'select', 'text', 'magnifier',
+]);
+export const SHAPE_TOOLS = new Set(['line', 'curve', 'rect', 'ellipse']);
 export const TOOL_BY_KEY = Object.fromEntries(TOOLS.map((tool) => [tool.key.toLowerCase(), tool.id]));
 export const STROKE_SIZES = [1, 3, 6];
 
