@@ -90,8 +90,29 @@ export function visibleLayerIds(layers) {
   return layers.filter((layer) => layer.visible).map((layer) => layer.id);
 }
 
+/**
+ * The ops still on the sheet. A clear hides the ops before it: a clear with no
+ * layer hides every layer, and a clear with a layer hides only that layer. Undo
+ * keeps the clears, so the ink can come back.
+ */
+export function visibleOps(ops) {
+  const visible = [];
+  let all = false;
+  const cleared = new Set();
+  for (let i = ops.length - 1; i >= 0; i -= 1) {
+    const op = ops[i];
+    if (op.t === 'clear') {
+      if (op.l === undefined) all = true;
+      else cleared.add(op.l);
+    } else if (DRAW_TYPES.has(op.t) && !all && !cleared.has(layerOf(op))) {
+      visible.push(op);
+    }
+  }
+  return visible.reverse();
+}
+
 export function hasInkOn(ops, layer) {
-  return ops.some((op) => DRAW_TYPES.has(op.t) && layerOf(op) === layer);
+  return visibleOps(ops).some((op) => layerOf(op) === layer);
 }
 
 /** Ordered list of ops plus a redo stack. Pure logic, no canvas. */
@@ -109,7 +130,7 @@ export class Drawing {
   }
 
   get isEmpty() {
-    return this.#ops.length === 0;
+    return visibleOps(this.#ops).length === 0;
   }
 
   get canUndo() {

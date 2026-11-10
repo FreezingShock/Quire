@@ -50,7 +50,10 @@ test('displayTitle falls back to the first heading, then Untitled', () => {
 
 test('isBlankEntry only treats empty entries as blank', () => {
   assert.equal(isBlankEntry({ title: ' ', body: '', ink: { ops: [] } }), true);
-  assert.equal(isBlankEntry({ title: '', body: '', ink: { ops: [{ t: 'clear' }] } }), false);
+  // A cleared drawing has no visible ink, so the entry is blank again.
+  assert.equal(isBlankEntry({ title: '', body: '', ink: { ops: [{ t: 'clear' }] } }), true);
+  assert.equal(isBlankEntry({ title: '', body: '', ink: { ops: [{ t: 'stroke', p: [[1, 1]] }, { t: 'clear' }] } }), true);
+  assert.equal(isBlankEntry({ title: '', body: '', ink: { ops: [{ t: 'clear' }, { t: 'stroke', p: [[1, 1]] }] } }), false);
 });
 
 test('compareEntries puts the newest day first', () => {

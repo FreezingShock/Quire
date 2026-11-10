@@ -3,7 +3,7 @@
 import { escapeHtml, renderMarkdown } from './markdown.js';
 import { createZip } from './zip.js';
 import { KINDS, displayTitle, fileStem, formatLongDate, localISODate, normalizeEntry } from './model.js';
-import { NORM_WIDTH, inkExtent, renderInkCanvas } from './drawing.js';
+import { NORM_WIDTH, inkExtent, renderInkCanvas, visibleOps } from './drawing.js';
 import { normalizeVersion } from './versions.js';
 
 const encoder = new TextEncoder();
@@ -57,7 +57,7 @@ export function inkPngBlob(entry) {
 /** Markdown file, or a .zip with the Markdown and drawing PNG when the entry has ink. */
 export async function exportMarkdown(entry) {
   const stem = fileStem(entry);
-  if (!entry.ink.ops.length) {
+  if (!visibleOps(entry.ink.ops).length) {
     downloadBlob(new Blob([entryToMarkdown(entry)], { type: 'text/markdown;charset=utf-8' }), `${stem}.md`);
     return;
   }

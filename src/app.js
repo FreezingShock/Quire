@@ -123,6 +123,20 @@ function formatTime(date) {
   return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 }
 
+/** The parts of an entry that count as an edit. Timestamps and the sheet height are left out. */
+function contentKey(entry) {
+  return JSON.stringify([
+    entry.title,
+    entry.date,
+    entry.kind,
+    entry.tags,
+    entry.body,
+    entry.pageColor,
+    entry.ink.ops,
+    normalizeLayers(entry.ink.layers),
+  ]);
+}
+
 export class QuireApp {
   constructor() {
     this.dom = {
@@ -183,6 +197,7 @@ export class QuireApp {
     this.index = null; // resolved ops and their bounds, rebuilt when the drawing changes
     this.lastSurface = 'text';
     this.saveTimer = 0;
+    this.savedKey = null; // contentKey of the open entry as last written
     this.saveChain = Promise.resolve();
     this.frame = 0;
     this.syncFrame = 0;
@@ -1399,6 +1414,24 @@ export class QuireApp {
     this.saveTimer = 0;
     if (!this.entry) return this.saveChain;
     const entry = this.snapshot();
+    const key = contentKey(entry);
+    // Nothing changed since the last write, so skip the write. That keeps "Modified" meaning "last edited".
+    // A leave or manual save can still keep a version of this content, so the version rules run.
+    if (key === this.savedKey) {
+      this.saveChain = this.saveChain
+        .then(() => this.keepVersion(entry, reason))
+        .then((kept) => {
+          this.showStatus(`Saved at ${formatTime(new Date())}${kept ? ' · version kept' : ''}`, false, 'saved');
+          return kept;
+        })
+        .catch((error) => {
+          console.error(error);
+          this.showStatus(`Could not save: ${error.message}`, true);
+          return false;
+        });
+      return this.saveChain;
+    }
+    this.savedKey = key;
     entry.updatedAt = new Date().toISOString();
     this.saveChain = this.saveChain
       .then(async () => {
@@ -1410,6 +1443,7 @@ export class QuireApp {
       })
       .catch((error) => {
         console.error(error);
+        this.savedKey = null; // The write failed, so the next save must try again.
         this.showStatus(`Could not save: ${error.message}`, true);
         return false;
       });
@@ -1449,6 +1483,7 @@ export class QuireApp {
     this.dom.tags.value = next.tags.join(', ');
     this.drawing = new Drawing(next.ink.ops);
     this.layers = normalizeLayers(next.ink.layers);
+    this.savedKey = contentKey(next);
     this.activeLayer = this.layers[this.layers.length - 1].id;
     this.selection = new Set();
     this.lifted = null;
