@@ -12,10 +12,8 @@ import {
   MOODS,
   WEATHERS,
   createEntry,
-  isBlankEntry,
   localISODate,
 } from './model.js';
-import { mediaResolver } from './media.js';
 import { LiveEditor } from './livetext.js';
 import { BASE_LAYER, Drawing } from './drawing.js';
 import { PALETTE, TOOL_BY_KEY } from './tools.js';
@@ -30,21 +28,18 @@ import {
   parseBackup,
   printEntry,
 } from './export.js';
-import { confirmDialog, showShortcuts } from './dialogs.js';
+import { showShortcuts } from './dialogs.js';
 import { installState, promptInstall, showInstallHelp, startPwa, startReminders, REMINDER_DEFAULTS } from './pwa.js';
 import { HomeView } from './home.js';
 import { sampleEntry } from './onboarding.js';
 import { MAX_VERSIONS } from './versions.js';
-import { formatVersionTime, historyDialog } from './history.js';
 import {
   FONT_STACKS,
   NUDGE,
   NUDGE_FAST,
-  ZOOM_STEPS,
 } from './controller/constants.js';
 import {
   $,
-  contentKey,
   fillSelect,
   isTextTarget,
 } from './controller/helpers.js';
@@ -64,6 +59,7 @@ import { textBoxMethods } from './controller/text-boxes.js';
 import { layerActionMethods } from './controller/layer-actions.js';
 import { savingMethods } from './controller/saving.js';
 import { entryMethods } from './controller/entries.js';
+import { versionActionMethods } from './controller/version-actions.js';
 
 
 
@@ -203,78 +199,6 @@ export class QuireApp {
     this.prefs = savePrefs({ sampleSeeded: true });
     if ((await this.store.list()).length) return;
     await this.store.save(createEntry(sampleEntry(localISODate())));
-  }
-
-  // ---------- version history ----------
-
-  /** Keeps a version now, even inside the autosave interval. Returns the message to show. */
-  async saveVersionNow() {
-    if (!this.entry) return '';
-    if (isBlankEntry(this.snapshot())) return 'Nothing to save as a version yet.';
-    const kept = await this.persist('manual');
-    const message = kept ? 'Version saved.' : 'No changes since the last version.';
-    this.showStatus(message, false, 'saved');
-    return message;
-  }
-
-  async showVersions() {
-    if (!this.entry) return;
-    await this.persist();
-    const entry = this.entry;
-    historyDialog({
-      load: () => this.store.listVersions(entry.id),
-      onRestore: (version) => this.restoreVersion(version),
-      onSaveNow: () => this.saveVersionNow(),
-      onDelete: (version) => this.deleteVersion(version),
-      // Pictures are kept with the entry. Sketches come from the version's own strokes, falling back to the current ones.
-      mediaFor: (version) =>
-        mediaResolver({
-          images: entry.images,
-          sketches: { ...entry.sketches, ...(version.content.sketches ?? {}) },
-          pageColor: version.content.pageColor,
-        }),
-    });
-  }
-
-  /** Puts a version's content back into the open entry. What was there is kept as a version first, so the restore can be undone. */
-  async restoreVersion(version) {
-    if (!this.entry || version.entryId !== this.entry.id) return;
-    await this.persist();
-    await this.keepVersion(this.snapshot(), 'restore');
-
-    const c = structuredClone(version.content);
-    Object.assign(this.entry, { title: c.title, date: c.date, kind: c.kind, tags: c.tags, pageColor: c.pageColor });
-    // Sketches are restored in place, so the sketch pads on the page show the restored strokes.
-    for (const [id, sketch] of Object.entries(c.sketches ?? {})) {
-      if (Object.hasOwn(this.entry.sketches, id)) Object.assign(this.entry.sketches[id], sketch);
-      else this.entry.sketches[id] = sketch;
-    }
-    this.dom.editor.value = c.body;
-    this.dom.title.value = c.title;
-    this.dom.date.value = c.date;
-    this.dom.kind.value = c.kind;
-    this.dom.tags.value = c.tags.join(', ');
-    this.drawing = new Drawing(c.ink.ops);
-    this.dom.sheet.style.backgroundColor = c.pageColor;
-    this.lastSurface = 'text';
-    this.renderInkChip();
-    this.syncCanvas();
-    this.updateChrome();
-    await this.persist();
-    this.showStatus(`Restored the version from ${formatVersionTime(version.savedAt)}`, false, 'saved');
-  }
-
-  async deleteVersion(version) {
-    const ok = await confirmDialog({
-      title: 'Delete this version?',
-      message: `The copy from ${formatVersionTime(version.savedAt)} is removed from this browser. The entry itself is not changed.`,
-      confirmLabel: 'Delete',
-      danger: true,
-    });
-    if (!ok) return false;
-    await this.store.removeVersion(version.id);
-    this.showStatus('Version deleted');
-    return true;
   }
 
   // ---------- export, backup, restore ----------
@@ -484,3 +408,5 @@ Object.assign(QuireApp.prototype, layerActionMethods);
 Object.assign(QuireApp.prototype, savingMethods);
 
 Object.assign(QuireApp.prototype, entryMethods);
+
+Object.assign(QuireApp.prototype, versionActionMethods);
