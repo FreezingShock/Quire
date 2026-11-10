@@ -270,6 +270,59 @@ test('Save version now adds a version that Version history lists', async () => {
   }
 });
 
+test('Year in pixels shows one square per day and saves a poster PNG', async () => {
+  const page = await freshPage();
+  try {
+    await openQuire(page);
+    await newEntry(page);
+    await renameEntry(page, 'Mood day');
+    await page.click('#editor');
+    await page.keyboard.type('A good one.');
+    await waitForSaved(page);
+    await page.keyboard.press('Control+Shift+h');
+    await page.waitForFunction(() => document.querySelector('.app')?.dataset.view === 'home');
+    await page.getByRole('button', { name: 'Year in pixels view', exact: true }).click();
+    await page.waitForSelector('.year-grid');
+    const squares = await page.locator('.year-cell:not(.year-none)').count();
+    // A calendar year has 365 days, or 366 in a leap year. The legend adds seven swatches.
+    assert.ok([365, 366].includes(squares - 7), `one square per day, got ${squares} including the legend`);
+    const [download] = await Promise.all([
+      page.waitForEvent('download'),
+      page.getByRole('button', { name: 'Save poster PNG', exact: true }).click(),
+    ]);
+    assert.match(download.suggestedFilename(), /-in-pixels\.png$/);
+    expectNoErrors(page);
+  } finally {
+    await page.close();
+  }
+});
+
+test('Postcard dialog previews a template and saves it as a PNG', async () => {
+  const page = await freshPage();
+  try {
+    await openQuire(page);
+    await newEntry(page);
+    await renameEntry(page, 'Postcard me');
+    await page.click('#editor');
+    await page.keyboard.type('Wish you were here.');
+    await waitForSaved(page);
+    await page.click('.menu-title:has-text("File")');
+    await page.click('.menu-item:has-text("Postcard")');
+    await page.waitForSelector('.postcard-preview');
+    await page.click('.postcard-thumb[data-template="airmail"]');
+    assert.equal(await page.getAttribute('.postcard-thumb[data-template="airmail"]', 'aria-pressed'), 'true');
+    const [download] = await Promise.all([
+      page.waitForEvent('download'),
+      page.getByRole('button', { name: 'Save PNG', exact: true }).click(),
+    ]);
+    assert.match(download.suggestedFilename(), /-postcard\.png$/);
+    await page.click('.postcard-dialog button[value="close"]');
+    expectNoErrors(page);
+  } finally {
+    await page.close();
+  }
+});
+
 test('Back up all entries downloads a JSON file that includes the entry', async () => {
   const page = await freshPage();
   try {

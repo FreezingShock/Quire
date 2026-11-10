@@ -37,6 +37,7 @@ const PATHS = {
   flame: '<path d="M8 2.5c.4 2.2 3.7 3.9 3.7 7.2A3.7 3.7 0 0 1 4.3 9.7c0-1.6.8-2.6 1.6-3.4.1 1.1.5 1.8 1.2 2.2C7 6.2 7.4 4.3 8 2.5z"/>',
   smile: '<circle cx="8" cy="8" r="5.5"/><path d="M5.6 9.4c.7 1 1.5 1.4 2.4 1.4s1.7-.4 2.4-1.4"/><path d="M6 6.3h.1M10 6.3h.1"/>',
   cloud: '<path d="M4.8 12.2h6.6a2.6 2.6 0 0 0 .4-5.2 3.6 3.6 0 0 0-6.9.9 2.2 2.2 0 0 0-.1 4.3z"/>',
+  pixels: '<rect x="2.5" y="2.5" width="3" height="3"/><rect x="6.5" y="2.5" width="3" height="3"/><rect x="10.5" y="2.5" width="3" height="3"/><rect x="2.5" y="6.5" width="3" height="3"/><rect x="6.5" y="6.5" width="3" height="3"/><rect x="2.5" y="10.5" width="3" height="3"/><rect x="10.5" y="10.5" width="3" height="3"/>',
   chart: '<path d="M2.5 13.5h11"/><rect x="3.5" y="8" width="2.2" height="5"/><rect x="7" y="5" width="2.2" height="8"/><rect x="10.5" y="2.5" width="2.2" height="10.5"/>',
   close: '<path d="M4 4l8 8M12 4l-8 8"/>',
   shuffle: '<path d="M2.5 4.5h2c2 0 3 1 4 3.5 1 2.5 2 3.5 4 3.5h1M2.5 11.5h2c1 0 1.8-.4 2.5-1.2M9.5 6.5c.7-1 1.5-2 2.5-2h1.5"/><path d="M11.5 2.5l2 2-2 2M11.5 9.5l2 2-2 2"/>',

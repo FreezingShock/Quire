@@ -65,6 +65,8 @@ const SHELL = [
   './src/model.js',
   './src/mixtape.js',
   './src/mixtape-view.js',
+  './src/postcard.js',
+  './src/yearpixels.js',
   './src/prefs.js',
   './src/prompts.js',
   './src/pwa.js',

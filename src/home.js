@@ -11,6 +11,8 @@ import { KINDS, MOODS, WEATHERS, displayTitle, formatLongDate, formatShortDate, 
 import { wordCount } from './markdown.js';
 import { NORM_WIDTH, paintInk } from './drawing.js';
 import { icon } from './icons.js';
+import { downloadBlob } from './export.js';
+import { pixelState, posterBlob, yearGrid } from './yearpixels.js';
 import { notebookDialog } from './dialogs.js';
 import { menuPointFor, openContextMenu } from './contextmenu.js';
 import {
@@ -53,7 +55,7 @@ import { TIPS } from './onboarding.js';
 
 const PAGE_RATIO = 1.25; // sheet height relative to its width, as on the writing page
 const THUMB_PX = 352; // 2x the tile page width, so ink stays sharp on high-DPI screens
-const VIEWS = ['dashboard', 'details', 'tiles', 'calendar', 'moods'];
+const VIEWS = ['dashboard', 'details', 'tiles', 'calendar', 'moods', 'year'];
 const MOOD_RANGES = [
   { id: 30, label: '30 days' },
   { id: 90, label: '90 days' },
@@ -175,7 +177,7 @@ function entryCountLabel(count) {
 
 export class HomeView {
   /**
-   * `view` is 'dashboard', 'details', 'tiles', 'calendar', or 'moods'. The
+   * `view` is 'dashboard', 'details', 'tiles', 'calendar', 'moods', or 'year'. The
    * dashboard is the default. `showPrompts`, `showOnThisDay`, and `showTips`
    * control the cards. `showGadgets` and `gadgets` control the sidebar, and
    * `note` is the sticky note's text. Callbacks: onOpen(id), onNew(options),
@@ -225,6 +227,8 @@ export class HomeView {
       // Prompts: how many steps past today's prompt the "Another" button has gone. Mood chart: the range in days, or 'all'.
       promptSkip: 0,
       moodRange: 30,
+      // Year in pixels: the calendar year on screen.
+      year: Number(today.slice(0, 4)),
     };
     this.buildShell();
     this.render();
@@ -322,6 +326,11 @@ export class HomeView {
       { class: 'cmd-btn cmd-icon-only', type: 'button', title: 'Mood chart', 'aria-label': 'Mood chart view', onClick: () => this.setViewMode('moods') },
       iconNode('chart'),
     );
+    this.yearBtn = el(
+      'button',
+      { class: 'cmd-btn cmd-icon-only', type: 'button', title: 'Year in pixels', 'aria-label': 'Year in pixels view', onClick: () => this.setViewMode('year') },
+      iconNode('pixels'),
+    );
     this.nav = el('nav', { class: 'home-nav', 'aria-label': 'Filter entries' });
     this.main = el('div', { class: 'home-main' });
     // Right-clicking a row or tile opens its menu. The app's own menus skip the home view.
@@ -353,7 +362,7 @@ export class HomeView {
         el('span', { class: 'cmd-sep', 'aria-hidden': 'true' }),
         el('span', { class: 'cmd-spacer' }),
         this.streak,
-        el('div', { class: 'view-toggle', role: 'group', 'aria-label': 'View' }, this.dashboardBtn, this.detailsBtn, this.tilesBtn, this.calendarBtn, this.moodsBtn),
+        el('div', { class: 'view-toggle', role: 'group', 'aria-label': 'View' }, this.dashboardBtn, this.detailsBtn, this.tilesBtn, this.calendarBtn, this.moodsBtn, this.yearBtn),
       ),
       el('div', { class: 'home-body' }, this.nav, this.main),
     );
@@ -512,6 +521,7 @@ export class HomeView {
     let content;
     if (view === 'calendar') content = this.calendar(matches);
     else if (view === 'moods') content = this.moodView();
+    else if (view === 'year') content = this.yearView();
     else if (!this.entries.length) content = this.emptyLibrary();
     // The dashboard is for the whole journal. Once a filter or search narrows it, the list takes over.
     else if (view === 'dashboard' && this.isUnfiltered()) content = this.dashboard();
@@ -519,7 +529,7 @@ export class HomeView {
     else if (view === 'tiles') content = this.tileGrid(matches);
     else content = this.table(matches);
     // The strip is for the whole journal, so it hides while a filter or search narrows the list. The dashboard has its own cards.
-    const strip = view !== 'calendar' && view !== 'dashboard' && this.isUnfiltered() ? this.stripSection() : null;
+    const strip = view !== 'calendar' && view !== 'dashboard' && view !== 'year' && this.isUnfiltered() ? this.stripSection() : null;
     this.main.replaceChildren(...[strip, content].filter(Boolean));
     this.drawMoodChart();
     this.markSelection();
@@ -579,6 +589,7 @@ export class HomeView {
     this.tilesBtn.setAttribute('aria-pressed', String(this.state.view === 'tiles'));
     this.calendarBtn.setAttribute('aria-pressed', String(this.state.view === 'calendar'));
     this.moodsBtn.setAttribute('aria-pressed', String(this.state.view === 'moods'));
+    this.yearBtn.setAttribute('aria-pressed', String(this.state.view === 'year'));
   }
 
   // ---------- dashboard: the landing view ----------
@@ -1384,6 +1395,111 @@ export class HomeView {
   setMoodRange(range) {
     this.state.moodRange = range;
     this.render();
+  }
+
+  // ---------- year in pixels ----------
+
+  /** One square per day of the year on screen: months down, days across. A square opens that day in the calendar. */
+  yearView() {
+    const today = localISODate();
+    const { year } = this.state;
+    const grid = yearGrid(this.entries, year, today);
+    const { stats } = grid;
+    const isThisYear = year === Number(today.slice(0, 4));
+    return el(
+      'div',
+      { class: 'year-view' },
+      el(
+        'div',
+        { class: 'year-head' },
+        el('h2', { class: 'mood-title' }, 'Year in pixels'),
+        el(
+          'div',
+          { class: 'year-nav' },
+          el('button', { class: 'cmd-btn cmd-icon-only', type: 'button', title: 'Previous year', 'aria-label': 'Previous year', onClick: () => this.shiftYear(-1) }, '‹'),
+          el('span', { class: 'year-label' }, String(year)),
+          el('button', { class: 'cmd-btn cmd-icon-only', type: 'button', title: 'Next year', 'aria-label': 'Next year', onClick: () => this.shiftYear(1) }, '›'),
+          isThisYear ? null : el('button', { class: 'cmd-btn', type: 'button', onClick: () => this.setYear(Number(today.slice(0, 4))) }, 'This year'),
+        ),
+        el('button', { class: 'cmd-btn', type: 'button', onClick: () => this.savePoster(grid) }, 'Save poster PNG'),
+      ),
+      el(
+        'div',
+        { class: 'mood-stats' },
+        statTile('Days written', `${stats.written} of ${stats.elapsed}`),
+        statTile('With a mood', stats.logged ? `${stats.logged} of ${stats.written}` : 'None yet'),
+        statTile('Most common', stats.top ? stats.top.label : '—'),
+      ),
+      this.yearGridEl(grid),
+      this.yearLegend(),
+    );
+  }
+
+  yearGridEl(grid) {
+    const dayLabels = Array.from({ length: 31 }, (_, i) => {
+      const day = i + 1;
+      return el('span', { class: 'year-day-num', 'aria-hidden': 'true' }, day === 1 || day % 5 === 0 ? String(day) : '');
+    });
+    const rows = grid.months.flatMap((row) => [
+      el('span', { class: 'year-month', 'aria-hidden': 'true' }, row.label),
+      ...row.cells.map((cell) => this.yearCell(cell)),
+    ]);
+    return el(
+      'div',
+      { class: 'year-grid-wrap' },
+      el(
+        'div',
+        { class: 'year-grid', role: 'group', 'aria-label': `Days of ${grid.year}, colored by mood` },
+        el('span', { 'aria-hidden': 'true' }),
+        dayLabels,
+        rows,
+      ),
+    );
+  }
+
+  yearCell(cell) {
+    if (!cell) return el('span', { class: 'year-cell year-none', 'aria-hidden': 'true' });
+    const state = pixelState(cell);
+    const what = cell.future ? 'Not yet' : state === 'written' ? 'Written, no mood' : state === 'empty' ? 'Nothing written' : labelFor(MOODS, state);
+    return el('button', {
+      class: 'year-cell',
+      type: 'button',
+      'data-state': state,
+      'data-today': cell.isToday ? 'true' : null,
+      disabled: cell.future,
+      title: `${formatLongDate(cell.date)}: ${what}`,
+      'aria-label': `${formatLongDate(cell.date)}: ${what}`,
+      onClick: () => this.openDayInCalendar(cell.date),
+    });
+  }
+
+  yearLegend() {
+    const items = [
+      ...MOODS.map((mood) => [mood.id, mood.label]),
+      ['written', 'Written, no mood'],
+      ['empty', 'Nothing written'],
+    ];
+    return el(
+      'div',
+      { class: 'year-legend' },
+      items.map(([state, label]) =>
+        el('span', { class: 'year-legend-item' }, el('span', { class: 'year-cell', 'data-state': state, 'aria-hidden': 'true' }), label),
+      ),
+    );
+  }
+
+  shiftYear(delta) {
+    this.state.year += delta;
+    this.render();
+  }
+
+  setYear(year) {
+    this.state.year = year;
+    this.render();
+  }
+
+  async savePoster(grid) {
+    downloadBlob(await posterBlob(grid), `quire-${grid.year}-in-pixels.png`);
   }
 
   // ---------- empty states ----------
