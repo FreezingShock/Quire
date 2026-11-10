@@ -6,7 +6,7 @@ import { wordCount } from './markdown.js';
 
 const SHORTCUTS = [
   ['All entries (home)', 'Ctrl+Shift+H'],
-  ['Search entries, on home', 'Ctrl+F'],
+  ['Search entries, on home (words, or "a phrase")', 'Ctrl+F'],
   ['New entry', 'Ctrl+N'],
   ["Today's entry (journal)", 'Alt+T'],
   ['Open entry', 'Ctrl+O'],
@@ -67,6 +67,79 @@ export function infoDialog(title, content) {
     ),
   );
   showDialog(dialog);
+}
+
+const NEW_NOTEBOOK = '__new__';
+
+/**
+ * Picks a notebook for an entry: none, an existing one, or a new name typed in.
+ * `onSave(name)` gets the trimmed name, or null for no notebook.
+ */
+export function notebookDialog({ title = 'Move to notebook', entryName, notebooks, current = null, onSave }) {
+  const select = el(
+    'select',
+    { class: 'dialog-select', 'aria-label': 'Notebook' },
+    el('option', { value: '' }, 'No notebook'),
+    notebooks.map((name) => el('option', { value: name }, name)),
+    el('option', { value: NEW_NOTEBOOK }, 'New notebook…'),
+  );
+  const nameInput = el('input', {
+    class: 'dialog-input',
+    type: 'text',
+    maxlength: 40,
+    placeholder: 'Notebook name',
+    'aria-label': 'New notebook name',
+    autocomplete: 'off',
+    hidden: true,
+  });
+  const error = el('p', { class: 'dialog-error', role: 'alert' });
+  const syncInput = () => {
+    nameInput.hidden = select.value !== NEW_NOTEBOOK;
+    error.textContent = '';
+    if (!nameInput.hidden) nameInput.focus();
+  };
+  select.addEventListener('change', syncInput);
+  select.value = current && notebooks.includes(current) ? current : '';
+
+  const dialog = el(
+    'dialog',
+    { class: 'dialog' },
+    el(
+      'form',
+      {
+        class: 'dialog-form',
+        onSubmit: (event) => {
+          event.preventDefault();
+          let name = select.value;
+          if (name === NEW_NOTEBOOK) {
+            name = nameInput.value.trim().replace(/\s+/g, ' ');
+            if (!name) {
+              error.textContent = 'Give the new notebook a name.';
+              nameInput.focus();
+              return;
+            }
+          }
+          onSave(name || null);
+          dialog.close();
+        },
+      },
+      el('h2', { class: 'dialog-title' }, title),
+      el('p', { class: 'dialog-text' }, entryName ? `Choose a notebook for “${entryName}”.` : 'Choose a notebook.'),
+      select,
+      nameInput,
+      error,
+      el(
+        'div',
+        { class: 'dialog-actions' },
+        el('button', { class: 'btn', type: 'button', onClick: () => dialog.close() }, 'Cancel'),
+        el('button', { class: 'btn btn-primary', type: 'submit' }, 'Move'),
+      ),
+    ),
+  );
+  select.addEventListener('keydown', (event) => event.stopPropagation());
+  showDialog(dialog);
+  select.focus();
+  return dialog;
 }
 
 export function showShortcuts() {

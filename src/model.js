@@ -57,6 +57,15 @@ export function isISODate(value) {
   return date.getUTCFullYear() === y && date.getUTCMonth() === m - 1 && date.getUTCDate() === d;
 }
 
+export const NOTEBOOK_MAX = 40;
+
+/** "  Travel  " -> "Travel". Blank or non-string names become null (no notebook). */
+export function normalizeNotebook(value) {
+  if (typeof value !== 'string') return null;
+  const name = value.trim().replace(/\s+/g, ' ').slice(0, NOTEBOOK_MAX);
+  return name || null;
+}
+
 /**
  * Coerce any stored or imported record into the current schema. Unknown or
  * broken fields fall back to safe defaults instead of throwing.
@@ -75,6 +84,10 @@ export function normalizeEntry(raw = {}) {
     // Older entries have neither field, so they read back as null. No schema bump needed.
     mood: MOOD_IDS.has(raw.mood) ? raw.mood : null,
     weather: WEATHER_IDS.has(raw.weather) ? raw.weather : null,
+    // A notebook is a name. Entries with no notebook, and older entries, read back as null.
+    notebook: normalizeNotebook(raw.notebook),
+    pinned: raw.pinned === true,
+    favorite: raw.favorite === true,
     body: typeof raw.body === 'string' ? raw.body : '',
     pageColor: HEX.test(raw.pageColor ?? '') ? raw.pageColor.toLowerCase() : DEFAULT_PAGE_COLOR,
     ink: {
