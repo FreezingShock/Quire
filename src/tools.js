@@ -8,9 +8,9 @@ export const TOOLS = [
   { id: 'brush', label: 'Brush', key: 'B', icon: 'brush', hint: 'Brush: drag to paint. Choose a width under the tools.' },
   { id: 'marker', label: 'Highlighter', key: 'H', icon: 'marker', hint: 'Highlighter: drag for a see-through stroke. Overlaps stay translucent.' },
   { id: 'eraser', label: 'Eraser', key: 'E', icon: 'eraser', hint: 'Eraser: drag to rub out ink. Typed text is not affected.' },
-  { id: 'line', label: 'Line', key: 'L', icon: 'line', hint: 'Line: drag to draw a straight line.' },
-  { id: 'rect', label: 'Rectangle', key: 'R', icon: 'rect', hint: 'Rectangle: drag from one corner to the other.' },
-  { id: 'ellipse', label: 'Ellipse', key: 'O', icon: 'ellipse', hint: 'Ellipse: drag to set the size of the oval.' },
+  { id: 'line', label: 'Line', key: 'L', icon: 'line', hint: 'Line: drag to draw a straight line. Hold Shift for 45° steps.' },
+  { id: 'rect', label: 'Rectangle', key: 'R', icon: 'rect', hint: 'Rectangle: drag from one corner to the other. Hold Shift for a square.' },
+  { id: 'ellipse', label: 'Ellipse', key: 'O', icon: 'ellipse', hint: 'Ellipse: drag to set the size of the oval. Hold Shift for a circle.' },
 ];
 
 export const POINTER_TOOLS = new Set(['pick', 'fill', 'pencil', 'brush', 'marker', 'eraser', 'line', 'rect', 'ellipse']);

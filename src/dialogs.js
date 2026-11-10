@@ -14,6 +14,7 @@ const SHORTCUTS = [
   ['Bold / italic', 'Ctrl+B / Ctrl+I'],
   ['Continue a list', 'Enter'],
   ['Tools', 'T I G P B H E L R O'],
+  ['Constrain a line or shape', 'Hold Shift while dragging'],
   ['Keyboard shortcuts', 'F1'],
 ];
 

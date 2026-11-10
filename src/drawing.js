@@ -5,6 +5,8 @@
  * directly in the entry, and undo is just "pop the last op and replay".
  */
 
+import { GRID_STEP } from './snap.js';
+
 export const NORM_WIDTH = 1000;
 const MARKER_ALPHA = 0.35;
 
@@ -223,6 +225,30 @@ export function applyOp(ctx, op, scale) {
 export function paintOps(ctx, ops, scale) {
   ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
   for (const op of ops) applyOp(ctx, op, scale);
+}
+
+const GRID_COLOR = 'rgba(96, 110, 128, 0.32)';
+
+/** Draws the snap grid as 1 device pixel lines every `step` normalized units. `scale` is device pixels per unit. */
+export function paintGrid(ctx, scale, step = GRID_STEP) {
+  const { width, height } = ctx.canvas;
+  ctx.clearRect(0, 0, width, height);
+  ctx.save();
+  ctx.strokeStyle = GRID_COLOR;
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  for (let x = 0; x * scale <= width; x += step) {
+    const px = Math.round(x * scale) + 0.5;
+    ctx.moveTo(px, 0);
+    ctx.lineTo(px, height);
+  }
+  for (let y = 0; y * scale <= height; y += step) {
+    const py = Math.round(y * scale) + 0.5;
+    ctx.moveTo(0, py);
+    ctx.lineTo(width, py);
+  }
+  ctx.stroke();
+  ctx.restore();
 }
 
 /**

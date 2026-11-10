@@ -4,7 +4,15 @@
  */
 
 const KEY = 'quire:prefs';
-const DEFAULTS = Object.freeze({ font: 'serif', dark: false, source: false, lastEntryId: null });
+const DEFAULTS = Object.freeze({
+  font: 'serif',
+  dark: false,
+  source: false,
+  lastEntryId: null,
+  showGrid: false,
+  snapGrid: false,
+  snapAngles: false,
+});
 
 export function loadPrefs() {
   try {
