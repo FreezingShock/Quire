@@ -254,6 +254,7 @@ export const buildUiMethods = {
         label: 'View',
         items: () => [
           { label: 'Command palette…', shortcut: 'Ctrl+K', action: () => this.openPalette() },
+          { label: 'Year in review…', action: () => this.showYearRecap() },
           'sep',
           viewChoice('dashboard', 'Dashboard'),
           viewChoice('details', 'Details'),
