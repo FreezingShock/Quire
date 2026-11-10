@@ -213,6 +213,12 @@
   animation: window-settle 0.36s cubic-bezier(0.2, 0.8, 0.2, 1) both;
 }
 
+/* The sheen rests past the right edge once it has run, so the title bar clips it. Without this the page scrolls sideways. */
+:root[data-skin^="aero"][data-motion="on"] .titlebar {
+  overflow: hidden;
+  overflow: clip;
+}
+
 :root[data-skin^="aero"][data-motion="on"] .titlebar::after {
   content: "";
   position: absolute;
