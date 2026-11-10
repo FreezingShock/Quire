@@ -61,6 +61,13 @@ const PATHS = {
   envelope: '<rect x="2.2" y="3.9" width="11.6" height="8.6" rx=".6"/><path d="M2.6 4.6L8 8.9l5.4-4.3"/>',
 };
 
+/**
+ * The icon as an inline SVG with three layers: a soft glow under the drawing,
+ * the drawing, and a highlight over it. Each skin shows the layers it needs and
+ * styles them (styles/skins.css, "icon sets"), so a skin change restyles icons
+ * already on the page without redrawing them. The name is kept on data-ic.
+ */
 export function icon(name) {
-  return `<svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round">${PATHS[name] ?? ''}</svg>`;
+  const body = PATHS[name] ?? '';
+  return `<svg class="qi" data-ic="${name}" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><g class="qi-glow">${body}</g><g class="qi-main">${body}</g><g class="qi-shine">${body}</g></svg>`;
 }
