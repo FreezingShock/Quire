@@ -5,8 +5,11 @@
  * Node. printing.js owns the dialog and the print frame.
  *
  * Other modules add a kind with registerPrintKind({ id, label, defaultHeader,
- * scope, options, build }). `options` is [{ id, label, default }], and `build`
- * gets { entries, options, setup, today, range, inkUrl } and returns { body,
+ * scope, options, prepare, build }). `options` is [{ id, label, default }] for
+ * a yes-or-no choice, or [{ id, label, type: 'choice', choices, default }] for
+ * a pick from a list. `prepare({ entries, options })` may be async and returns
+ * the pictures the layout needs. `build` gets them as `prepared`, along with
+ * { entries, options, setup, today, range, inkUrl } and returns { body,
  * title?, empty? }. `inkUrl(entry)` gives a PNG data URL of the entry's drawing.
  */
 
@@ -345,7 +348,12 @@ export function kindById(id) {
 export function optionsFor(kind, saved = {}) {
   const out = {};
   for (const option of kind.options ?? []) {
-    out[option.id] = typeof saved[option.id] === 'boolean' ? saved[option.id] : Boolean(option.default);
+    if (option.type === 'choice') {
+      const picked = saved[option.id];
+      out[option.id] = option.choices.some((choice) => choice.id === picked) ? picked : option.default;
+    } else {
+      out[option.id] = typeof saved[option.id] === 'boolean' ? saved[option.id] : Boolean(option.default);
+    }
   }
   return out;
 }
@@ -365,10 +373,11 @@ export function buildPrintJob({
   fontStack,
   stylesheet,
   inkUrl,
+  prepared = {},
 }) {
   const kind = kindById(kindId) ?? entryKind;
   const setup = pageSetup(page);
-  const result = kind.build({ entries, options: optionsFor(kind, options), setup, today, range, inkUrl });
+  const result = kind.build({ entries, options: optionsFor(kind, options), setup, today, range, inkUrl, prepared });
   const chrome = {
     header: String(page.header ?? '').trim(),
     date: page.printDate ? `Printed ${formatLongDate(today)}` : '',
