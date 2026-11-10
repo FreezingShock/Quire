@@ -9,13 +9,14 @@ export const NAV_SECTIONS = Object.freeze([
   { id: 'library', open: true },
   { id: 'saved', open: true },
   { id: 'notebooks', open: true },
+  { id: 'places', open: true },
   { id: 'tags', open: false },
   { id: 'mood', open: false },
   { id: 'weather', open: false },
 ]);
 
 /** The section that holds the rows a filter type picks from. Other filters live in Library. */
-const FILTER_SECTION = Object.freeze({ notebook: 'notebooks', tag: 'tags', mood: 'mood', weather: 'weather' });
+const FILTER_SECTION = Object.freeze({ notebook: 'notebooks', place: 'places', tag: 'tags', mood: 'mood', weather: 'weather' });
 
 /** The section a filter's row lives in, so picking that row can open it. */
 export function sectionForFilter(filterType) {

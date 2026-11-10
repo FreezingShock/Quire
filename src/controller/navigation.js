@@ -39,7 +39,7 @@ export const navigationMethods = {
         label: displayTitle(entry),
         group: 'Entry',
         meta: [formatShortDate(entry.date), kindLabel(entry.kind), entry.notebook].filter(Boolean).join(' · '),
-        keywords: [entry.notebook, kindLabel(entry.kind), ...entry.tags].filter(Boolean).join(' '),
+        keywords: [entry.notebook, entry.place, kindLabel(entry.kind), ...entry.tags].filter(Boolean).join(' '),
         run: () => this.openEntry(entry.id),
       }));
     return [...commands, ...entries];

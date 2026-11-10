@@ -148,6 +148,7 @@ export const buildUiMethods = {
           { scope: 'editor', label: 'Delete entry…', disabled: !this.entry, action: () => this.entry && this.deleteEntry(this.entry.id) },
           'sep',
           { scope: 'editor', label: 'Move to notebook…', disabled: !this.entry, action: () => this.entry && this.moveEntryToNotebook(this.entry.id) },
+          { scope: 'editor', label: 'Set place…', disabled: !this.entry, action: () => this.entry && this.setEntryPlace(this.entry.id) },
           {
             scope: 'editor',
             label: this.entry?.pinned ? 'Unpin from top' : 'Pin to top',
