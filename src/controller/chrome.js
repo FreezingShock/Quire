@@ -11,6 +11,7 @@ import {
   ACCENT_PROPERTIES,
   accentTokens,
   normalizeAccent,
+  isDark,
   skinOf,
 } from '../skins.js';
 
@@ -21,7 +22,7 @@ export const chromeMethods = {
     const root = document.documentElement;
     const skin = skinOf(this.prefs);
     root.dataset.skin = skin;
-    root.dataset.theme = skin === 'aero-dark' ? 'dark' : 'light';
+    root.dataset.theme = isDark(this.prefs) ? 'dark' : 'light';
     root.dataset.motion = this.prefs.motion === false ? 'off' : 'on';
     root.classList.toggle('typewriter', Boolean(this.prefs.typewriter));
     // A custom accent overrides the skin's selection and title bar colors. Without one, the skin's own colors show.
