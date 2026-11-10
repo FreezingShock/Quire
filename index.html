@@ -11,8 +11,16 @@
   <link rel="stylesheet" href="styles/reader.css">
   <link rel="stylesheet" href="styles/live.css">
   <link rel="stylesheet" href="styles/home.css">
+  <link rel="stylesheet" href="styles/vista.css">
 </head>
 <body>
+  <div class="splash" id="splash" role="status" aria-label="Quire is starting">
+    <div class="splash-inner">
+      <svg class="splash-mark" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="8" fill="#ffffff"/><path d="M9 22c2-7 4-11 9-13l2 2c-2 5-6 9-11 11z" fill="#2a68b7"/><circle cx="23" cy="9" r="2" fill="#f3d54a"/></svg>
+      <div class="splash-name">Quire</div>
+      <div class="splash-ring" aria-hidden="true"><span></span><span></span><span></span><span></span><span></span></div>
+    </div>
+  </div>
   <div class="app" data-view="home">
     <header class="titlebar">
       <a class="brand" href="#/" title="All entries">
@@ -26,7 +34,10 @@
       <div class="titlebar-status" id="save-status" role="status" aria-live="polite"></div>
     </header>
 
-    <nav class="menubar" id="menubar" aria-label="Application menu"></nav>
+    <div class="menubar-row">
+      <nav class="menubar" id="menubar" aria-label="Application menu"></nav>
+      <button type="button" class="ribbon-toggle" id="ribbon-toggle" aria-controls="toolbox" aria-expanded="true" title="Minimize the ribbon"></button>
+    </div>
 
     <div class="entry-bar">
       <label class="field">

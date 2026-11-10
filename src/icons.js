@@ -20,6 +20,8 @@ const PATHS = {
   trash: '<path d="M3.5 4.5h9M6.5 4.5V3h3v1.5M4.8 4.5l.6 8.5h5.2l.6-8.5"/>',
   details: '<path d="M2.5 4h2M6.5 4h7M2.5 8h2M6.5 8h7M2.5 12h2M6.5 12h7"/>',
   tiles: '<rect x="2.5" y="2.5" width="4.5" height="4.5"/><rect x="9" y="2.5" width="4.5" height="4.5"/><rect x="2.5" y="9" width="4.5" height="4.5"/><rect x="9" y="9" width="4.5" height="4.5"/>',
+  chevronUp: '<path d="M3.5 10.5L8 6l4.5 4.5"/>',
+  chevronDown: '<path d="M3.5 6L8 10.5 12.5 6"/>',
 };
 
 export function icon(name) {
