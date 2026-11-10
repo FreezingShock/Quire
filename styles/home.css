@@ -790,3 +790,295 @@
 
   .home-tiles { grid-template-columns: repeat(auto-fill, minmax(148px, 1fr)); gap: 10px; padding: 10px; }
 }
+
+/* ---------- strip: today's prompt and On this day ---------- */
+
+.home-strip {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  align-items: start;
+  gap: 12px;
+  padding: 12px 14px 0;
+}
+
+.strip-card {
+  min-width: 0;
+  box-sizing: border-box;
+  padding: 10px 12px 12px;
+  border: 1px solid var(--panel-edge);
+  border-radius: 3px;
+  background: linear-gradient(to bottom, var(--panel-hi), var(--panel-lo));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.5);
+}
+
+.strip-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 24px;
+}
+
+.strip-head .icon { color: var(--accent); }
+
+.strip-head h3 {
+  margin: 0;
+  font-size: 14px;
+  color: var(--text);
+}
+
+.strip-dismiss {
+  margin-left: auto;
+  height: 24px;
+  min-width: 24px;
+  padding: 0;
+}
+
+.prompt-text {
+  margin: 10px 0 12px;
+  font-family: var(--page-font);
+  font-size: 17px;
+  line-height: 1.45;
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+
+.strip-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.otd-group + .otd-group { margin-top: 10px; }
+
+.otd-when {
+  margin: 8px 0 4px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.otd-when:first-child { margin-top: 0; }
+
+.otd-list {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.otd-entry {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-rows: auto auto;
+  column-gap: 8px;
+  width: 100%;
+  padding: 5px 7px;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.otd-entry .icon {
+  grid-row: 1 / span 2;
+  align-self: center;
+  color: var(--accent);
+}
+
+.otd-entry:hover {
+  border-color: var(--hover-edge);
+  background: linear-gradient(to bottom, var(--glow-hi), var(--glow-lo));
+}
+
+.otd-entry:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+.otd-title {
+  overflow: hidden;
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.otd-sub {
+  font-size: 11px;
+  color: var(--muted);
+}
+
+/* ---------- mood chart ---------- */
+
+.mood-view {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  box-sizing: border-box;
+  min-height: 100%;
+  padding: 12px 14px 16px;
+}
+
+.mood-range {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.mood-title {
+  margin: 0 auto 0 0;
+  font-size: 15px;
+  color: var(--text);
+}
+
+.range-btn[aria-pressed="true"] {
+  border-color: var(--hover-edge);
+  background: linear-gradient(to bottom, var(--press-hi), var(--press-lo));
+  color: var(--accent-ink);
+}
+
+.mood-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.mood-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--panel-edge);
+  border-radius: 3px;
+  background: linear-gradient(to bottom, var(--panel-hi), var(--panel-lo));
+}
+
+.mood-stat-label {
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.mood-stat-value {
+  overflow: hidden;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mood-chart-card {
+  min-width: 0;
+  padding: 10px 10px 4px;
+  border: 1px solid var(--field-edge);
+  border-radius: 3px;
+  background: var(--field);
+}
+
+.mood-chart-card:empty { display: none; }
+
+.mood-svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.mood-svg .gridline {
+  stroke: var(--field-edge);
+  stroke-width: 1;
+  stroke-dasharray: 2 3;
+}
+
+.mood-svg .axis-label {
+  font-family: var(--ui-font);
+  font-size: 11px;
+  fill: var(--muted);
+}
+
+.mood-svg .mood-trend {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 1.6;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+  opacity: 0.75;
+}
+
+.mood-svg .mood-dot {
+  stroke: var(--field);
+  stroke-width: 1.2;
+}
+
+.mood-empty {
+  margin: 0;
+  padding: 18px 12px;
+  border: 1px dashed var(--field-edge);
+  border-radius: 3px;
+  font-size: 13px;
+  text-align: center;
+  color: var(--muted);
+}
+
+.mood-bars {
+  display: grid;
+  gap: 6px;
+  padding: 10px 12px;
+  border: 1px solid var(--panel-edge);
+  border-radius: 3px;
+  background: linear-gradient(to bottom, var(--panel-hi), var(--panel-lo));
+}
+
+.mood-bar-row {
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr) 96px;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  color: var(--text);
+}
+
+.mood-bar-track {
+  height: 14px;
+  overflow: hidden;
+  border: 1px solid var(--field-edge);
+  border-radius: 2px;
+  background: var(--field);
+}
+
+.mood-bar-fill {
+  height: 100%;
+  min-width: 0;
+  background: linear-gradient(to bottom, var(--accent-hi), var(--accent-lo));
+}
+
+.mood-bar-count {
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  color: var(--muted);
+}
+
+/* One hue per mood, in the same order as MOODS (great to rough). */
+.mood-dot[data-mood="great"],
+.mood-bar-fill[data-mood="great"] { fill: #2e9e4f; background: linear-gradient(to bottom, #6fd08a, #2e9e4f); }
+.mood-dot[data-mood="good"],
+.mood-bar-fill[data-mood="good"] { fill: #6aa83c; background: linear-gradient(to bottom, #a8d878, #6aa83c); }
+.mood-dot[data-mood="okay"],
+.mood-bar-fill[data-mood="okay"] { fill: #d9a22b; background: linear-gradient(to bottom, #f3d177, #d9a22b); }
+.mood-dot[data-mood="low"],
+.mood-bar-fill[data-mood="low"] { fill: #5b7fd6; background: linear-gradient(to bottom, #9bb8ef, #5b7fd6); }
+.mood-dot[data-mood="rough"],
+.mood-bar-fill[data-mood="rough"] { fill: #b03a2a; background: linear-gradient(to bottom, #e0776a, #b03a2a); }
+
+@media (max-width: 640px) {
+  .mood-stats { grid-template-columns: minmax(0, 1fr); }
+  .mood-bar-row { grid-template-columns: 56px minmax(0, 1fr) 80px; gap: 8px; }
+  .mood-view { padding: 10px; }
+  .home-strip { padding: 10px 10px 0; }
+  .prompt-text { font-size: 16px; }
+}

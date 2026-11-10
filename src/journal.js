@@ -4,9 +4,10 @@
  * covered by node:test. Days are local calendar dates as YYYY-MM-DD.
  */
 
-import { localISODate } from './model.js';
+import { MOODS, localISODate } from './model.js';
 
 const WEEK = 7;
+const DAY_MS = 86400000;
 const GRID_WEEKS = 6; // always six rows, so the calendar does not jump in height between months
 
 /** The ISO date `days` after (or before, when negative) `iso`. Uses UTC math, so DST never shifts a day. */
@@ -101,4 +102,96 @@ export function todaysJournal(entries, today = localISODate()) {
     if (!best || entry.updatedAt > best.updatedAt) best = entry;
   }
   return best;
+}
+
+/** Whole days from `from` to `to` (both YYYY-MM-DD). Zero for the same day, negative if `to` is earlier. */
+export function daysBetween(from, to) {
+  return Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / DAY_MS);
+}
+
+/** Mood as a number from 1 (rough) to 5 (great) so a chart can plot it. Null for no mood. */
+export function moodScore(id) {
+  const index = MOODS.findIndex((mood) => mood.id === id);
+  return index < 0 ? null : MOODS.length - index;
+}
+
+/**
+ * One point for each of `days` days, ending on `endDate` and oldest first. Each
+ * point has the day's mood (from summarizeDays) and its score, or nulls when no
+ * entry on that day set a mood.
+ */
+export function moodSeries(entries, endDate, days) {
+  const byDay = summarizeDays(entries);
+  const series = [];
+  for (let offset = days - 1; offset >= 0; offset -= 1) {
+    const date = shiftISODate(endDate, -offset);
+    const mood = byDay[date]?.mood ?? null;
+    series.push({ date, mood, score: moodScore(mood) });
+  }
+  return series;
+}
+
+/**
+ * Averages a daily series into buckets of `size` days, oldest first, so a long
+ * range stays readable. A bucket's score is the mean of its logged days, and its
+ * mood is the nearest option to that mean. Empty buckets have nulls.
+ */
+export function bucketSeries(series, size) {
+  const buckets = [];
+  for (let start = 0; start < series.length; start += size) {
+    const slice = series.slice(start, start + size);
+    const average = moodAverage(slice);
+    buckets.push({
+      date: slice[0].date,
+      endDate: slice[slice.length - 1].date,
+      score: average === null ? null : Math.round(average * 100) / 100,
+      mood: average === null ? null : moodForScore(average).id,
+    });
+  }
+  return buckets;
+}
+
+/** Mean mood score across the days that have one, or null when none do. */
+export function moodAverage(series) {
+  const scores = series.map((point) => point.score).filter((score) => score !== null);
+  if (!scores.length) return null;
+  return scores.reduce((sum, score) => sum + score, 0) / scores.length;
+}
+
+/** The mood nearest to an average score, as an option from MOODS. */
+export function moodForScore(score) {
+  if (score === null) return null;
+  const rounded = Math.min(MOODS.length, Math.max(1, Math.round(score)));
+  return MOODS[MOODS.length - rounded];
+}
+
+/** [{ id, label, count }] in MOODS order (great first), counting the days in a series at each mood. */
+export function moodCounts(series) {
+  return MOODS.map((mood) => ({
+    id: mood.id,
+    label: mood.label,
+    count: series.filter((point) => point.mood === mood.id).length,
+  }));
+}
+
+/**
+ * Entries from this month and day in earlier years, grouped by how many years
+ * back they are, nearest year first. Entries from today's year are left out.
+ */
+export function onThisDay(entries, today = localISODate()) {
+  const [year, month, day] = today.split('-');
+  const groups = new Map();
+  for (const entry of entries) {
+    if (!entry.date.endsWith(`-${month}-${day}`)) continue;
+    const yearsAgo = Number(year) - Number(entry.date.slice(0, 4));
+    if (yearsAgo <= 0) continue;
+    if (!groups.has(yearsAgo)) groups.set(yearsAgo, { yearsAgo, year: Number(entry.date.slice(0, 4)), entries: [] });
+    groups.get(yearsAgo).entries.push(entry);
+  }
+  return [...groups.values()]
+    .sort((a, b) => a.yearsAgo - b.yearsAgo)
+    .map((group) => ({
+      ...group,
+      entries: group.entries.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)),
+    }));
 }

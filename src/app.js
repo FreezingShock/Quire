@@ -218,6 +218,8 @@ export class QuireApp {
       onOpen: (id) => this.openEntry(id),
       onNew: (options) => this.newEntry(options),
       onToday: () => this.openToday(),
+      onWritePrompt: (prompt) => this.openToday({ prompt }),
+      onHidePrompts: () => this.setPref({ showPrompts: false }),
       onDelete: (id) => this.deleteEntry(id),
       onViewChange: (view) => this.setPref({ homeView: view }),
     });
@@ -252,6 +254,10 @@ export class QuireApp {
     }
     // Vista chrome: the Aero wallpaper, and the ribbon that can be minimized.
     root.classList.toggle('has-wallpaper', Boolean(this.prefs.wallpaper));
+    this.home?.setStripOptions({
+      showPrompts: Boolean(this.prefs.showPrompts),
+      showOnThisDay: Boolean(this.prefs.showOnThisDay),
+    });
     const ribbonHidden = Boolean(this.prefs.ribbonHidden);
     this.dom.app.dataset.ribbon = ribbonHidden ? 'minimized' : 'shown';
     this.dom.ribbonToggle.innerHTML = icon(ribbonHidden ? 'chevronDown' : 'chevronUp');
@@ -542,6 +548,9 @@ export class QuireApp {
           { label: 'Minimize ribbon', check: true, checked: Boolean(this.prefs.ribbonHidden), action: () => this.setPref({ ribbonHidden: !this.prefs.ribbonHidden }) },
           { label: 'Aero wallpaper', check: true, checked: Boolean(this.prefs.wallpaper), action: () => this.setPref({ wallpaper: !this.prefs.wallpaper }) },
           { label: 'Startup splash', check: true, checked: Boolean(this.prefs.splash), action: () => this.setPref({ splash: !this.prefs.splash }) },
+          'sep',
+          { label: 'Writing prompts', check: true, checked: Boolean(this.prefs.showPrompts), action: () => this.setPref({ showPrompts: !this.prefs.showPrompts }) },
+          { label: 'On this day', check: true, checked: Boolean(this.prefs.showOnThisDay), action: () => this.setPref({ showOnThisDay: !this.prefs.showOnThisDay }) },
           {
             label: 'Sound effects',
             check: true,
@@ -1511,13 +1520,16 @@ export class QuireApp {
     playSound('newEntry');
   }
 
-  /** Opens today's most recently edited journal entry, or starts a new journal for today. */
-  async openToday() {
+  /**
+   * Opens today's most recently edited journal entry, or starts a new journal for today.
+   * A new journal can start from a writing prompt, set as a quote so the first line is ready to answer.
+   */
+  async openToday({ prompt } = {}) {
     await this.persist();
     const today = localISODate();
     const existing = todaysJournal(await this.store.list(), today);
     if (existing) await this.openEntry(existing.id);
-    else await this.newEntry({ date: today, kind: 'journal' });
+    else await this.newEntry({ date: today, kind: 'journal', body: prompt ? `> ${prompt}\n\n` : '' });
   }
 
   showEntries() {
