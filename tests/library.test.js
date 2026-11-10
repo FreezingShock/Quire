@@ -10,6 +10,7 @@ import {
   countFlags,
   excerptOf,
   filterEntries,
+  resolveNotebookName,
   highlightParts,
   parseQuery,
   snippetOf,
@@ -182,4 +183,17 @@ test('countByNotebook and countFlags count what is in use', () => {
     { name: 'Work', count: 2 },
   ]);
   assert.deepEqual(countFlags(entries), { pinned: 1, favorite: 1 });
+});
+
+test('resolveNotebookName reuses an existing notebook whose name differs only in case', () => {
+  const notebooks = ['Work', 'Travel'];
+  assert.equal(resolveNotebookName('work', notebooks), 'Work');
+  assert.equal(resolveNotebookName('  TRAVEL  ', notebooks), 'Travel');
+  assert.equal(resolveNotebookName('Poems', notebooks), 'Poems');
+});
+
+test('resolveNotebookName tidies whitespace and gives empty input as an empty name', () => {
+  assert.equal(resolveNotebookName('  Day   job ', []), 'Day job');
+  assert.equal(resolveNotebookName('   ', ['Work']), '');
+  assert.equal(resolveNotebookName(undefined), '');
 });

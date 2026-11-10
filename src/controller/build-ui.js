@@ -14,7 +14,7 @@ import { wireContextMenus } from '../contextmenu.js';
 import { scopeItems } from './helpers.js';
 import { DEFAULT_PAGE_COLOR, formatLongDate, localISODate } from '../model.js';
 import { installState } from '../pwa.js';
-import { SKINS, skinOf } from '../skins.js';
+import { SKINS, isDark, skinOf } from '../skins.js';
 import { playSound } from '../sound.js';
 import {
   FORMAT_BUTTONS,
@@ -167,7 +167,7 @@ export const buildUiMethods = {
           { scope: 'editor', label: 'Export as Markdown…', shortcut: 'Ctrl+E', disabled: !this.entry, action: () => this.exportMarkdown() },
           { scope: 'editor', label: 'Export drawing as PNG…', disabled: !this.entry || this.drawing.isEmpty, action: () => this.exportDrawing() },
           { scope: 'editor', label: 'Postcard…', disabled: !this.entry, action: () => this.postcard() },
-          { scope: 'editor', label: 'Print or save as PDF…', shortcut: 'Ctrl+P', disabled: !this.entry, action: () => this.printPdf() },
+          { label: 'Print…', shortcut: 'Ctrl+P', action: () => this.printPdf() },
           'sep',
           { label: 'Back up all entries…', action: () => this.backup() },
           { label: 'Restore from backup…', action: () => this.restore() },
@@ -274,12 +274,16 @@ export const buildUiMethods = {
         label: 'Skin',
         items: () => {
           const current = skinOf(this.prefs);
-          return SKINS.map((skin) => ({
-            label: skin.label,
-            check: true,
-            checked: current === skin.id,
-            action: () => this.setPref({ skin: skin.id }),
-          }));
+          return [
+            ...SKINS.map((skin) => ({
+              label: skin.label,
+              check: true,
+              checked: current === skin.id,
+              action: () => this.setPref({ skin: skin.id }),
+            })),
+            'sep',
+            { label: 'Dark', check: true, checked: isDark(this.prefs), action: () => this.setPref({ dark: !isDark(this.prefs) }) },
+          ];
         },
       },
       {

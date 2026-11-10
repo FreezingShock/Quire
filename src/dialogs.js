@@ -3,6 +3,7 @@
 import { el } from './dom.js';
 import { KINDS, displayTitle, formatShortDate } from './model.js';
 import { wordCount } from './markdown.js';
+import { resolveNotebookName } from './library.js';
 
 /*
  * Every shortcut the app answers to, grouped the way the menus are. Keep this
@@ -19,7 +20,7 @@ const SHORTCUT_GROUPS = [
       ['Search entries (All entries page)', 'Ctrl+F'],
       ['Save now', 'Ctrl+S'],
       ['Export as Markdown', 'Ctrl+E'],
-      ['Print or save as PDF', 'Ctrl+P'],
+      ['Print, or save as PDF', 'Ctrl+P'],
     ],
   },
   {
@@ -182,7 +183,7 @@ export function notebookDialog({ title = 'Move to notebook', entryName, notebook
           event.preventDefault();
           let name = select.value;
           if (name === NEW_NOTEBOOK) {
-            name = nameInput.value.trim().replace(/\s+/g, ' ');
+            name = resolveNotebookName(nameInput.value, notebooks);
             if (!name) {
               error.textContent = 'Give the new notebook a name.';
               nameInput.focus();
