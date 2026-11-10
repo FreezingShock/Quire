@@ -1,8 +1,8 @@
 name: Auto-merge into release
 
-# Every PR into `release` that is ready for review gets auto-merge turned on.
-# With no required checks on the branch, GitHub merges it right away. Add
-# required checks in branch protection to make auto-merge wait for them.
+# Every PR into `release` that is ready for review runs the unit tests, then
+# merges directly once they pass. `release` has no branch protection, so
+# `gh pr merge --auto` cannot be used here (it needs required checks).
 
 on:
   pull_request:
@@ -14,12 +14,37 @@ permissions:
   pull-requests: write
 
 jobs:
-  automerge:
+  test:
     if: github.event.pull_request.draft == false && github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     steps:
-      - name: Enable auto-merge (merge commit)
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Unit tests
+        run: npm test
+
+  automerge:
+    needs: test
+    if: github.event.pull_request.draft == false && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - name: Merge into release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_URL: ${{ github.event.pull_request.html_url }}
-        run: gh pr merge --auto --merge "$PR_URL"
+        run: |
+          # GitHub computes mergeability in the background right after a PR
+          # opens or updates, so wait for a definite answer before merging.
+          state=UNKNOWN
+          for attempt in 1 2 3 4 5 6; do
+            state=$(gh pr view "$PR_URL" --json mergeable --jq .mergeable)
+            [ "$state" != "UNKNOWN" ] && break
+            sleep 5
+          done
+          if [ "$state" != "MERGEABLE" ]; then
+            echo "Not merging: mergeable state is $state. Rebase on release and push again."
+            exit 1
+          fi
+          gh pr merge --merge "$PR_URL"
