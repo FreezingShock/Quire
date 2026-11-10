@@ -77,6 +77,7 @@ import {
   printEntry,
 } from './export.js';
 import { createMenuBar } from './menubar.js';
+import { attachKeyboardPen } from './keypen.js';
 import { confirmDialog, entriesDialog, notebookDialog, showAbout, showShortcuts } from './dialogs.js';
 import { showOptions } from './options.js';
 import { installState, promptInstall, showInstallHelp, startPwa, startReminders, REMINDER_DEFAULTS } from './pwa.js';
@@ -324,6 +325,7 @@ export class QuireApp {
   setView(view) {
     this.view = view;
     this.dom.app.dataset.view = view;
+    this.keyPen?.refresh();
     if (view === 'editor') this.applyPrefs();
   }
 
@@ -404,7 +406,7 @@ export class QuireApp {
 
   buildToolbox() {
     const tools = el('div', { class: 'tool-grid', role: 'group', 'aria-label': 'Tools' }, TOOLS.map((tool) => this.toolButton(tool)));
-    const sizes = el('div', { class: 'size-row', role: 'radiogroup', 'aria-label': 'Stroke width' }, STROKE_SIZES.map((size) =>
+    const sizes = el('div', { class: 'size-row', role: 'radiogroup', 'aria-label': 'Stroke width', onKeydown: (event) => this.onSizeKeydown(event) }, STROKE_SIZES.map((size) =>
       el(
         'button',
         {
@@ -413,6 +415,8 @@ export class QuireApp {
           role: 'radio',
           'aria-label': `Stroke ${size}`,
           'aria-checked': String(size === this.size),
+          // Only the chosen width is in the Tab order; arrow keys move between the others.
+          tabindex: size === this.size ? '0' : '-1',
           'data-size': size,
           onMousedown: prevent,
           onClick: () => this.setSize(size),
@@ -634,6 +638,16 @@ export class QuireApp {
     ink.addEventListener('pointermove', (event) => this.onPointerMove(event));
     ink.addEventListener('pointerup', (event) => this.onPointerUp(event));
     ink.addEventListener('pointercancel', (event) => this.onPointerUp(event));
+    // Keyboard drawing: arrows move the pen over the page, Space puts it down. See keypen.js.
+    this.keyPen = attachKeyboardPen(ink, {
+      isEnabled: () => Boolean(this.entry) && POINTER_TOOLS.has(this.tool),
+      getTool: () => this.tool,
+      skipArrows: () => this.tool === 'select' && this.selection.size > 0,
+      describe: (on) =>
+        on
+          ? `Drawing page, ${TOOLS.find((tool) => tool.id === this.tool)?.label ?? 'drawing'} tool. Arrow keys move the pen, Space or Enter puts it down and lifts it, Escape lifts it.`
+          : 'Drawing layer. Pick a drawing tool to draw on the page.',
+    });
 
     // Pageless: a click on the empty space under the text continues at the end, so a line break is always one Enter away.
     sheet.addEventListener('mousedown', (event) => {
@@ -704,6 +718,7 @@ export class QuireApp {
     for (const button of this.dom.toolbox.querySelectorAll('[data-tool-id]')) {
       button.setAttribute('aria-pressed', String(button.dataset.toolId === id));
     }
+    this.keyPen?.refresh();
     const tool = TOOLS.find((item) => item.id === id);
     this.dom.hint.textContent = tool?.hint ?? '';
     if (id !== 'select' && this.selection.size) {
@@ -719,8 +734,22 @@ export class QuireApp {
   setSize(size) {
     this.size = size;
     for (const button of this.dom.toolbox.querySelectorAll('[data-size]')) {
-      button.setAttribute('aria-checked', String(Number(button.dataset.size) === size));
+      const selected = Number(button.dataset.size) === size;
+      button.setAttribute('aria-checked', String(selected));
+      button.tabIndex = selected ? 0 : -1;
     }
+  }
+
+  /** Arrow keys move through the stroke widths and pick the new one, as in a radio group. */
+  onSizeKeydown(event) {
+    const step = { ArrowLeft: -1, ArrowUp: -1, ArrowRight: 1, ArrowDown: 1 }[event.key];
+    if (!step) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const index = STROKE_SIZES.indexOf(this.size);
+    const next = STROKE_SIZES[(index + step + STROKE_SIZES.length) % STROKE_SIZES.length];
+    this.setSize(next);
+    this.dom.toolbox.querySelector(`[data-size="${next}"]`)?.focus();
   }
 
   /** The size row means stroke width for drawing tools and font size for the text box tool. */

@@ -372,6 +372,8 @@ export class HomeView {
       );
 
     this.nav.replaceChildren(
+      // Hidden heading so the Library, Notebooks, Tags, Mood and Weather headings sit under a level 2 heading.
+      el('h2', { class: 'sr-only' }, 'Filter entries'),
       el('h3', {}, 'Library'),
       navItem({
         label: 'All entries',

@@ -2,6 +2,11 @@
  * Application menu bar. `menus` is [{ label, items: () => Item[] }], where items
  * are rebuilt on every open so check marks and disabled states stay current.
  * An Item is either 'sep' or { label, shortcut, action, check, checked, disabled }.
+ *
+ * Keyboard follows the menu button pattern: Enter, Space or Down opens a menu and
+ * moves focus to its first item, Up and Down move between items, Home and End go
+ * to the ends, Left and Right change menus, and Escape or Tab closes the menu and
+ * returns focus to its title.
  */
 
 import { el } from './dom.js';
@@ -11,18 +16,41 @@ export function createMenuBar(root, menus) {
 
   const titles = menus.map((menu, index) => {
     const button = el('button', { class: 'menu-title', type: 'button', 'aria-haspopup': 'menu', 'aria-expanded': 'false' }, menu.label);
-    button.addEventListener('click', () => (open?.index === index ? close() : show(index)));
+    button.addEventListener('click', (event) => {
+      // A click with no pointer (detail 0) came from Enter or Space, so focus should go into the menu.
+      if (open?.index === index) close();
+      else show(index, { focusFirst: event.detail === 0 });
+    });
+    button.addEventListener('keydown', (event) => {
+      if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return;
+      event.preventDefault();
+      event.stopPropagation(); // the document handler below would otherwise also step through the items
+      if (open?.index !== index) show(index, { focusFirst: true });
+      focusItem(event.key === 'ArrowDown' ? 'first' : 'last');
+    });
     button.addEventListener('pointerenter', () => {
-      if (open && open.index !== index) show(index);
+      if (open && open.index !== index) show(index, { focusFirst: open.panel.contains(document.activeElement) });
     });
     return button;
   });
   root.replaceChildren(...titles);
 
-  function show(index) {
+  function enabledItems() {
+    return open ? [...open.panel.querySelectorAll('.menu-item:not(:disabled)')] : [];
+  }
+
+  function focusItem(which) {
+    const items = enabledItems();
+    if (!items.length) return;
+    if (which === 'first') items[0].focus();
+    else if (which === 'last') items[items.length - 1].focus();
+    else items[(items.indexOf(document.activeElement) + which + items.length) % items.length].focus();
+  }
+
+  function show(index, { focusFirst = false } = {}) {
     close();
     const button = titles[index];
-    const panel = el('div', { class: 'menu-panel', role: 'menu', 'aria-label': menus[index].label });
+    const panel = el('div', { class: 'menu-panel', role: 'menu', id: `menu-panel-${index}`, 'aria-label': menus[index].label });
     for (const item of menus[index].items()) {
       if (item === 'sep') {
         panel.append(el('div', { class: 'menu-sep', role: 'separator' }));
@@ -49,27 +77,36 @@ export function createMenuBar(root, menus) {
       );
     }
     button.setAttribute('aria-expanded', 'true');
+    button.setAttribute('aria-controls', panel.id);
     button.classList.add('is-open');
     root.append(panel);
     panel.style.left = `${button.offsetLeft}px`;
     open = { index, button, panel };
+    if (focusFirst) focusItem('first');
   }
 
   function close() {
     if (!open) return;
-    open.button.setAttribute('aria-expanded', 'false');
-    open.button.classList.remove('is-open');
-    open.panel.remove();
+    const { button, panel } = open;
+    // Keep focus in the menu bar when the focused item is about to be removed.
+    const hadFocus = panel.contains(document.activeElement);
+    button.setAttribute('aria-expanded', 'false');
+    button.removeAttribute('aria-controls');
+    button.classList.remove('is-open');
+    panel.remove();
     open = null;
+    if (hadFocus) button.focus();
   }
 
   document.addEventListener('pointerdown', (event) => {
-    if (open && !root.contains(event.target)) close();
+    if (open && !root.contains(event.target) && !open.panel.contains(event.target)) close();
   });
 
   document.addEventListener('keydown', (event) => {
     if (!open) return;
+    const inPanel = open.panel.contains(document.activeElement);
     if (event.key === 'Escape') {
+      event.preventDefault();
       const { index } = open;
       close();
       titles[index].focus();
@@ -77,8 +114,29 @@ export function createMenuBar(root, menus) {
       event.preventDefault();
       const step = event.key === 'ArrowRight' ? 1 : -1;
       const next = (open.index + step + menus.length) % menus.length;
-      show(next);
-      titles[next].focus();
+      if (inPanel) {
+        show(next, { focusFirst: true });
+      } else {
+        show(next);
+        titles[next].focus();
+      }
+    } else if (inPanel && event.key === 'ArrowDown') {
+      event.preventDefault();
+      focusItem(1);
+    } else if (inPanel && event.key === 'ArrowUp') {
+      event.preventDefault();
+      focusItem(-1);
+    } else if (inPanel && event.key === 'Home') {
+      event.preventDefault();
+      focusItem('first');
+    } else if (inPanel && event.key === 'End') {
+      event.preventDefault();
+      focusItem('last');
+    } else if (event.key === 'Tab') {
+      // Tab leaves the menu, so the menu closes and focus stays on its title.
+      const { index } = open;
+      close();
+      titles[index].focus();
     }
   });
 

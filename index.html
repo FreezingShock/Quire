@@ -34,6 +34,7 @@
   </div>
   <div class="app" data-view="home">
     <header class="titlebar">
+      <h1 class="sr-only">Quire</h1>
       <a class="brand" href="#/" title="All entries">
         <img class="brand-mark" src="assets/quire-icon.svg" width="18" height="18" alt="">
         <span>Quire</span>
@@ -50,7 +51,7 @@
       <button type="button" class="ribbon-toggle" id="ribbon-toggle" aria-controls="toolbox" aria-expanded="true" title="Minimize the ribbon"></button>
     </div>
 
-    <div class="entry-bar">
+    <section class="entry-bar" aria-label="Entry details">
       <label class="field">
         <span>Date</span>
         <input id="entry-date" type="date" aria-label="Entry date">
@@ -76,33 +77,35 @@
         <span>Tags</span>
         <input id="entry-tags" type="text" placeholder="travel, winter" aria-label="Tags, comma separated" autocomplete="off">
       </label>
-    </div>
+    </section>
 
-    <main class="workspace">
-      <aside class="toolbox" id="toolbox" aria-label="Tools"></aside>
-      <section class="desk" aria-label="Page">
-        <div class="sheet" id="sheet">
-          <canvas id="grid" class="ink grid" aria-hidden="true" hidden></canvas>
-          <div id="editor" class="editor" contenteditable="true" role="textbox" aria-multiline="true" aria-label="Entry text" spellcheck="true" data-placeholder="Start writing. Try # for a heading, > for a quote, or - for a list." data-empty="true"></div>
-          <canvas id="ink" class="ink" data-tool="write" aria-label="Drawing layer. Pick a drawing tool to draw on the page."></canvas>
-        </div>
-      </section>
+    <main class="app-main" id="main">
+      <div class="workspace">
+        <aside class="toolbox" id="toolbox" aria-label="Tools"></aside>
+        <section class="desk" aria-label="Page">
+          <div class="sheet" id="sheet">
+            <canvas id="grid" class="ink grid" aria-hidden="true" hidden></canvas>
+            <div id="editor" class="editor" contenteditable="true" role="textbox" aria-multiline="true" aria-label="Entry text" spellcheck="true" data-placeholder="Start writing. Try # for a heading, > for a quote, or - for a list." data-empty="true"></div>
+            <canvas id="ink" class="ink" data-tool="write" aria-label="Drawing layer. Pick a drawing tool to draw on the page."></canvas>
+          </div>
+        </section>
+      </div>
+
+      <section class="home" id="home" aria-label="All entries"></section>
     </main>
 
-    <section class="home" id="home" aria-label="All entries"></section>
-
-    <footer class="palette">
+    <section class="palette" aria-label="Colors">
       <div class="ink-chip" id="ink-chip" aria-hidden="true"><span class="chip-bg"></span><span class="chip-fg"></span></div>
       <div class="swatches" id="swatches"></div>
       <p class="palette-note">Click a color for ink or for selected text. Right-click to set the page color.</p>
-    </footer>
+    </section>
 
-    <div class="statusbar">
+    <footer class="statusbar">
       <span id="hint" class="status-hint"></span>
       <span id="status-words"></span>
       <span id="status-mode">Markdown</span>
       <span id="status-date"></span>
-    </div>
+    </footer>
   </div>
   <script type="module" src="src/main.js"></script>
 </body>

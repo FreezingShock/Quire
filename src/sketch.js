@@ -9,6 +9,7 @@
 import { BASE_LAYER, NORM_WIDTH, applyOp, newOpId, strokeWidth } from './drawing.js';
 import { icon } from './icons.js';
 import { el } from './dom.js';
+import { attachKeyboardPen } from './keypen.js';
 
 const PEN_TOOLS = [
   { id: 'pencil', label: 'Pencil', icon: 'pencil' },
@@ -79,6 +80,13 @@ export class SketchPad {
     this.canvas.addEventListener('pointermove', (event) => this.onMove(event));
     this.canvas.addEventListener('pointerup', (event) => this.onUp(event));
     this.canvas.addEventListener('pointercancel', () => this.cancel());
+    // Arrow keys and Space draw with the keyboard too (see keypen.js).
+    this.keyPen = attachKeyboardPen(this.canvas, {
+      isEnabled: () => true,
+      getTool: () => this.tool,
+      describe: (on) => (on ? 'Sketch. Arrow keys move the pen, Space or Enter puts it down and lifts it, Escape lifts it.' : 'Sketch.'),
+    });
+    this.keyPen.refresh();
     this.paint();
   }
 
@@ -137,7 +145,11 @@ export class SketchPad {
   onDown(event) {
     if (event.button !== 0) return;
     event.preventDefault();
-    this.canvas.setPointerCapture(event.pointerId);
+    try {
+      this.canvas.setPointerCapture(event.pointerId);
+    } catch {
+      // Keyboard pen events have no live pointer to capture; drawing still works without it.
+    }
     const { color, size } = this.ink();
     this.live = {
       t: 'stroke',
@@ -153,7 +165,9 @@ export class SketchPad {
 
   onMove(event) {
     if (!this.live) return;
-    const samples = event.getCoalescedEvents?.() ?? [event];
+    // Keyboard pen events have no coalesced list, and an empty one must fall back to the event itself.
+    const coalesced = event.getCoalescedEvents?.() ?? [];
+    const samples = coalesced.length ? coalesced : [event];
     for (const sample of samples) this.live.p.push(this.point(sample));
     this.paint();
   }
