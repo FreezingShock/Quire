@@ -21,6 +21,15 @@ export function strokeWidth(tool, size) {
   }
 }
 
+/**
+ * The ink still on the sheet. A Clear is an op too, so undo can bring the ink
+ * back. Only the ops after the last Clear are visible.
+ */
+export function visibleOps(ops) {
+  const lastClear = ops.findLastIndex((op) => op.t === 'clear');
+  return ops.slice(lastClear + 1);
+}
+
 /** Ordered list of ops plus a redo stack. Pure logic, no canvas. */
 export class Drawing {
   #ops;
@@ -35,7 +44,7 @@ export class Drawing {
   }
 
   get isEmpty() {
-    return this.#ops.length === 0;
+    return visibleOps(this.#ops).length === 0;
   }
 
   get canUndo() {

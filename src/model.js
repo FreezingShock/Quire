@@ -3,6 +3,8 @@
  * both build on these helpers, so keep this file free of side effects.
  */
 
+import { visibleOps } from './drawing.js';
+
 export const KINDS = Object.freeze([
   { id: 'journal', label: 'Journal' },
   { id: 'poem', label: 'Poem' },
@@ -86,7 +88,7 @@ export function displayTitle(entry) {
 
 /** An entry nobody has written in or drawn on. Blank entries are cleaned up when you leave them. */
 export function isBlankEntry(entry) {
-  return !(entry.title ?? '').trim() && !(entry.body ?? '').trim() && !entry.ink?.ops?.length;
+  return !(entry.title ?? '').trim() && !(entry.body ?? '').trim() && !visibleOps(entry.ink?.ops ?? []).length;
 }
 
 export function slugify(text) {

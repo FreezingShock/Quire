@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { Drawing, inkExtent, strokeWidth } from '../src/drawing.js';
+import { Drawing, inkExtent, strokeWidth, visibleOps } from '../src/drawing.js';
 
 const stroke = (x) => ({ t: 'stroke', tool: 'pencil', c: '#000000', w: 1.4, p: [[x, 1], [x + 5, 9]] });
 
@@ -56,4 +56,23 @@ test('ink extent is the lowest point drawn', () => {
 test('stroke width grows with size and marker is wider than pencil', () => {
   assert.ok(strokeWidth('brush', 6) > strokeWidth('brush', 3));
   assert.ok(strokeWidth('marker', 3) > strokeWidth('pencil', 3));
+});
+
+test('clearing hides the ink, and undo brings it back', () => {
+  const d = new Drawing();
+  d.commit(stroke(1));
+  assert.equal(d.isEmpty, false);
+  assert.equal(d.clear(), true);
+  assert.equal(d.isEmpty, true);
+  assert.equal(d.clear(), false, 'a second clear on a blank sheet is a no-op');
+  assert.equal(d.undo().t, 'clear');
+  assert.equal(d.isEmpty, false);
+});
+
+test('visibleOps keeps only the ops after the last clear', () => {
+  const a = stroke(1);
+  const b = stroke(2);
+  assert.deepEqual(visibleOps([a, { t: 'clear' }, b]), [b]);
+  assert.deepEqual(visibleOps([a, { t: 'clear' }]), []);
+  assert.deepEqual(visibleOps([a, b]), [a, b]);
 });
