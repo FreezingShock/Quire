@@ -26,6 +26,7 @@ export const OPTION_PREFS = Object.freeze([
   'snapAngles',
   'showPrompts',
   'showOnThisDay',
+  'tipsDismissed',
   'reminder',
 ]);
 
@@ -196,6 +197,12 @@ export function showOptions({ get, set, pickAccent }) {
         note: 'A card that lists your entries from this date in earlier years.',
         read: (prefs) => Boolean(prefs.showOnThisDay),
         write: (on) => ({ showOnThisDay: on }),
+      }),
+      toggle({
+        label: 'Getting started tips',
+        note: 'Four short tips at the top of the dashboard on a new library. Got it hides them.',
+        read: (prefs) => !prefs.tipsDismissed,
+        write: (on) => ({ tipsDismissed: !on }),
       }),
       reminderRow({ get, set, register: (refresh) => refreshers.push(() => refresh()) }),
     ],

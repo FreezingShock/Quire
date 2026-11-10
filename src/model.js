@@ -112,6 +112,8 @@ export function normalizeEntry(raw = {}) {
     notebook: normalizeNotebook(raw.notebook),
     pinned: raw.pinned === true,
     favorite: raw.favorite === true,
+    // The first-run sample entry is marked so streaks can skip it. Entries written by hand never set this.
+    sample: raw.sample === true,
     body: typeof raw.body === 'string' ? raw.body : '',
     // Pictures and sketches are referenced from the body by id. Older entries have neither, so both default to empty.
     images: normalizeImages(raw.images),

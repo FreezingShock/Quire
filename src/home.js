@@ -43,10 +43,12 @@ import {
   summarizeDays,
 } from './journal.js';
 import { promptFor } from './prompts.js';
+import { greetingFor, isFirstRun, lastDays, monthSummary, recentEntries } from './dashboard.js';
+import { TIPS } from './onboarding.js';
 
 const PAGE_RATIO = 1.25; // sheet height relative to its width, as on the writing page
 const THUMB_PX = 352; // 2x the tile page width, so ink stays sharp on high-DPI screens
-const VIEWS = ['details', 'tiles', 'calendar', 'moods'];
+const VIEWS = ['dashboard', 'details', 'tiles', 'calendar', 'moods'];
 const MOOD_RANGES = [
   { id: 30, label: '30 days' },
   { id: 90, label: '90 days' },
@@ -152,34 +154,51 @@ function yearsAgoText(years) {
   return years === 1 ? '1 year ago' : `${years} years ago`;
 }
 
+/** "1 day", "3 days". Pass the plural form when adding "s" is wrong, as in "entry" and "entries". */
+function plural(count, word, many = `${word}s`) {
+  return `${count} ${count === 1 ? word : many}`;
+}
+
+/** Short weekday name for a local YYYY-MM-DD string, e.g. "Mon". Noon avoids any daylight-saving edge. */
+function shortWeekday(iso) {
+  return new Date(`${iso}T12:00:00`).toLocaleDateString(undefined, { weekday: 'short' });
+}
+
+function entryCountLabel(count) {
+  return count ? `, ${plural(count, 'entry', 'entries')}` : ', nothing written';
+}
+
 export class HomeView {
   /**
-   * `view` is 'details', 'tiles', 'calendar', or 'moods'. `showPrompts` and
-   * `showOnThisDay` control the strip above the list. Callbacks: onOpen(id),
-   * onNew(options), onToday(), onWritePrompt(prompt), onHidePrompts(),
-   * onDelete(id), onViewChange(view).
+   * `view` is 'dashboard', 'details', 'tiles', 'calendar', or 'moods'. The
+   * dashboard is the default. `showPrompts`, `showOnThisDay`, and `showTips`
+   * control the cards. Callbacks: onOpen(id), onNew(options), onToday(),
+   * onWritePrompt(prompt), onHidePrompts(), onDismissTips(), onDelete(id),
+   * onViewChange(view), onPatch(id, fields).
    */
   constructor(
     root,
     {
-      view = 'details',
+      view = 'dashboard',
       showPrompts = true,
       showOnThisDay = true,
+      showTips = true,
       onOpen,
       onNew,
       onToday,
       onWritePrompt,
       onHidePrompts,
+      onDismissTips,
       onDelete,
       onViewChange,
       onPatch,
     } = {},
   ) {
     this.root = root;
-    this.callbacks = { onOpen, onNew, onToday, onWritePrompt, onHidePrompts, onDelete, onViewChange, onPatch };
+    this.callbacks = { onOpen, onNew, onToday, onWritePrompt, onHidePrompts, onDismissTips, onDelete, onViewChange, onPatch };
     this.entries = [];
     this.terms = []; // search terms for the current query, used for highlighting
-    this.stripOptions = { showPrompts, showOnThisDay };
+    this.stripOptions = { showPrompts, showOnThisDay, showTips };
     const today = localISODate();
     this.state = {
       filter: { type: 'all', value: null },
@@ -253,6 +272,11 @@ export class HomeView {
     this.moveBtn.title = 'Move to a notebook';
     this.deleteBtn = this.commandButton('Delete', 'trash', () => this.deleteSelected());
     this.streak = el('span', { class: 'streak-chip' });
+    this.dashboardBtn = el(
+      'button',
+      { class: 'cmd-btn cmd-icon-only', type: 'button', title: 'Dashboard', 'aria-label': 'Dashboard view', onClick: () => this.setViewMode('dashboard') },
+      iconNode('home'),
+    );
     this.detailsBtn = el(
       'button',
       { class: 'cmd-btn cmd-icon-only', type: 'button', title: 'Details', 'aria-label': 'Details view', onClick: () => this.setViewMode('details') },
@@ -302,7 +326,7 @@ export class HomeView {
         el('span', { class: 'cmd-sep', 'aria-hidden': 'true' }),
         el('span', { class: 'cmd-spacer' }),
         this.streak,
-        el('div', { class: 'view-toggle', role: 'group', 'aria-label': 'View' }, this.detailsBtn, this.tilesBtn, this.calendarBtn, this.moodsBtn),
+        el('div', { class: 'view-toggle', role: 'group', 'aria-label': 'View' }, this.dashboardBtn, this.detailsBtn, this.tilesBtn, this.calendarBtn, this.moodsBtn),
       ),
       el('div', { class: 'home-body' }, this.nav, this.main),
     );
@@ -456,11 +480,13 @@ export class HomeView {
     if (view === 'calendar') content = this.calendar(matches);
     else if (view === 'moods') content = this.moodView();
     else if (!this.entries.length) content = this.emptyLibrary();
+    // The dashboard is for the whole journal. Once a filter or search narrows it, the list takes over.
+    else if (view === 'dashboard' && this.isUnfiltered()) content = this.dashboard();
     else if (!matches.length) content = this.emptyMatches();
     else if (view === 'tiles') content = this.tileGrid(matches);
     else content = this.table(matches);
-    // The strip is for the whole journal, so it hides while a filter or search narrows the list.
-    const strip = view !== 'calendar' && this.isUnfiltered() ? this.stripSection() : null;
+    // The strip is for the whole journal, so it hides while a filter or search narrows the list. The dashboard has its own cards.
+    const strip = view !== 'calendar' && view !== 'dashboard' && this.isUnfiltered() ? this.stripSection() : null;
     this.main.replaceChildren(...[strip, content].filter(Boolean));
     this.drawMoodChart();
     this.markSelection();
@@ -515,10 +541,265 @@ export class HomeView {
     setLabel(this.favBtn, selected?.favorite ? 'Unfavorite' : 'Favorite');
     this.pinBtn.setAttribute('aria-pressed', String(Boolean(selected?.pinned)));
     this.favBtn.setAttribute('aria-pressed', String(Boolean(selected?.favorite)));
+    this.dashboardBtn.setAttribute('aria-pressed', String(this.state.view === 'dashboard'));
     this.detailsBtn.setAttribute('aria-pressed', String(this.state.view === 'details'));
     this.tilesBtn.setAttribute('aria-pressed', String(this.state.view === 'tiles'));
     this.calendarBtn.setAttribute('aria-pressed', String(this.state.view === 'calendar'));
     this.moodsBtn.setAttribute('aria-pressed', String(this.state.view === 'moods'));
+  }
+
+  // ---------- dashboard: the landing view ----------
+
+  /**
+   * Today at a glance: a greeting, the streak and this month, the prompt,
+   * recent entries, a mini calendar, the last seven days, and the tips. Cards
+   * sit in two columns and stack on narrow screens. The sample entry counts
+   * toward the list but never toward the numbers.
+   */
+  dashboard() {
+    const today = localISODate();
+    const written = this.entries.filter((entry) => !entry.sample);
+    const streak = dayStreaks(this.entries, today);
+    const month = monthSummary(written, today);
+    const flags = countFlags(written);
+    const todayMood = summarizeDays(this.entries)[today]?.mood ?? null;
+    const wroteToday = written.some((entry) => entry.date === today);
+    const { showPrompts, showOnThisDay, showTips } = this.stripOptions;
+    const memories = showOnThisDay ? onThisDay(this.entries, today) : [];
+
+    const heading = isFirstRun(this.entries) ? 'Welcome to Quire' : greetingFor(new Date().getHours());
+    const line = isFirstRun(this.entries)
+      ? 'Your library starts with a sample entry. Read it, change it, or delete it when you are ready.'
+      : wroteToday
+        ? 'You have written today. Keep going, or start another page.'
+        : 'Nothing written yet today. Start with the prompt below, or just write.';
+
+    const hero = el(
+      'section',
+      { class: 'dash-hero', 'aria-label': 'Today' },
+      el(
+        'div',
+        { class: 'dash-hero-text' },
+        el('p', { class: 'dash-date' }, formatLongDate(today)),
+        el('h2', { class: 'dash-title' }, heading),
+        el('p', { class: 'dash-sub' }, line),
+      ),
+      el(
+        'div',
+        { class: 'dash-actions' },
+        el(
+          'button',
+          { class: 'cmd-btn cmd-primary', type: 'button', onClick: () => this.callbacks.onToday?.() },
+          iconNode('calendar'),
+          el('span', { class: 'cmd-label' }, "Today's journal"),
+        ),
+        el(
+          'button',
+          { class: 'cmd-btn', type: 'button', onClick: () => this.callbacks.onNew?.() },
+          iconNode('plus'),
+          el('span', { class: 'cmd-label' }, 'New entry'),
+        ),
+      ),
+    );
+
+    const streakNote = streak.current
+      ? streak.todayDone ? `Best: ${plural(streak.longest, 'day')}` : 'Write today to keep it going'
+      : streak.longest ? `Best: ${plural(streak.longest, 'day')}` : 'Write today to begin';
+    const stats = el(
+      'section',
+      { class: 'dash-stats', 'aria-label': 'At a glance' },
+      this.statCard({
+        label: 'Streak',
+        icon: 'flame',
+        value: streak.current ? plural(streak.current, 'day') : 'Not started',
+        note: streakNote,
+        active: streak.current > 0,
+      }),
+      this.statCard({
+        label: 'This month',
+        icon: 'calendar',
+        value: plural(month.count, 'entry', 'entries'),
+        note: `${month.words.toLocaleString()} ${month.words === 1 ? 'word' : 'words'}`,
+      }),
+      this.statCard({
+        label: 'Today',
+        icon: 'pencil',
+        value: wroteToday ? 'Written' : 'Not yet',
+        note: todayMood ? `Mood: ${labelFor(MOODS, todayMood)}` : 'No mood picked yet',
+      }),
+      this.statCard({
+        label: 'Entries',
+        icon: 'page',
+        value: String(written.length),
+        note: `${flags.pinned} pinned · ${flags.favorite} ${flags.favorite === 1 ? 'favorite' : 'favorites'}`,
+      }),
+    );
+
+    // A new reader gets the tips first. Later, they sit at the bottom of the right column.
+    const firstRun = isFirstRun(this.entries);
+    const tips = showTips ? this.tipsCard() : null;
+    const left = el(
+      'div',
+      { class: 'dash-col' },
+      firstRun ? tips : null,
+      showPrompts ? this.promptCard(today, 'dash-card') : null,
+      this.recentCard(recentEntries(this.entries, 6)),
+    );
+    const right = el(
+      'div',
+      { class: 'dash-col' },
+      this.miniCalendarCard(today),
+      this.weekCard(today),
+      memories.length ? this.onThisDayCard(memories) : null,
+      firstRun ? null : tips,
+    );
+
+    return el('div', { class: 'dash' }, hero, stats, el('div', { class: 'dash-grid' }, left, right));
+  }
+
+  statCard({ label, icon: iconName, value, note, active = false }) {
+    return el(
+      'div',
+      { class: `dash-stat${active ? ' is-active' : ''}` },
+      el('span', { class: 'dash-stat-label' }, iconNode(iconName), label),
+      el('span', { class: 'dash-stat-value' }, value),
+      el('span', { class: 'dash-stat-note' }, note),
+    );
+  }
+
+  recentCard(recent) {
+    return el(
+      'section',
+      { class: 'strip-card dash-card dash-recent', 'aria-label': 'Recent entries' },
+      el(
+        'div',
+        { class: 'strip-head' },
+        iconNode('page'),
+        el('h3', {}, 'Recent entries'),
+        el('button', { class: 'cmd-btn dash-more', type: 'button', onClick: () => this.setViewMode('details') }, 'See all'),
+      ),
+      recent.length
+        ? el(
+            'ul',
+            { class: 'dash-recent-list' },
+            recent.map((entry) => {
+              const sub = [formatShortDate(entry.date), kindLabel(entry.kind), feelText(entry)].filter(Boolean).join(' · ');
+              const excerpt = excerptOf(entry, 140);
+              return el(
+                'li',
+                {},
+                el(
+                  'button',
+                  { class: 'dash-recent-item', type: 'button', onClick: () => this.open(entry.id) },
+                  el('span', { class: 'dash-recent-title' }, displayTitle(entry), flagIcons(entry)),
+                  el('span', { class: 'dash-recent-sub' }, sub),
+                  excerpt ? el('span', { class: 'dash-recent-excerpt' }, excerpt) : null,
+                ),
+              );
+            }),
+          )
+        : el('p', { class: 'dash-empty' }, 'Entries you write show up here.'),
+    );
+  }
+
+  /** A month you can page through. A day with entries opens on the calendar view. */
+  miniCalendarCard(today) {
+    const { month } = this.state;
+    const grid = monthGrid(month.year, month.month);
+    const summary = summarizeDays(this.entries);
+    return el(
+      'section',
+      { class: 'strip-card dash-card dash-mini', 'aria-label': 'Mini calendar' },
+      el(
+        'div',
+        { class: 'strip-head' },
+        iconNode('calendar'),
+        el('h3', { 'aria-live': 'polite' }, monthTitle(month)),
+        el(
+          'span',
+          { class: 'dash-mini-nav' },
+          el('button', { class: 'cmd-btn cal-step', type: 'button', title: 'Previous month', 'aria-label': 'Previous month', onClick: () => this.shiftMonth(-1) }, '‹'),
+          el('button', { class: 'cmd-btn cal-step', type: 'button', title: 'Next month', 'aria-label': 'Next month', onClick: () => this.shiftMonth(1) }, '›'),
+        ),
+      ),
+      el(
+        'div',
+        { class: 'dash-mini-grid' },
+        WEEKDAYS.map((name) => el('span', { class: 'dash-mini-dow', 'aria-hidden': 'true' }, name.charAt(0))),
+        grid.weeks.flat().map((cell) => {
+          const info = summary[cell.date];
+          const classes = ['dash-mini-day'];
+          if (!cell.inMonth) classes.push('is-outside');
+          if (cell.date === today) classes.push('is-today');
+          if (info?.count) classes.push('has-entries');
+          const label = `${formatLongDate(cell.date)}${info?.count ? `, ${plural(info.count, 'entry', 'entries')}` : ''}`;
+          return el(
+            'button',
+            { type: 'button', class: classes.join(' '), title: label, 'aria-label': label, onClick: () => this.openDayInCalendar(cell.date) },
+            String(cell.day),
+          );
+        }),
+      ),
+    );
+  }
+
+  weekCard(today) {
+    return el(
+      'section',
+      { class: 'strip-card dash-card dash-week', 'aria-label': 'Last seven days' },
+      el('div', { class: 'strip-head' }, iconNode('flame'), el('h3', {}, 'Last 7 days')),
+      el(
+        'ol',
+        { class: 'dash-week-list' },
+        lastDays(this.entries, today, 7).map((day) => {
+          const label = `${formatLongDate(day.date)}${entryCountLabel(day.count)}`;
+          const classes = ['dash-day'];
+          if (day.count) classes.push('has-entries');
+          if (day.isToday) classes.push('is-today');
+          return el(
+            'li',
+            {},
+            el(
+              'button',
+              { type: 'button', class: classes.join(' '), title: label, 'aria-label': label, onClick: () => this.openDayInCalendar(day.date) },
+              el('span', { class: 'dash-day-name' }, shortWeekday(day.date)),
+              el('span', { class: 'dash-day-num' }, String(Number(day.date.slice(8)))),
+              el('span', { class: 'dash-day-mood' }, day.mood ? labelFor(MOODS, day.mood) : ''),
+            ),
+          );
+        }),
+      ),
+    );
+  }
+
+  tipsCard() {
+    return el(
+      'section',
+      { class: 'strip-card dash-card dash-tips', 'aria-label': 'Getting started' },
+      el(
+        'div',
+        { class: 'strip-head' },
+        iconNode('bulb'),
+        el('h3', {}, 'Getting started'),
+        el(
+          'button',
+          { class: 'cmd-btn dash-more', type: 'button', title: 'Hide these tips (Options brings them back)', onClick: () => this.callbacks.onDismissTips?.() },
+          'Got it',
+        ),
+      ),
+      el(
+        'ul',
+        { class: 'dash-tip-list' },
+        TIPS.map((tip) => el('li', {}, el('h4', {}, tip.title), el('p', {}, tip.body))),
+      ),
+    );
+  }
+
+  /** Switches to the calendar view on the month and day picked from a dashboard card. */
+  openDayInCalendar(date) {
+    this.state.day = date;
+    this.state.month = monthOf(date);
+    this.setViewMode('calendar');
   }
 
   // ---------- details list ----------
@@ -732,7 +1013,13 @@ export class HomeView {
             ),
           ),
         )
-      : el('p', { class: 'cal-empty' }, this.entries.length ? 'Nothing written on this day.' : 'Nothing written yet.');
+      : el(
+          'p',
+          { class: 'cal-empty' },
+          this.entries.length
+            ? 'Nothing written on this day yet. Use “New entry for this day” to start one.'
+            : 'Nothing written yet. Your first entry will show up on its day here.',
+        );
 
     return el(
       'section',
@@ -763,12 +1050,12 @@ export class HomeView {
     return el('section', { class: 'home-strip', 'aria-label': 'Today in Quire' }, cards);
   }
 
-  promptCard(today) {
+  promptCard(today, extraClass = '') {
     const prompt = promptFor(today, this.state.promptSkip);
     const hasJournal = this.entries.some((entry) => entry.kind === 'journal' && entry.date === today);
     return el(
       'section',
-      { class: 'strip-card prompt-card', 'aria-label': 'Writing prompt' },
+      { class: `strip-card prompt-card ${extraClass}`.trim(), 'aria-label': 'Writing prompt' },
       el(
         'div',
         { class: 'strip-head' },
@@ -898,7 +1185,11 @@ export class HomeView {
       ),
       logged
         ? el('div', { class: 'mood-chart-card' })
-        : el('p', { class: 'mood-empty' }, 'Pick a mood in the entry bar and that day shows up here.'),
+        : el(
+            'p',
+            { class: 'mood-empty' },
+            'No moods logged in this range yet. Pick a mood in the entry bar, and that day shows up here.',
+          ),
       logged ? el('div', { class: 'mood-bars' }, counts.map((item) => this.moodBar(item, logged))) : null,
     );
   }
@@ -978,9 +1269,24 @@ export class HomeView {
       'div',
       { class: 'home-empty' },
       iconNode('page', 'empty-icon'),
-      el('h2', {}, 'No entries yet'),
-      el('p', {}, 'Write a page or sketch one. Everything stays in this browser until you back it up.'),
-      el('button', { class: 'cmd-btn cmd-primary', type: 'button', onClick: () => this.callbacks.onNew?.() }, iconNode('plus'), 'New entry'),
+      el('h2', {}, 'Your library is empty'),
+      el('p', {}, 'Start with today’s journal, or write a new page and sketch on it. Everything stays in this browser until you back it up.'),
+      el(
+        'div',
+        { class: 'strip-actions' },
+        el(
+          'button',
+          { class: 'cmd-btn cmd-primary', type: 'button', onClick: () => this.callbacks.onToday?.() },
+          iconNode('calendar'),
+          el('span', { class: 'cmd-label' }, "Today's journal"),
+        ),
+        el(
+          'button',
+          { class: 'cmd-btn', type: 'button', onClick: () => this.callbacks.onNew?.() },
+          iconNode('plus'),
+          el('span', { class: 'cmd-label' }, 'New entry'),
+        ),
+      ),
     );
   }
 
@@ -991,7 +1297,13 @@ export class HomeView {
       { class: 'home-empty' },
       iconNode('search', 'empty-icon'),
       el('h2', {}, query ? 'Nothing matches' : 'Nothing in this view'),
-      el('p', {}, query ? `No entry matches “${query}” here.` : 'No entries match this filter.'),
+      el(
+        'p',
+        {},
+        query
+          ? `No entry matches “${query}” here. Try fewer or shorter words, or show everything again.`
+          : 'No entries match this filter. Pick another notebook, tag, or mood, or show everything again.',
+      ),
       el(
         'button',
         { class: 'cmd-btn', type: 'button', onClick: () => this.resetView() },

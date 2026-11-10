@@ -53,7 +53,8 @@ export function monthOf(iso) {
  * broken before the day is over. `longest` is the best run in the whole history.
  */
 export function dayStreaks(entries, today = localISODate()) {
-  const days = new Set(entries.map((entry) => entry.date));
+  // The first-run sample is not something the reader wrote, so it does not start a streak.
+  const days = new Set(entries.filter((entry) => !entry.sample).map((entry) => entry.date));
 
   let longest = 0;
   let run = 0;

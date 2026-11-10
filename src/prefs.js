@@ -18,6 +18,10 @@ const DEFAULTS = Object.freeze({
   sound: false,
   showPrompts: true,
   showOnThisDay: true,
+  // Getting-started tips on the dashboard. "Got it" sets this. Options (Home tab) brings them back.
+  tipsDismissed: false,
+  // The first-run sample entry is written once. Deleting it does not bring it back.
+  sampleSeeded: false,
   // Skin id (see skins.js); null means the old `dark` flag decides.
   skin: null,
   // Custom accent as #rrggbb, or null for the skin's own blue, red, or navy.
