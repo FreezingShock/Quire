@@ -11,6 +11,7 @@ import { SKINS, normalizeAccent, skinOf } from './skins.js';
 import { playSound } from './sound.js';
 import { reminderRow } from './pwa.js';
 import { AMBIENT_SOUNDS, MAX_WORD_GOAL, normalizeAmbient, normalizeGoal } from './focus.js';
+import { MAX_IDLE_MINUTES, MIN_IDLE_MINUTES, SCREENSAVERS, normalizeIdleMinutes, normalizeScreensaver } from './screensaver.js';
 
 /** The prefs this dialog reads or writes. Each one must have a default in prefs.js. */
 export const OPTION_PREFS = Object.freeze([
@@ -34,6 +35,8 @@ export const OPTION_PREFS = Object.freeze([
   'wordGoal',
   'ambient',
   'ambientVolume',
+  'screensaver',
+  'screensaverMinutes',
 ]);
 
 const TABS = Object.freeze([
@@ -57,7 +60,7 @@ let lastTab = 'appearance';
  * `get()` returns the current prefs. `set(patch)` saves them and applies them.
  * `pickAccent(onChange)` opens the color chooser and calls `onChange` after each pick.
  */
-export function showOptions({ get, set, pickAccent }) {
+export function showOptions({ get, set, pickAccent, onPreview }) {
   const refreshers = [];
   const sync = () => {
     const prefs = get();
@@ -137,6 +140,18 @@ export function showOptions({ get, set, pickAccent }) {
       { class: 'options-item' },
       el('label', { class: 'options-field' }, el('span', {}, label), el('span', { class: 'options-range-row' }, input, value)),
       note ? el('p', { class: 'options-note options-note-first' }, note) : null,
+    );
+  }
+
+  /** Closes the dialog and shows the screensaver, so you can see it without waiting for the idle time. */
+  function previewRow() {
+    return el(
+      'div',
+      { class: 'options-item' },
+      el('button', { class: 'btn', type: 'button', onClick: () => {
+        dialog.close();
+        onPreview?.();
+      } }, 'Preview screensaver'),
     );
   }
 
@@ -228,6 +243,24 @@ export function showOptions({ get, set, pickAccent }) {
         read: (prefs) => Boolean(prefs.wallpaper),
         write: (on) => ({ wallpaper: on }),
       }),
+      choices({
+        legend: 'Screensaver',
+        note: 'Takes over the window after you have been idle. Any movement, click or key brings your page back. With the passcode lock on, Memories shows Aurora instead, so locked entries never drift past, and waking locks Quire again.',
+        name: 'screensaver',
+        options: SCREENSAVERS,
+        read: (prefs) => normalizeScreensaver(prefs.screensaver),
+        write: (id) => ({ screensaver: id }),
+      }),
+      numberField({
+        label: 'Start after this many idle minutes',
+        note: `From ${MIN_IDLE_MINUTES} to ${MAX_IDLE_MINUTES} minutes.`,
+        min: MIN_IDLE_MINUTES,
+        max: MAX_IDLE_MINUTES,
+        step: 1,
+        read: (prefs) => normalizeIdleMinutes(prefs.screensaverMinutes),
+        write: (value) => ({ screensaverMinutes: normalizeIdleMinutes(value) }),
+      }),
+      previewRow(),
     ],
     writing: [
       choices({

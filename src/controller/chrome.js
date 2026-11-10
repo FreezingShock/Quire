@@ -75,6 +75,7 @@ export const chromeMethods = {
       get: () => this.prefs,
       set: (patch) => this.setPref(patch),
       pickAccent: (onChange) => this.pickAccent(onChange),
+      onPreview: () => this.screensaver?.preview(),
     });
   },
 

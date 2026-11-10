@@ -1,0 +1,29 @@
+/* The screensaver: one full-window canvas over the app. It stays hidden until the idle timer starts it. */
+
+.screensaver {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  overflow: hidden;
+  background: #03071a;
+  cursor: none;
+  user-select: none;
+  opacity: 0;
+  transition: opacity 600ms ease;
+}
+
+.screensaver.is-on {
+  opacity: 1;
+}
+
+.screensaver canvas {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+html[data-motion="off"] .screensaver {
+  transition: none;
+}

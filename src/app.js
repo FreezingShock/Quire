@@ -7,7 +7,7 @@
  */
 
 import { createLocalStore } from './storage.js';
-import { unlockStore } from './lock.js';
+import { lockNow, unlockStore } from './lock.js';
 import {
   MOODS,
   WEATHERS,
@@ -19,6 +19,7 @@ import { BASE_LAYER, Drawing } from './drawing.js';
 import { PALETTE } from './tools.js';
 import { loadPrefs, savePrefs } from './prefs.js';
 import { startPwa, startReminders, REMINDER_DEFAULTS } from './pwa.js';
+import { startScreensaver } from './screensaver.js';
 import { HomeView } from './home.js';
 import { sampleEntry } from './onboarding.js';
 import { $, fillSelect } from './controller/helpers.js';
@@ -98,6 +99,7 @@ export class QuireApp {
     this.prefs = loadPrefs();
     this.store = null;
     this.passcodeOn = false; // whether the passcode lock is on; the File menu reads it
+    this.screensaver = null; // the idle watch and its preview, started once the store is open
     this.entry = null;
     this.drawing = new Drawing();
     this.base = document.createElement('canvas');
@@ -187,6 +189,13 @@ export class QuireApp {
       saveReminder: (reminder) => this.setPref({ reminder }),
       hasEntryOn: async (day) => (await this.store.list()).some((entry) => entry.date === day),
       onCapsuleCheck: (send) => this.announceArrivedCapsules(send),
+    });
+    this.screensaver = startScreensaver({
+      getPrefs: () => this.prefs,
+      getEntries: () => this.store.list(),
+      isLocked: () => this.passcodeOn,
+      // A locked Quire wakes to the passcode. Saving first keeps the open entry.
+      onWake: () => lockNow(() => this.persist()),
     });
     await this.seedSampleEntry();
     // The site opens on the dashboard. A reload on an entry keeps that entry.
