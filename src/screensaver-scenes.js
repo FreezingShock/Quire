@@ -118,7 +118,9 @@ function createAurora(canvas, pace) {
           if (x === 0) ctx.moveTo(x, edge(x));
           else ctx.lineTo(x, edge(x));
         }
-        for (let x = w + 12; x >= 0; x -= 12) ctx.lineTo(x, edge(x) + thick);
+        for (let x = w + 12; x > 0; x -= 12) ctx.lineTo(x, edge(x) + thick);
+        // Close the band at the left edge exactly, so no wedge is left between the two edges.
+        ctx.lineTo(0, edge(0) + thick);
         ctx.closePath();
         const [r, g, b] = ribbon.rgb;
         const fill = ctx.createLinearGradient(0, base - h * ribbon.wave, 0, base + thick + h * ribbon.wave);
