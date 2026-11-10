@@ -43,6 +43,8 @@ const DEFAULTS = Object.freeze({
   // Screensaver (see screensaver.js): the scene, or 'off', and the idle minutes before it starts.
   screensaver: 'off',
   screensaverMinutes: 5,
+  // Custom screensavers made in the editor (see screensaver-custom.js), up to six.
+  screensavers: [],
 });
 
 export function loadPrefs() {

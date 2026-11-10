@@ -192,7 +192,7 @@ export class QuireApp {
     });
     this.screensaver = startScreensaver({
       getPrefs: () => this.prefs,
-      getEntries: () => this.store.list(),
+      getEntries: ({ photos = false } = {}) => (photos ? this.store.listFull() : this.store.list()),
       isLocked: () => this.passcodeOn,
       // A locked Quire wakes to the passcode. Saving first keeps the open entry.
       onWake: () => lockNow(() => this.persist()),
