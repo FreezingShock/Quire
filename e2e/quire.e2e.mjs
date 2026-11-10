@@ -229,6 +229,78 @@ test('a drawing stays on the entry after a reload', async () => {
   }
 });
 
+/** Pastes a small generated picture into the open entry, the same way a copied picture arrives. */
+async function pasteTestPicture(page) {
+  await page.evaluate(async () => {
+    const canvas = document.createElement('canvas');
+    canvas.width = 240;
+    canvas.height = 160;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#3b7dd8';
+    ctx.fillRect(0, 0, 240, 160);
+    const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/png'));
+    const transfer = new DataTransfer();
+    transfer.items.add(new File([blob], 'blue.png', { type: 'image/png' }));
+    document.querySelector('#editor').dispatchEvent(new ClipboardEvent('paste', { clipboardData: transfer, bubbles: true, cancelable: true }));
+  });
+  await page.waitForSelector('.lv-media img');
+}
+
+test('a picture set to wrap sits beside the text that follows it, and can be picked again', async () => {
+  const page = await freshPage();
+  try {
+    await openQuire(page);
+    await newEntry(page);
+    await page.click('#editor');
+    await page.keyboard.type('Before the picture.');
+    await page.keyboard.press('Enter');
+    await pasteTestPicture(page);
+    await page.keyboard.press('Enter');
+    await page.keyboard.type('Text that should run beside the picture when it wraps.');
+    await page.click('.lv-media img');
+    await page.click('.media-bar-btn[data-mode="square"]');
+    await page.click('.media-bar-btn[data-side="right"]');
+    const classes = await page.getAttribute('.lv-media', 'class');
+    assert.match(classes, /is-square/);
+    assert.match(classes, /is-wrap-right/);
+    // The wrapped picture is above the line boxes beside it, so a click on it still selects it.
+    const hit = await page.evaluate(() => {
+      const box = document.querySelector('.lv-media').getBoundingClientRect();
+      return document.elementFromPoint(box.x + box.width / 2, box.y + box.height / 2)?.closest('.lv-media')?.dataset.mediaId ?? null;
+    });
+    assert.equal(hit, await page.getAttribute('.lv-media', 'data-media-id'));
+    await waitForSaved(page);
+    await page.reload({ waitUntil: 'load' });
+    await page.waitForSelector('#splash', { state: 'detached', timeout: 15000 });
+    await page.waitForFunction(() => document.querySelector('.app')?.dataset.view === 'editor');
+    assert.match(await page.getAttribute('.lv-media', 'class'), /is-wrap-right/, 'the placement is saved with the entry');
+    expectNoErrors(page);
+  } finally {
+    await page.close();
+  }
+});
+
+test('a stroke that starts in the page margin is kept on a Margins layer', async () => {
+  const page = await freshPage();
+  try {
+    await openQuire(page);
+    await newEntry(page);
+    await page.click('button[aria-label="Pencil"]');
+    const sheet = await page.locator('#sheet').boundingBox();
+    const y = sheet.y + 140;
+    await page.mouse.move(sheet.x + 24, y);
+    await page.mouse.down();
+    await page.mouse.move(sheet.x + 44, y + 80, { steps: 10 });
+    await page.mouse.up();
+    const names = await page.locator('.layer-name').allTextContents();
+    assert.equal(names.includes('Margins'), true, 'the margin stroke makes a Margins layer');
+    assert.equal(await inkHasPixels(page), true, 'the margin stroke is drawn');
+    expectNoErrors(page);
+  } finally {
+    await page.close();
+  }
+});
+
 test('the calendar starts an entry on the selected day', async () => {
   const page = await freshPage();
   try {

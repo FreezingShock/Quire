@@ -270,3 +270,116 @@
   touch-action: none;
   cursor: crosshair;
 }
+
+/* ---------- pictures: placement ----------
+   Each picture is a wrapper with a mode class (see src/media-layout.js). --w is its
+   width as a share of the text column; --dx and --dy offset a positioned picture. */
+
+.lv-media {
+  position: relative;
+  display: block;
+  user-select: none;
+}
+
+.lv-media.is-sized { width: calc(var(--w, 1) * 100%); }
+.lv-media.is-sized .lv-img { width: 100%; max-width: none; }
+
+/* Wrapped: the text runs beside the picture. Tight wrap follows the outline set inline. */
+/* z-index lifts a wrapped picture over the line boxes beside it, so it can be clicked. */
+.lv-media.is-wrap-left { float: left; z-index: 1; margin: 4px 18px 10px 0; }
+.lv-media.is-wrap-right { float: right; z-index: 1; margin: 4px 0 10px 18px; }
+
+/* In front of or behind the text: placed from the line that holds it, and dragged. */
+.lv-media.is-positioned {
+  position: absolute;
+  left: calc(var(--dx, 0) * 100%);
+  top: var(--dy, 0px);
+  z-index: 2;
+  cursor: move;
+  touch-action: none;
+}
+
+/* Behind the text: only the picture itself drops under the lines. A thin ring around it stays on top, so it can be
+   selected and dragged, while the text over the picture's middle is still editable. */
+.lv-media.is-behind { z-index: auto; }
+
+.lv-media.is-behind > .lv-img {
+  position: relative;
+  z-index: -1;
+}
+
+.lv-media.is-behind::after {
+  content: "";
+  position: absolute;
+  inset: -8px;
+  z-index: 2;
+  cursor: move;
+  touch-action: none;
+  clip-path: polygon(0 0, 100% 0, 100% 100%, 0 100%, 0 0, 8px 8px, 8px calc(100% - 8px), calc(100% - 8px) calc(100% - 8px), calc(100% - 8px) 8px, 8px 8px, 0 0);
+}
+
+.lv-media.is-wrap-left .lv-img,
+.lv-media.is-wrap-right .lv-img,
+.lv-media.is-positioned .lv-img { margin: 0; }
+
+.lv-media.is-selected { outline: 1px dashed var(--accent); outline-offset: 3px; }
+
+.lv-handle {
+  position: absolute;
+  z-index: 3;
+  right: -7px;
+  bottom: -7px;
+  width: 10px;
+  height: 10px;
+  border: 1px solid var(--accent);
+  background: #fff;
+  cursor: nwse-resize;
+  touch-action: none;
+}
+
+/* ---------- the placement bar ---------- */
+
+.media-bar {
+  position: absolute;
+  z-index: 5;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  max-width: calc(100% - 8px);
+  padding: 4px 6px;
+  border: 1px solid var(--panel-edge);
+  border-radius: 4px;
+  background: linear-gradient(to bottom, var(--panel-hi), var(--panel-lo));
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
+  font-family: var(--ui-font, inherit);
+}
+
+.media-bar[hidden],
+.media-bar-side[hidden] { display: none; }
+
+.media-bar-group { display: flex; gap: 2px; }
+
+.media-bar-btn {
+  height: 24px;
+  padding: 0 8px;
+  border: 1px solid var(--tile-edge);
+  border-radius: 3px;
+  background: linear-gradient(to bottom, var(--tile-hi), var(--tile-lo));
+  box-shadow: inset 1px 1px 0 rgba(255, 255, 255, 0.9);
+  color: var(--tile-ink);
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.media-bar-btn:hover {
+  background: linear-gradient(to bottom, var(--glow-hi), var(--glow-lo));
+  border-color: var(--hover-edge);
+}
+
+.media-bar-btn[aria-pressed="true"] {
+  background: linear-gradient(to bottom, var(--press-hi), var(--press-lo));
+  box-shadow: inset 1px 1px 2px rgba(10, 40, 90, 0.45);
+}

@@ -5,6 +5,7 @@
 
 import { normalizeLayers, normalizeOps, visibleOps } from './drawing.js';
 import { normalizeMixtape } from './mixtape.js';
+import { normalizeMediaLayout } from './media-layout.js';
 
 export const KINDS = Object.freeze([
   { id: 'journal', label: 'Journal' },
@@ -141,6 +142,8 @@ export function normalizeEntry(raw = {}) {
     sketches: normalizeSketches(raw.sketches),
     // Song links for the entry's mixtape. Older entries have none, so they read back as an empty list.
     mixtape: normalizeMixtape(raw.mixtape),
+    // Where each picture sits (in line, wrapped, in front or behind). Pictures with no entry here are in line.
+    imageLayout: normalizeMediaLayout(raw.imageLayout),
     pageColor: HEX.test(raw.pageColor ?? '') ? raw.pageColor.toLowerCase() : DEFAULT_PAGE_COLOR,
     ink: {
       ops: normalizeOps(raw.ink?.ops),

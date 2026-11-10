@@ -43,6 +43,7 @@ export function contentKey(entry) {
     entry.capsule ?? null,
     // Songs change by their link and title, so a reorder or a new title counts as an edit.
     entry.mixtape ?? [],
+    entry.imageLayout ?? {},
   ]);
 }
 

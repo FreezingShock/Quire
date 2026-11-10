@@ -852,6 +852,7 @@ button.layer-name:focus-visible {
 
 .sheet {
   position: relative;
+  isolation: isolate; /* behind-text pictures paint above the paper and under the text */
   flex: 1 0 auto;
   width: 100%;
   min-height: 100%;
@@ -859,6 +860,21 @@ button.layer-name:focus-visible {
   padding: 28px 56px 96px;
   background-color: var(--paper);
 }
+
+/* Doodle margins: a notebook rule either side of the text column. Ink drawn out here lands on the Margins layer. */
+.sheet::before,
+.sheet::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: rgba(200, 74, 74, 0.42);
+  pointer-events: none;
+}
+
+.sheet::before { left: 44px; }
+.sheet::after { right: 44px; }
 
 /* The live-preview editor's own styles are in live.css. */
 
@@ -876,6 +892,9 @@ button.layer-name:focus-visible {
 .grid { pointer-events: none; }
 
 .ink[data-tool="write"] { pointer-events: none; }
+
+/* The drawing layer stays over pictures in front of the text, so ink is never hidden. */
+#ink { z-index: 3; }
 .ink[data-tool="pick"] { cursor: copy; }
 .ink[data-tool="fill"],
 .ink[data-tool="eraser"] { cursor: cell; }
@@ -1281,6 +1300,8 @@ kbd {
   .layer-row { width: 96px; }
 
   .sheet { padding: 16px 16px 72px; }
+  .sheet::before { left: 9px; }
+  .sheet::after { right: 9px; }
 
   .entry-bar {
     gap: 6px 10px;

@@ -13,7 +13,10 @@
  * hold the caret. In Source mode, which is a class on the root, they always show.
  *
  * Pictures and inline sketches live on the entry (see media.js). A picture line
- * shows its image under the raw reference. A sketch line gets a live SketchPad,
+ * shows its image under the raw reference, placed as its layout says (see
+ * media-layout.js): in line, wrapped with the text, in front of it, or behind it.
+ * A selected picture shows a floating bar to pick its placement, and a corner
+ * handle to resize it; positioned pictures can be dragged. A sketch line gets a live SketchPad,
  * which is cached per id and moved into place after each render. Clicking a
  * checklist box toggles it in the source, and pasted or dropped image files go
  * to `onFiles` instead of the text.
@@ -22,6 +25,14 @@
 import { parseLiveLines, documentHtml } from './livemarkup.js';
 import { SketchPad } from './sketch.js';
 import { dataUrlToBlob, imageFiles } from './media.js';
+import { createMediaBar } from './media-bar.js';
+import { el } from './dom.js';
+import {
+  isPositioned,
+  layoutForMode,
+  mediaLayoutOf,
+  normalizeMediaLayoutEntry,
+} from './media-layout.js';
 
 const GROUP_MS = 1200;
 const HISTORY_LIMIT = 300;
@@ -108,6 +119,8 @@ export class LiveEditor {
     this.inkStyle = inkStyle;
     this.images = {}; // id -> data URL, from the open entry
     this.sketches = {}; // id -> { h, ops }, from the open entry
+    this.layouts = {}; // image id -> placement, from the open entry (see media-layout.js)
+    this.selected = null; // id of the picture the placement bar is showing
     this.urls = new Map(); // image id -> object URL for display
     this.pads = new Map(); // sketch id -> SketchPad
     this.source = '';
@@ -126,6 +139,14 @@ export class LiveEditor {
       if (event.target.closest?.('.lv-check')) event.preventDefault();
     });
     root.addEventListener('click', (event) => this.onClick(event));
+    root.addEventListener('pointerdown', (event) => this.onPointerDown(event));
+    // The placement bar sits in the sheet, next to the editor. Pressing anywhere else on the sheet's outside clears the selection.
+    this.bar = createMediaBar({ onMode: (mode) => this.pickMode(mode), onSide: (side) => this.pickSide(side) });
+    root.parentElement?.append(this.bar.el);
+    document.addEventListener('pointerdown', (event) => {
+      if (this.selected && !root.parentElement?.contains(event.target)) this.select(null);
+    });
+    window.addEventListener('resize', () => this.updateMediaUi());
     root.addEventListener('paste', (event) => this.onPaste(event));
     root.addEventListener('dragover', (event) => {
       if (hasFiles(event.dataTransfer)) {
@@ -192,6 +213,10 @@ export class LiveEditor {
     this.pads = new Map();
     this.images = entry?.images ?? {};
     this.sketches = entry?.sketches ?? {};
+    if (entry && !entry.imageLayout) entry.imageLayout = {};
+    this.layouts = entry?.imageLayout ?? {};
+    this.selected = null;
+    this.bar.hide();
   }
 
   get selectionStart() {
@@ -445,7 +470,10 @@ export class LiveEditor {
   // ---------- rendering ----------
 
   render(sel) {
-    this.root.innerHTML = documentHtml(parseLiveLines(this.source), { resolve: (kind, id) => this.mediaFor(kind, id) });
+    this.root.innerHTML = documentHtml(parseLiveLines(this.source), {
+      resolve: (kind, id) => this.mediaFor(kind, id),
+      layoutOf: (id) => (Object.hasOwn(this.layouts, id) ? this.layouts[id] : null),
+    });
     this.root.dataset.empty = this.source ? 'false' : 'true';
     this.mountSketches();
     if (sel) {
@@ -453,6 +481,115 @@ export class LiveEditor {
       if (this.focused) this.applySelection(this.sel.start, this.sel.end);
     }
     this.updateActive();
+    this.updateMediaUi();
+  }
+
+  // ---------- pictures: placement, selection, resize and drag ----------
+
+  mediaNode(id) {
+    return this.root.querySelector(`.lv-media[data-media-id="${CSS.escape(id)}"]`);
+  }
+
+  /** Pressing a picture selects it. The corner handle resizes it, and a positioned picture drags. */
+  onPointerDown(event) {
+    if (event.button !== 0) return;
+    const media = event.target.closest?.('.lv-media[data-media-id]');
+    if (!media) {
+      if (this.selected) this.select(null);
+      return;
+    }
+    const id = media.dataset.mediaId;
+    if (this.selected !== id) this.select(id);
+    if (event.target.closest?.('.lv-handle')) this.startDrag(event, id, 'resize');
+    else if (isPositioned(mediaLayoutOf(this.layouts, id).mode)) this.startDrag(event, id, 'move');
+  }
+
+  /**
+   * Follows the pointer while a picture is resized or moved. The picture is
+   * shown at its new place as the pointer moves, and the layout is saved on release.
+   */
+  startDrag(event, id, kind) {
+    const node = this.mediaNode(id);
+    if (!node) return;
+    event.preventDefault();
+    node.setPointerCapture?.(event.pointerId);
+    const start = { x: event.clientX, y: event.clientY };
+    const base = mediaLayoutOf(this.layouts, id);
+    const width = this.root.clientWidth || 1;
+    let next = null;
+    const move = (moment) => {
+      const dx = moment.clientX - start.x;
+      const dy = moment.clientY - start.y;
+      if (!next && Math.hypot(dx, dy) < 3) return; // a small jitter is a click, not a drag
+      next = kind === 'resize' ? { w: base.w + dx / width } : { dx: base.dx + dx / width, dy: base.dy + dy };
+      const shown = normalizeMediaLayoutEntry({ ...base, ...next });
+      node.style.setProperty('--w', String(shown.w));
+      node.style.setProperty('--dx', String(shown.dx));
+      node.style.setProperty('--dy', `${shown.dy}px`);
+    };
+    const finish = () => {
+      node.removeEventListener('pointermove', move);
+      node.removeEventListener('pointerup', finish);
+      node.removeEventListener('pointercancel', finish);
+      if (next) this.setMediaLayout(id, next);
+    };
+    node.addEventListener('pointermove', move);
+    node.addEventListener('pointerup', finish);
+    node.addEventListener('pointercancel', finish);
+  }
+
+  /** Saves a change to one picture's placement, redraws the text, and counts as an edit. */
+  setMediaLayout(id, patch) {
+    this.layouts[id] = normalizeMediaLayoutEntry({ ...mediaLayoutOf(this.layouts, id), ...patch });
+    this.render(this.sel);
+    this.onChange();
+  }
+
+  pickMode(mode) {
+    if (!this.selected) return;
+    this.setMediaLayout(this.selected, layoutForMode(mediaLayoutOf(this.layouts, this.selected), mode));
+  }
+
+  pickSide(side) {
+    if (!this.selected) return;
+    this.setMediaLayout(this.selected, { side });
+  }
+
+  select(id) {
+    this.selected = id ?? null;
+    this.updateMediaUi();
+  }
+
+  /** Marks the selected picture, adds its resize handle, and shows the placement bar over it. */
+  updateMediaUi() {
+    for (const node of this.root.querySelectorAll('.lv-media.is-selected')) {
+      node.classList.remove('is-selected');
+      node.querySelector(':scope > .lv-handle')?.remove();
+    }
+    const node = this.selected ? this.mediaNode(this.selected) : null;
+    if (!node) {
+      this.selected = null;
+      this.bar.hide();
+      return;
+    }
+    node.classList.add('is-selected');
+    node.append(el('span', { class: 'lv-handle', 'aria-hidden': 'true' }));
+    this.bar.show(mediaLayoutOf(this.layouts, this.selected));
+    this.placeBar(node);
+  }
+
+  /** Puts the bar above the picture, or below it when there is no room above, kept inside the sheet. */
+  placeBar(node) {
+    const sheet = this.root.parentElement;
+    if (!sheet) return;
+    const frame = sheet.getBoundingClientRect();
+    const rect = node.getBoundingClientRect();
+    const bar = this.bar.el;
+    let top = rect.top - frame.top - bar.offsetHeight - 10;
+    if (top < 4) top = rect.bottom - frame.top + 10;
+    const left = Math.min(Math.max(4, rect.left - frame.left), Math.max(4, sheet.clientWidth - bar.offsetWidth - 4));
+    bar.style.left = `${left}px`;
+    bar.style.top = `${top}px`;
   }
 
   /** What a picture or sketch id resolves to while drawing a line. */

@@ -4,6 +4,8 @@ import { INCREMENTAL_OPS, SPRAY_STEP } from './constants.js';
 import { penPressure } from './helpers.js';
 import {
   InkStack,
+  MARGIN_LAYER,
+  MAX_LAYERS,
   NORM_WIDTH,
   STAMP_SIZES,
   applyOp,
@@ -292,14 +294,16 @@ export const inkCanvasMethods = {
     const w = Math.round(strokeWidth(this.tool, this.size) * 100) / 100;
     // With snap to grid on, a drag starts on the nearest grid node.
     const start = this.snapPoint(p);
+    // A stroke that starts in a page margin goes to the Margins layer, so margin doodles stay in the margins.
+    const layer = this.strokeLayerAt(p);
     // Only pen input records pressure. The highlighter and spray ignore it, so their strokes stay even.
     this.livePen = event.pointerType === 'pen' && this.tool !== 'marker' && this.tool !== 'spray';
     if (this.tool === 'curve') {
-      this.live = { t: 'curve', l: this.activeLayer, c: this.fg, w, a: start, b: start, ...straightCurve(start, start) };
+      this.live = { t: 'curve', l: layer, c: this.fg, w, a: start, b: start, ...straightCurve(start, start) };
     } else if (SHAPE_TOOLS.has(this.tool)) {
-      this.live = { t: this.tool, l: this.activeLayer, c: this.fg, w, a: start, b: start };
+      this.live = { t: this.tool, l: layer, c: this.fg, w, a: start, b: start };
     } else {
-      this.live = { t: 'stroke', l: this.activeLayer, tool: this.tool, c: this.fg, w, p: [this.livePen ? [...start, penPressure(event)] : start] };
+      this.live = { t: 'stroke', l: layer, tool: this.tool, c: this.fg, w, p: [this.livePen ? [...start, penPressure(event)] : start] };
     }
     if (this.tool === 'spray') this.startSpray();
     this.requestRedraw();
@@ -307,6 +311,32 @@ export const inkCanvasMethods = {
 
   snapPoint(p) {
     return this.prefs.snapGrid ? snapToGrid([p.x, p.y]) : [p.x, p.y];
+  },
+
+  /** True when a page point is in a margin, that is beside the text column (normalized units). */
+  inMargin(p) {
+    const { sheet, editorEl } = this.dom;
+    const width = sheet.clientWidth;
+    if (!width) return false;
+    const left = (editorEl.offsetLeft / width) * NORM_WIDTH;
+    const right = ((editorEl.offsetLeft + editorEl.offsetWidth) / width) * NORM_WIDTH;
+    return p.x < left || p.x > right;
+  },
+
+  /** The layer a new stroke at point p goes to. Margin strokes use the Margins layer, made the first time it is needed. */
+  strokeLayerAt(p) {
+    if (!this.inMargin(p)) return this.activeLayer;
+    let layer = this.layers.find((item) => item.id === MARGIN_LAYER);
+    if (!layer) {
+      if (this.layers.length >= MAX_LAYERS) return this.activeLayer;
+      layer = { id: MARGIN_LAYER, name: 'Margins', visible: true };
+      this.layers.push(layer);
+      this.changeLayers();
+    } else if (!layer.visible) {
+      layer.visible = true;
+      this.changeLayers();
+    }
+    return MARGIN_LAYER;
   },
 
   constraints() {
