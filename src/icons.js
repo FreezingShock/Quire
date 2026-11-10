@@ -28,6 +28,10 @@ const PATHS = {
   tiles: '<rect x="2.5" y="2.5" width="4.5" height="4.5"/><rect x="9" y="2.5" width="4.5" height="4.5"/><rect x="2.5" y="9" width="4.5" height="4.5"/><rect x="9" y="9" width="4.5" height="4.5"/>',
   chevronUp: '<path d="M3.5 10.5L8 6l4.5 4.5"/>',
   chevronDown: '<path d="M3.5 6L8 10.5 12.5 6"/>',
+  calendar: '<rect x="2.5" y="3.5" width="11" height="10" rx=".8"/><path d="M2.5 6.5h11M5.5 2v2.5M10.5 2v2.5"/><path d="M5.2 9.2h1.6M9.2 9.2h1.6M5.2 11.5h1.6"/>',
+  flame: '<path d="M8 2.5c.4 2.2 3.7 3.9 3.7 7.2A3.7 3.7 0 0 1 4.3 9.7c0-1.6.8-2.6 1.6-3.4.1 1.1.5 1.8 1.2 2.2C7 6.2 7.4 4.3 8 2.5z"/>',
+  smile: '<circle cx="8" cy="8" r="5.5"/><path d="M5.6 9.4c.7 1 1.5 1.4 2.4 1.4s1.7-.4 2.4-1.4"/><path d="M6 6.3h.1M10 6.3h.1"/>',
+  cloud: '<path d="M4.8 12.2h6.6a2.6 2.6 0 0 0 .4-5.2 3.6 3.6 0 0 0-6.9.9 2.2 2.2 0 0 0-.1 4.3z"/>',
 };
 
 export function icon(name) {

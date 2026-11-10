@@ -335,12 +335,13 @@
   color: var(--text);
 }
 
-.home-table .col-title { width: 36%; }
-.home-table .col-date { width: 12%; }
-.home-table .col-kind { width: 11%; }
-.home-table .col-tags { width: 17%; }
-.home-table .col-words { width: 8%; }
-.home-table .col-modified { width: 16%; }
+.home-table .col-title { width: 30%; }
+.home-table .col-date { width: 11%; }
+.home-table .col-kind { width: 10%; }
+.home-table .col-tags { width: 14%; }
+.home-table .col-feel { width: 14%; }
+.home-table .col-words { width: 7%; }
+.home-table .col-modified { width: 14%; }
 .home-table .num { text-align: right; font-variant-numeric: tabular-nums; }
 
 .home-table thead .num .th-btn { justify-content: flex-end; }
@@ -375,6 +376,255 @@
   overflow: hidden;
   text-overflow: ellipsis;
   font-weight: 600;
+}
+
+/* ---------- streak chip (command bar) ---------- */
+
+.streak-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 26px;
+  margin-right: 6px;
+  padding: 0 10px;
+  border: 1px solid var(--field-edge);
+  border-radius: 13px;
+  background: linear-gradient(to bottom, var(--panel-hi), var(--panel-lo));
+  color: var(--muted);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.streak-chip .icon { color: var(--muted); }
+
+.streak-chip[data-active="true"] {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.streak-chip[data-active="true"] .icon { color: #d9731b; }
+
+/* ---------- calendar ---------- */
+
+.cal {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  box-sizing: border-box;
+  min-height: 100%;
+  padding: 12px 14px 16px;
+}
+
+.cal-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.cal-title {
+  min-width: 170px;
+  margin: 0 6px;
+  font-size: 17px;
+  font-weight: 600;
+  text-align: center;
+  color: var(--text);
+}
+
+.cal-step {
+  width: 28px;
+  padding: 0;
+  justify-content: center;
+  font-size: 16px;
+  line-height: 1;
+}
+
+.cal-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 1px;
+  overflow: hidden;
+  border: 1px solid var(--panel-edge);
+  border-radius: 3px;
+  background: var(--panel-edge);
+}
+
+.cal-dow {
+  padding: 5px 6px;
+  text-align: center;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--muted);
+  background: linear-gradient(to bottom, var(--menu-hi), var(--menu-lo));
+}
+
+.cal-days {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 1px;
+}
+
+.cal-day {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  min-width: 0;
+  min-height: 74px;
+  padding: 5px 6px;
+  border: 0;
+  background: var(--field);
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.cal-day:hover:not(.is-selected) { background: rgba(79, 151, 224, 0.16); }
+
+.cal-day:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+/* Layered over an opaque base, so the grid's dark gap color cannot show through. */
+.cal-day.is-outside {
+  background: linear-gradient(rgba(143, 168, 198, 0.14), rgba(143, 168, 198, 0.14)), var(--field);
+  color: var(--muted);
+}
+
+.cal-num {
+  padding: 0 4px;
+  font-size: 13px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  line-height: 18px;
+}
+
+.cal-day.is-today .cal-num {
+  border-radius: 9px;
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+
+.cal-count {
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  min-width: 18px;
+  height: 16px;
+  padding: 0 5px;
+  border-radius: 8px;
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 16px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.cal-mood {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.cal-day.is-selected {
+  background: linear-gradient(to bottom, var(--accent-hi), var(--accent-lo));
+  color: var(--accent-ink);
+}
+
+.cal-day.is-selected .cal-mood { color: var(--accent-ink); }
+
+.cal-day.is-selected .cal-count {
+  background: var(--accent-ink);
+  color: var(--accent);
+}
+
+.cal-day.is-today.is-selected .cal-num {
+  background: var(--accent-ink);
+  color: var(--accent);
+}
+
+.cal-panel {
+  padding: 10px 12px 12px;
+  border: 1px solid var(--panel-edge);
+  border-radius: 3px;
+  background: linear-gradient(to bottom, var(--panel-hi), var(--panel-lo));
+}
+
+.cal-panel-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.cal-panel h3 {
+  margin: 0;
+  font-size: 14px;
+  color: var(--text);
+}
+
+.cal-list {
+  display: grid;
+  gap: 4px;
+  margin: 10px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.cal-entry {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 30px;
+  padding: 4px 8px;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.cal-entry:hover {
+  border-color: #c3d6ec;
+  background: linear-gradient(to bottom, #ffffff, #e8f1fb);
+}
+
+.cal-entry .icon { color: var(--accent); }
+
+.cal-entry-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+}
+
+.cal-entry-sub {
+  margin-left: auto;
+  padding-left: 8px;
+  white-space: nowrap;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.cal-empty {
+  margin: 10px 0 0;
+  font-size: 13px;
+  color: var(--muted);
 }
 
 /* ---------- tiles ---------- */
@@ -528,7 +778,15 @@
 
   .home-table .col-kind,
   .home-table .col-tags,
+  .home-table .col-feel,
   .home-table .col-words { display: none; }
+
+  .cal { padding: 10px; }
+  .cal-title { min-width: 0; font-size: 15px; }
+  .cal-day { min-height: 54px; padding: 4px; }
+  .cal-mood { display: none; }
+  .cal-count { top: 3px; right: 3px; }
+  .cal-entry-sub { display: none; }
 
   .home-tiles { grid-template-columns: repeat(auto-fill, minmax(148px, 1fr)); gap: 10px; padding: 10px; }
 }

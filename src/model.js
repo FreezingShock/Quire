@@ -12,10 +12,31 @@ export const KINDS = Object.freeze([
   { id: 'note', label: 'Note' },
 ]);
 
+/** How the day felt. Optional on each entry; null means not set. */
+export const MOODS = Object.freeze([
+  { id: 'great', label: 'Great' },
+  { id: 'good', label: 'Good' },
+  { id: 'okay', label: 'Okay' },
+  { id: 'low', label: 'Low' },
+  { id: 'rough', label: 'Rough' },
+]);
+
+/** What the sky was doing. Optional on each entry; null means not set. */
+export const WEATHERS = Object.freeze([
+  { id: 'sunny', label: 'Sunny' },
+  { id: 'cloudy', label: 'Cloudy' },
+  { id: 'rain', label: 'Rain' },
+  { id: 'snow', label: 'Snow' },
+  { id: 'wind', label: 'Windy' },
+  { id: 'storm', label: 'Storm' },
+]);
+
 export const DEFAULT_PAGE_COLOR = '#fffdf8';
 export const SCHEMA_VERSION = 1;
 
 const KIND_IDS = new Set(KINDS.map((kind) => kind.id));
+const MOOD_IDS = new Set(MOODS.map((mood) => mood.id));
+const WEATHER_IDS = new Set(WEATHERS.map((weather) => weather.id));
 const HEX = /^#[0-9a-f]{6}$/i;
 
 export function newId() {
@@ -51,6 +72,9 @@ export function normalizeEntry(raw = {}) {
     tags: Array.isArray(raw.tags)
       ? [...new Set(raw.tags.map((tag) => String(tag).trim()).filter(Boolean))]
       : [],
+    // Older entries have neither field, so they read back as null. No schema bump needed.
+    mood: MOOD_IDS.has(raw.mood) ? raw.mood : null,
+    weather: WEATHER_IDS.has(raw.weather) ? raw.weather : null,
     body: typeof raw.body === 'string' ? raw.body : '',
     pageColor: HEX.test(raw.pageColor ?? '') ? raw.pageColor.toLowerCase() : DEFAULT_PAGE_COLOR,
     ink: {
@@ -76,6 +100,10 @@ export function parseTags(input) {
     if (tag) seen.add(tag);
   }
   return [...seen];
+}
+
+export function labelFor(list, id) {
+  return list.find((item) => item.id === id)?.label ?? '';
 }
 
 export function firstHeading(body) {
