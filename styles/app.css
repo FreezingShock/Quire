@@ -695,8 +695,9 @@ textarea {
 
 .layer-row:hover { border-color: var(--hover-edge); }
 
+/* The selected layer takes white text, so its fill runs darker than the light accent tints. */
 .layer-row.is-active {
-  background: linear-gradient(to bottom, var(--accent-hi), var(--accent-lo));
+  background: linear-gradient(to bottom, #3b7bc4, #1f5496);
   border-color: var(--accent);
   color: var(--accent-ink);
 }
