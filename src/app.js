@@ -270,9 +270,6 @@ export class QuireApp {
     this.dom.editorEl.classList.toggle('is-source', source);
     this.dom.grid.hidden = !this.prefs.showGrid;
     if (this.view !== 'home') this.dom.mode.textContent = source ? 'Source' : 'Live preview';
-    for (const button of document.querySelectorAll('[data-source]')) {
-      button.setAttribute('aria-pressed', String(source));
-    }
     // Vista chrome: the Aero wallpaper, and the ribbon that can be minimized.
     root.classList.toggle('has-wallpaper', Boolean(this.prefs.wallpaper));
     this.home?.setStripOptions({
@@ -453,21 +450,8 @@ export class QuireApp {
         ),
       ),
     );
-    const source = el(
-      'button',
-      {
-        class: 'source-btn',
-        type: 'button',
-        'data-source': '',
-        'aria-pressed': String(Boolean(this.prefs.source)),
-        title: 'Source mode: show the Markdown markup',
-        onMousedown: prevent,
-        onClick: () => this.setPref({ source: !this.prefs.source }),
-      },
-      'Source',
-    );
     this.dom.layers = el('div', { class: 'layer-panel', 'aria-label': 'Layers' });
-    this.dom.toolbox.replaceChildren(tools, sizes, format, source, this.dom.layers);
+    this.dom.toolbox.replaceChildren(tools, sizes, format, this.dom.layers);
     this.renderLayers();
   }
 
@@ -578,6 +562,10 @@ export class QuireApp {
           'sep',
           { label: 'Bold', shortcut: 'Ctrl+B', action: () => this.applyFormat('bold') },
           { label: 'Italic', shortcut: 'Ctrl+I', action: () => this.applyFormat('italic') },
+          'sep',
+          { label: 'Swap ink and page color', action: () => this.swapInkAndPage() },
+          { label: 'Reset page color', action: () => this.setPageColor(DEFAULT_PAGE_COLOR) },
+          { label: 'Reset ink color', action: () => this.setInk(PALETTE[0]) },
         ],
       },
       {
@@ -606,8 +594,6 @@ export class QuireApp {
           { label: 'Snap to grid', check: true, checked: Boolean(this.prefs.snapGrid), action: () => this.setPref({ snapGrid: !this.prefs.snapGrid }) },
           { label: 'Snap lines to 15° angles', check: true, checked: Boolean(this.prefs.snapAngles), action: () => this.setPref({ snapAngles: !this.prefs.snapAngles }) },
           'sep',
-          { label: 'Minimize ribbon', check: true, checked: Boolean(this.prefs.ribbonHidden), action: () => this.setPref({ ribbonHidden: !this.prefs.ribbonHidden }) },
-          { label: 'Aero wallpaper', check: true, checked: Boolean(this.prefs.wallpaper), action: () => this.setPref({ wallpaper: !this.prefs.wallpaper }) },
           { label: 'Startup splash', check: true, checked: Boolean(this.prefs.splash), action: () => this.setPref({ splash: !this.prefs.splash }) },
           'sep',
           { label: 'Writing prompts', check: true, checked: Boolean(this.prefs.showPrompts), action: () => this.setPref({ showPrompts: !this.prefs.showPrompts }) },
@@ -644,16 +630,9 @@ export class QuireApp {
               checked: this.prefs.motion !== false,
               action: () => this.setPref({ motion: this.prefs.motion === false }),
             },
+            { label: 'Aero wallpaper', check: true, checked: Boolean(this.prefs.wallpaper), action: () => this.setPref({ wallpaper: !this.prefs.wallpaper }) },
           ];
         },
-      },
-      {
-        label: 'Colors',
-        items: () => [
-          { label: 'Swap ink and page color', action: () => this.swapInkAndPage() },
-          { label: 'Reset page color', action: () => this.setPageColor(DEFAULT_PAGE_COLOR) },
-          { label: 'Reset ink color', action: () => this.setInk(PALETTE[0]) },
-        ],
       },
       {
         label: 'Help',

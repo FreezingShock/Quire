@@ -4,23 +4,80 @@ import { el } from './dom.js';
 import { KINDS, displayTitle, formatShortDate } from './model.js';
 import { wordCount } from './markdown.js';
 
-const SHORTCUTS = [
-  ['All entries (home)', 'Ctrl+Shift+H'],
-  ['Search entries, on home (words, or "a phrase")', 'Ctrl+F'],
-  ['New entry', 'Ctrl+N'],
-  ["Today's entry (journal)", 'Alt+T'],
-  ['Open entry', 'Ctrl+O'],
-  ['Save now', 'Ctrl+S'],
-  ['Export Markdown', 'Ctrl+E'],
-  ['Print or save as PDF', 'Ctrl+P'],
-  ['Undo / redo (last edited surface)', 'Ctrl+Z / Ctrl+Shift+Z'],
-  ['Bold / italic', 'Ctrl+B / Ctrl+I'],
-  ['Continue a list', 'Enter'],
-  ['Tools', 'T I G P B H E L R O S A'],
-  ['Select: move, nudge, delete', 'Drag, arrow keys, Delete'],
-  ['Finish a text box', 'Escape or click away'],
-  ['Constrain a line or shape', 'Hold Shift while dragging'],
-  ['Keyboard shortcuts', 'F1'],
+/*
+ * Every shortcut the app answers to, grouped the way the menus are. Keep this
+ * in step with the key handlers in app.js, livetext.js, home.js and dialogs.js.
+ */
+const SHORTCUT_GROUPS = [
+  {
+    title: 'Files and entries',
+    rows: [
+      ['All entries', 'Ctrl+Shift+H'],
+      ['New entry', 'Ctrl+N'],
+      ["Today's journal entry", 'Alt+T'],
+      ['Open entry', 'Ctrl+O'],
+      ['Search entries (All entries page)', 'Ctrl+F'],
+      ['Save now', 'Ctrl+S'],
+      ['Export as Markdown', 'Ctrl+E'],
+      ['Print or save as PDF', 'Ctrl+P'],
+    ],
+  },
+  {
+    title: 'Writing',
+    rows: [
+      ['Undo (last surface you edited)', 'Ctrl+Z'],
+      ['Redo', 'Ctrl+Shift+Z, Ctrl+Y'],
+      ['Select all text', 'Ctrl+A'],
+      ['Bold', 'Ctrl+B'],
+      ['Italic', 'Ctrl+I'],
+      ['Continue a list', 'Enter'],
+      ['Finish a text box', 'Escape or Ctrl+Enter'],
+      ['Finish renaming the entry (Escape cancels)', 'Enter'],
+    ],
+  },
+  {
+    title: 'Drawing tools (when not typing)',
+    rows: [
+      ['Write', 'T'],
+      ['Pick color', 'I'],
+      ['Fill', 'G'],
+      ['Pencil', 'P'],
+      ['Brush', 'B'],
+      ['Highlighter', 'H'],
+      ['Eraser', 'E'],
+      ['Line', 'L'],
+      ['Rectangle', 'R'],
+      ['Ellipse', 'O'],
+      ['Select', 'S'],
+      ['Text box', 'A'],
+    ],
+  },
+  {
+    title: 'Drawing and selection',
+    rows: [
+      ['Keep a line or shape straight, square, or round', 'Shift + drag'],
+      ['Nudge the selection (Shift for bigger steps)', 'Arrow keys'],
+      ['Delete the selection', 'Delete'],
+      ['Clear the selection', 'Escape'],
+    ],
+  },
+  {
+    title: 'Lists and calendar',
+    rows: [
+      ['Move between entries', 'Arrow keys'],
+      ['Open the selected entry', 'Enter'],
+      ['Delete the selected entry', 'Delete'],
+      ['Move between days (calendar)', 'Arrow keys'],
+    ],
+  },
+  {
+    title: 'Menus and help',
+    rows: [
+      ['Open the next or previous menu', 'Left or Right arrow'],
+      ['Close a menu or dialog', 'Escape'],
+      ['Keyboard shortcuts', 'F1'],
+    ],
+  },
 ];
 
 export function showDialog(dialog) {
@@ -142,15 +199,33 @@ export function notebookDialog({ title = 'Move to notebook', entryName, notebook
   return dialog;
 }
 
-export function showShortcuts() {
-  infoDialog(
-    'Keyboard shortcuts',
+function shortcutGroup({ title, rows }) {
+  return el(
+    'section',
+    { class: 'shortcut-group' },
+    el('h3', { class: 'shortcut-heading' }, title),
     el(
       'dl',
       { class: 'shortcut-list' },
-      SHORTCUTS.map(([label, keys]) => [el('dt', {}, label), el('dd', {}, el('kbd', {}, keys))]),
+      rows.flatMap(([label, keys]) => [el('dt', {}, label), el('dd', {}, el('kbd', {}, keys))]),
     ),
   );
+}
+
+export function showShortcuts() {
+  const heading = 'shortcuts-heading';
+  const dialog = el(
+    'dialog',
+    { class: 'dialog dialog-wide shortcut-dialog', 'aria-labelledby': heading },
+    el(
+      'form',
+      { method: 'dialog', class: 'dialog-form' },
+      el('h2', { id: heading, class: 'dialog-title' }, 'Keyboard shortcuts'),
+      el('div', { class: 'shortcut-groups' }, SHORTCUT_GROUPS.map(shortcutGroup)),
+      el('div', { class: 'dialog-actions' }, el('button', { class: 'btn btn-primary', type: 'submit' }, 'Close')),
+    ),
+  );
+  showDialog(dialog);
 }
 
 export function showAbout() {

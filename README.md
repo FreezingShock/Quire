@@ -28,12 +28,12 @@ You can also open `index.html` through any static server.
 - **Pictures:** paste or drop an image file into the text, or use Insert > Image. Large photos are scaled to 1600 px. The picture sits on its own line, and its file is stored with the entry.
 - **Inline sketches:** Insert > Sketch between paragraphs puts a small drawing pad in the text. It has its own pencil, brush, highlighter, eraser, undo and clear, and uses the current ink color.
 - **Word count:** the status bar shows words and reading time (about 238 words a minute). Pictures, sketches and checkboxes do not count as words.
-- **Source mode:** the Source button (or View > Source mode) shows every Markdown marker. Formatting still applies right away.
+- **Source mode:** View > Source mode shows every Markdown marker. Formatting still applies right away.
 - **Drawing:** pencil, brush, highlighter, eraser, line, rectangle, ellipse, fill, and color picker. Stroke widths 1, 3, and 6. Undo and redo follow whichever surface you touched last. Right-click a swatch to change the page color.
 - **Export:** Markdown with front matter (a .zip with the drawing PNG when the entry has ink), drawing as PNG, print or save as PDF, and JSON backup and restore. Backups include version history.
 - **Version history:** Quire keeps a version every five minutes while you edit, when you leave an entry, and before a restore. Open File > Version history to preview a version's text and drawing, restore it, or delete it. Save version now keeps one by hand. The newest 30 versions are kept per entry.
 - **Save status:** the dot in the title bar shows whether changes are pending, saving, saved, or failed to save.
-- **Look:** serif, sans, or monospace writing font. The Skin menu picks Aero (the default), Aero dark, Aero Basic, XP Luna, or Classic 98. Custom accent color recolors the selection and the title bar, and Window animations turns off the motion.
+- **Look:** serif, sans, or monospace writing font. The Skin menu picks Aero (the default), Aero dark, Aero Basic, XP Luna, or Classic 98, plus the Aero wallpaper, custom accent color (which recolors the selection and the title bar), and Window animations (which turns off the motion). Format holds the color swap and resets. Keyboard shortcuts (F1) lists every key.
 
 ## Design decisions
 
