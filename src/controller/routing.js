@@ -73,6 +73,7 @@ export const routingMethods = {
 
   renderInkChip() {
     this.dom.inkChip.style.setProperty('--fg', this.fg);
-    this.dom.inkChip.style.setProperty('--bg', this.entry?.pageColor ?? DEFAULT_PAGE_COLOR);
+    const page = this.entry?.pageColor ?? DEFAULT_PAGE_COLOR;
+    this.dom.inkChip.style.setProperty('--bg', page === DEFAULT_PAGE_COLOR ? 'var(--page-default)' : page);
   },
 };

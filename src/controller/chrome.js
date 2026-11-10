@@ -6,6 +6,8 @@ import { icon } from '../icons.js';
 import { readingMinutes, wordCount } from '../markdown.js';
 import { displayTitle, formatLongDate } from '../model.js';
 import { showOptions } from '../options.js';
+import { openCustomEditor } from '../screensaver-editor.js';
+import { CUSTOM_LIMIT, customKind, normalizeCustoms } from '../screensaver-custom.js';
 import { savePrefs } from '../prefs.js';
 import {
   ACCENT_PROPERTIES,
@@ -23,6 +25,7 @@ export const chromeMethods = {
     const skin = skinOf(this.prefs);
     root.dataset.skin = skin;
     root.dataset.theme = isDark(this.prefs) ? 'dark' : 'light';
+    if (this.entry) this.rebuildInk();
     root.dataset.motion = this.prefs.motion === false ? 'off' : 'on';
     root.classList.toggle('typewriter', Boolean(this.prefs.typewriter));
     // A custom accent overrides the skin's selection and title bar colors. Without one, the skin's own colors show.
@@ -77,6 +80,39 @@ export const chromeMethods = {
       set: (patch) => this.setPref(patch),
       pickAccent: (onChange) => this.pickAccent(onChange),
       onPreview: () => this.screensaver?.preview(),
+      onCustomize: (id) => this.editCustomScreensaver(id),
+    });
+  },
+
+  /**
+   * Opens the editor for one custom screensaver, or a new one when `id` is null.
+   * Options opens again when the editor closes, so its list is current.
+   */
+  editCustomScreensaver(id) {
+    const customs = normalizeCustoms(this.prefs.screensavers);
+    const config = id ? customs.find((item) => item.id === id) ?? null : null;
+    const back = () => this.openOptions();
+    openCustomEditor({
+      config,
+      getEntries: () => this.store.list(),
+      onSave: (draft) => {
+        const next = customs.some((item) => item.id === draft.id)
+          ? customs.map((item) => (item.id === draft.id ? draft : item))
+          : [...customs, draft].slice(0, CUSTOM_LIMIT);
+        // A new screensaver becomes the one in use, so its first preview is what you see on idle.
+        const patch = { screensavers: next };
+        if (!config) patch.screensaver = customKind(draft.id);
+        this.setPref(patch);
+        back();
+      },
+      onDelete: (deletedId) => {
+        const patch = { screensavers: customs.filter((item) => item.id !== deletedId) };
+        if (this.prefs.screensaver === customKind(deletedId)) patch.screensaver = 'off';
+        this.setPref(patch);
+        back();
+      },
+      onCancel: back,
+      onPreview: (draft, reopen) => this.screensaver?.preview(draft, reopen),
     });
   },
 

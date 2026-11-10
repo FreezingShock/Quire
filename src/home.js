@@ -13,7 +13,13 @@ import { NORM_WIDTH, paintInk } from './drawing.js';
 import { icon } from './icons.js';
 import { downloadBlob } from './export.js';
 import { pixelState, posterBlob, yearGrid } from './yearpixels.js';
-import { notebookDialog } from './dialogs.js';
+import { notebookDialog, saveSearchDialog } from './dialogs.js';
+import {
+  addSavedSearch,
+  normalizeSavedSearches,
+  removeSavedSearch,
+  savedSearchProblem,
+} from './savedsearches.js';
 import { menuPointFor, openContextMenu } from './contextmenu.js';
 import {
   SORTS,
@@ -180,10 +186,11 @@ export class HomeView {
    * `view` is 'dashboard', 'details', 'tiles', 'calendar', 'moods', or 'year'. The
    * dashboard is the default. `showPrompts`, `showOnThisDay`, and `showTips`
    * control the cards. `showGadgets` and `gadgets` control the sidebar, and
-   * `note` is the sticky note's text. Callbacks: onOpen(id), onNew(options),
-   * onToday(), onWritePrompt(prompt), onHidePrompts(), onDismissTips(),
-   * onDelete(id), onViewChange(view), onPatch(id, fields), onGadgetsChange(list),
-   * onSaveNote(text).
+   * `note` is the sticky note's text, and `savedSearches` is the list in the
+   * sidebar. Callbacks: onOpen(id), onNew(options), onToday(),
+   * onWritePrompt(prompt), onHidePrompts(), onDismissTips(), onDelete(id),
+   * onViewChange(view), onPatch(id, fields), onGadgetsChange(list),
+   * onSaveNote(text), onSavedSearchesChange(list).
    */
   constructor(
     root,
@@ -194,6 +201,7 @@ export class HomeView {
       showTips = true,
       showGadgets = true,
       gadgets,
+      savedSearches,
       onOpen,
       onNew,
       onToday,
@@ -205,10 +213,12 @@ export class HomeView {
       onPatch,
       onGadgetsChange,
       onSaveNote,
+      onSavedSearchesChange,
     } = {},
   ) {
     this.root = root;
-    this.callbacks = { onOpen, onNew, onToday, onWritePrompt, onHidePrompts, onDismissTips, onDelete, onViewChange, onPatch, onGadgetsChange, onSaveNote };
+    this.callbacks = { onOpen, onNew, onToday, onWritePrompt, onHidePrompts, onDismissTips, onDelete, onViewChange, onPatch, onGadgetsChange, onSaveNote, onSavedSearchesChange };
+    this.savedSearches = normalizeSavedSearches(savedSearches);
     this.entries = [];
     this.terms = []; // search terms for the current query, used for highlighting
     this.stripOptions = { showPrompts, showOnThisDay, showTips, showGadgets, gadgets: normalizeGadgetList(gadgets) };
@@ -457,6 +467,8 @@ export class HomeView {
           onSelect: () => this.setFilter({ type: 'kind', value: kind.id }),
         }),
       ),
+      el('h3', {}, 'Saved searches'),
+      ...this.savedSearchRows(),
       el('h3', {}, 'Notebooks'),
       ...(notebooks.length
         ? notebooks.map(({ name, count }) =>
@@ -506,6 +518,74 @@ export class HomeView {
           )
         : [el('p', { class: 'nav-empty' }, 'Weather you pick show up here.')]),
     );
+  }
+
+  /** Saved searches as sidebar rows, each with a remove button, plus a Save row when the search has something to save. */
+  savedSearchRows() {
+    const rows = this.savedSearches.map((saved) =>
+      el(
+        'div',
+        { class: 'nav-saved' },
+        el(
+          'button',
+          {
+            class: 'nav-item',
+            type: 'button',
+            title: saved.query ? `Search: ${saved.query}` : 'Saved filter',
+            onClick: () => this.applySavedSearch(saved),
+          },
+          iconNode('search'),
+          el('span', { class: 'nav-label' }, saved.name),
+        ),
+        el(
+          'button',
+          {
+            class: 'nav-remove',
+            type: 'button',
+            title: `Remove ${saved.name}`,
+            'aria-label': `Remove saved search ${saved.name}`,
+            onClick: () => this.removeSavedSearch(saved.id),
+          },
+          '×',
+        ),
+      ),
+    );
+    const { filter, query } = this.state;
+    const canSave = query.trim() || filter.type !== 'all';
+    if (canSave) {
+      rows.push(el('button', { class: 'nav-item nav-save', type: 'button', onClick: () => this.saveCurrentSearch() }, iconNode('plus'), el('span', { class: 'nav-label' }, 'Save this search…')));
+    } else if (!this.savedSearches.length) {
+      rows.push(el('p', { class: 'nav-empty' }, 'Search or pick a filter, then save it here.'));
+    }
+    return rows;
+  }
+
+  saveCurrentSearch() {
+    const { filter, query } = this.state;
+    const suggested = query.trim() || (filter.type === 'all' ? '' : this.crumb.textContent);
+    const check = (name) => savedSearchProblem(this.savedSearches, { name, query, filter });
+    saveSearchDialog({
+      suggested,
+      check,
+      onSave: (name) => {
+        this.savedSearches = addSavedSearch(this.savedSearches, { name, query, filter });
+        this.callbacks.onSavedSearchesChange?.(this.savedSearches);
+        this.render();
+      },
+    });
+  }
+
+  applySavedSearch(saved) {
+    this.state.query = saved.query;
+    this.searchInput.value = saved.query;
+    this.state.filter = { ...saved.filter };
+    this.render();
+  }
+
+  removeSavedSearch(id) {
+    this.savedSearches = removeSavedSearch(this.savedSearches, id);
+    this.callbacks.onSavedSearchesChange?.(this.savedSearches);
+    this.render();
   }
 
   renderCrumb() {

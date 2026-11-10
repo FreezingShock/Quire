@@ -1,7 +1,7 @@
 /** Tool selection, size, ink and page colors, and rename for the Quire controller. Mixed into QuireApp. */
 
 import { SIZE_LETTER_PX } from './constants.js';
-import { isTextTarget } from './helpers.js';
+import { isTextTarget, paintSheet } from './helpers.js';
 import { colorEdit } from '../textops.js';
 import { STROKE_SIZES, TOOLS } from '../tools.js';
 
@@ -104,7 +104,7 @@ export const toolModeMethods = {
   setPageColor(hex) {
     if (!this.entry) return;
     this.entry.pageColor = hex;
-    this.dom.sheet.style.backgroundColor = hex;
+    paintSheet(this.dom.sheet, hex);
     this.renderInkChip();
     this.scheduleSave();
   },
