@@ -75,6 +75,7 @@ const SHORTCUT_GROUPS = [
     rows: [
       ['Open the next or previous menu', 'Left or Right arrow'],
       ['Close a menu or dialog', 'Escape'],
+      ['Options', 'Ctrl+,'],
       ['Keyboard shortcuts', 'F1'],
     ],
   },

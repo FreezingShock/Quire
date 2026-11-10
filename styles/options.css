@@ -1,0 +1,215 @@
+/*
+ * Options dialog: a Vista property sheet. Tabs sit on top of a white page, the
+ * selected tab rises to join it, and every color comes from the shared tokens,
+ * so Aero, Basic, Luna and Classic all get the right surface. Classic and Luna
+ * overrides for these pieces are at the bottom.
+ */
+
+.options-dialog { width: min(560px, calc(100vw - 32px)); }
+
+.options-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  padding-left: 6px;
+  position: relative;
+  z-index: 1;
+}
+
+.options-tab {
+  height: 26px;
+  margin-bottom: -1px;
+  padding: 0 12px;
+  border: 1px solid var(--panel-edge);
+  border-bottom: 0;
+  border-radius: 4px 4px 0 0;
+  background: linear-gradient(to bottom, var(--tile-hi), var(--tile-lo));
+  color: var(--tile-ink);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.options-tab:hover:not(.is-selected) {
+  border-color: var(--hover-edge);
+  background: linear-gradient(to bottom, var(--glow-hi), var(--glow-lo));
+}
+
+.options-tab.is-selected {
+  height: 28px;
+  background: var(--field);
+  color: var(--text);
+  font-weight: 600;
+  border-color: var(--field-edge);
+}
+
+.options-tab:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -4px;
+}
+
+.options-pages { position: relative; }
+
+.options-page {
+  min-height: 268px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 14px 16px 16px;
+  border: 1px solid var(--field-edge);
+  border-radius: 0 3px 3px 3px;
+  background: var(--field);
+  color: var(--text);
+  overflow-y: auto;
+  max-height: 52vh;
+}
+
+.options-page:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.options-page[hidden] { display: none; }
+
+.options-group {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.options-legend {
+  padding: 0;
+  margin-bottom: 2px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.options-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.options-item + .options-item,
+.options-group + .options-group,
+.options-group + .options-item,
+.options-item + .options-group {
+  padding-top: 10px;
+  border-top: 1px solid #d4dfec;
+}
+
+.options-check,
+.options-radio {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  cursor: pointer;
+  align-self: flex-start;
+}
+
+.options-check input,
+.options-radio input {
+  width: 14px;
+  height: 14px;
+  margin: 0;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+.options-note {
+  margin: 0 0 0 22px;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--muted);
+}
+
+.options-note-first { margin: 0; }
+
+.options-radio { margin-left: 0; }
+
+.accent-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.accent-swatch {
+  width: 22px;
+  height: 22px;
+  border: 1px solid var(--field-edge);
+  border-radius: 3px;
+  background: var(--accent);
+  box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.35);
+}
+
+.accent-value {
+  min-width: 96px;
+  font-variant-numeric: tabular-nums;
+}
+
+.options-dialog .accent-row .btn { min-width: 0; }
+
+/* ---------- Classic 98: bevelled tabs, a bevelled page, square corners ---------- */
+
+[data-skin="classic"] .options-tab {
+  background: #c0c0c0;
+  border: 2px solid;
+  border-color: #ffffff #000000 transparent #ffffff;
+  border-bottom: 0;
+  color: #000000;
+  box-shadow: none;
+}
+
+[data-skin="classic"] .options-tab.is-selected {
+  border-color: #ffffff #000000 transparent #ffffff;
+  background: #c0c0c0;
+  font-weight: 700;
+  margin-bottom: -2px;
+  height: 29px;
+}
+
+[data-skin="classic"] .options-page {
+  background: #c0c0c0;
+  border: 2px solid;
+  border-color: #ffffff #000000 #000000 #ffffff;
+  border-radius: 0;
+  color: #000000;
+}
+
+[data-skin="classic"] .options-legend { color: #000080; }
+[data-skin="classic"] .options-note { color: #303030; }
+[data-skin="classic"] .options-item + .options-item,
+[data-skin="classic"] .options-group + .options-group,
+[data-skin="classic"] .options-group + .options-item,
+[data-skin="classic"] .options-item + .options-group {
+  border-top-color: #808080;
+}
+[data-skin="classic"] .accent-swatch { border-color: #000000; box-shadow: none; }
+[data-skin="classic"] .options-check input,
+[data-skin="classic"] .options-radio input { accent-color: #000080; }
+
+/* ---------- XP Luna: blue-capped tabs over a cream page ---------- */
+
+[data-skin="luna"] .options-tab {
+  border-color: #7d93b0;
+  background: linear-gradient(to bottom, #ffffff, #d6e3f5 70%, #bcd0ec);
+  color: #000000;
+}
+
+[data-skin="luna"] .options-tab.is-selected {
+  background: #ffffff;
+  border-color: #003c74;
+}
+
+[data-skin="luna"] .options-page {
+  background: linear-gradient(to bottom, #ffffff, #f7f7f2 90%);
+  border-color: #003c74;
+}

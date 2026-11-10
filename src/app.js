@@ -78,6 +78,7 @@ import {
 } from './export.js';
 import { createMenuBar } from './menubar.js';
 import { confirmDialog, entriesDialog, notebookDialog, showAbout, showShortcuts } from './dialogs.js';
+import { showOptions } from './options.js';
 import { HomeView } from './home.js';
 import { MAX_VERSIONS, makeVersion, shouldKeepVersion } from './versions.js';
 import { formatVersionTime, historyDialog } from './history.js';
@@ -90,7 +91,6 @@ const SIZE_LETTER_PX = { 1: 11, 3: 15, 6: 19 };
 const NUDGE_FAST = 25;
 /** Ops that can be added to the canvas one at a time without a full replay. */
 const INCREMENTAL_OPS = new Set(['stroke', 'line', 'rect', 'ellipse', 'fill', 'text', 'clear']);
-const FONT_LABELS = { serif: 'Serif', sans: 'Sans', mono: 'Monospace' };
 
 const $ = (selector) => document.querySelector(selector);
 const prevent = (event) => event.preventDefault();
@@ -290,13 +290,25 @@ export class QuireApp {
     this.requestSync();
   }
 
+  openOptions() {
+    showOptions({
+      get: () => this.prefs,
+      set: (patch) => this.setPref(patch),
+      pickAccent: (onChange) => this.pickAccent(onChange),
+    });
+  }
+
   /** Opens the system color chooser. Each change previews live and is saved as the custom accent. */
-  pickAccent() {
+  pickAccent(onChange) {
+    this.onAccentChange = onChange;
     if (!this.accentInput) {
       this.accentInput = el('input', { class: 'accent-picker', type: 'color', tabindex: '-1', 'aria-hidden': 'true' });
       this.accentInput.addEventListener('input', () => {
         const hex = normalizeAccent(this.accentInput.value);
-        if (hex) this.setPref({ accent: hex });
+        if (hex) {
+          this.setPref({ accent: hex });
+          this.onAccentChange?.();
+        }
       });
       document.body.append(this.accentInput);
     }
@@ -583,55 +595,22 @@ export class QuireApp {
         items: () => [
           { label: 'Source mode', check: true, checked: Boolean(this.prefs.source), action: () => this.setPref({ source: !this.prefs.source }) },
           'sep',
-          ...Object.keys(FONT_STACKS).map((id) => ({
-            label: `${FONT_LABELS[id]} writing font`,
-            check: true,
-            checked: this.prefs.font === id,
-            action: () => this.setPref({ font: id }),
-          })),
-          'sep',
           { label: 'Show grid', check: true, checked: Boolean(this.prefs.showGrid), action: () => this.setPref({ showGrid: !this.prefs.showGrid }) },
           { label: 'Snap to grid', check: true, checked: Boolean(this.prefs.snapGrid), action: () => this.setPref({ snapGrid: !this.prefs.snapGrid }) },
-          { label: 'Snap lines to 15° angles', check: true, checked: Boolean(this.prefs.snapAngles), action: () => this.setPref({ snapAngles: !this.prefs.snapAngles }) },
           'sep',
-          { label: 'Startup splash', check: true, checked: Boolean(this.prefs.splash), action: () => this.setPref({ splash: !this.prefs.splash }) },
-          'sep',
-          { label: 'Writing prompts', check: true, checked: Boolean(this.prefs.showPrompts), action: () => this.setPref({ showPrompts: !this.prefs.showPrompts }) },
-          { label: 'On this day', check: true, checked: Boolean(this.prefs.showOnThisDay), action: () => this.setPref({ showOnThisDay: !this.prefs.showOnThisDay }) },
-          {
-            label: 'Sound effects',
-            check: true,
-            checked: Boolean(this.prefs.sound),
-            action: () => {
-              this.setPref({ sound: !this.prefs.sound });
-              playSound('startup');
-            },
-          },
+          { label: 'Options…', shortcut: 'Ctrl+,', action: () => this.openOptions() },
         ],
       },
       {
         label: 'Skin',
         items: () => {
           const current = skinOf(this.prefs);
-          return [
-            ...SKINS.map((skin) => ({
-              label: skin.label,
-              check: true,
-              checked: current === skin.id,
-              action: () => this.setPref({ skin: skin.id }),
-            })),
-            'sep',
-            { label: 'Custom accent color…', action: () => this.pickAccent() },
-            { label: 'Reset accent color', disabled: !this.prefs.accent, action: () => this.setPref({ accent: null }) },
-            'sep',
-            {
-              label: 'Window animations',
-              check: true,
-              checked: this.prefs.motion !== false,
-              action: () => this.setPref({ motion: this.prefs.motion === false }),
-            },
-            { label: 'Aero wallpaper', check: true, checked: Boolean(this.prefs.wallpaper), action: () => this.setPref({ wallpaper: !this.prefs.wallpaper }) },
-          ];
+          return SKINS.map((skin) => ({
+            label: skin.label,
+            check: true,
+            checked: current === skin.id,
+            action: () => this.setPref({ skin: skin.id }),
+          }));
         },
       },
       {
@@ -1893,6 +1872,10 @@ export class QuireApp {
         case 'p':
           event.preventDefault();
           this.printPdf();
+          break;
+        case ',':
+          event.preventDefault();
+          this.openOptions();
           break;
         case 'z':
         case 'y': {
