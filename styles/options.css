@@ -213,3 +213,43 @@
   background: linear-gradient(to bottom, #ffffff, #f7f7f2 90%);
   border-color: #003c74;
 }
+
+/* Focus mode fields: a labelled number box and a slider, each with a note under it. */
+
+.options-field {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 13px;
+  cursor: default;
+}
+
+.options-number {
+  width: 96px;
+  height: 22px;
+  padding: 0 6px;
+  font: inherit;
+  font-size: 13px;
+  text-align: right;
+}
+
+.options-range-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.options-range {
+  width: 180px;
+  margin: 0;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+.options-range-value {
+  min-width: 36px;
+  font-size: 12px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}

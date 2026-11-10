@@ -90,6 +90,7 @@ export const textEditingMethods = {
     this.lastSurface = 'text';
     this.updateChrome();
     this.scheduleSave();
+    this.scheduleTypewriter();
   },
 
   onEditorKeydown(event) {

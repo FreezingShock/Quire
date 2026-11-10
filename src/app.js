@@ -41,6 +41,7 @@ import { entryMethods } from './controller/entries.js';
 import { versionActionMethods } from './controller/version-actions.js';
 import { exportMethods } from './controller/export-actions.js';
 import { keyboardMethods } from './controller/keyboard.js';
+import { focusMethods } from './controller/focus-mode.js';
 
 
 
@@ -72,6 +73,11 @@ export class QuireApp {
       statusDate: $('#status-date'),
       app: $('.app'),
       home: $('#home'),
+      focusHud: $('#focus-hud'),
+      focusCount: $('#focus-count'),
+      focusProgress: $('#focus-progress'),
+      focusFill: $('#focus-fill'),
+      focusSave: $('#focus-save'),
     };
     this.dom.editor = new LiveEditor(this.dom.editorEl, {
       onChange: () => this.onEditorChanged(),
@@ -120,6 +126,10 @@ export class QuireApp {
     this.menubar = null;
     this.view = 'home'; // 'home' or 'editor'; the landing page is the entries list
     this.home = null;
+    this.focusMode = false; // F11 focus writing mode; a session setting, not saved
+    this.session = null; // { id, base }: the open entry and its word count when this session began
+    this.goalCelebrated = false; // the goal chime has played for this session
+    this.typeFrame = 0; // the pending animation frame for typewriter scrolling
   }
 
   async start() {
@@ -146,6 +156,7 @@ export class QuireApp {
       onViewChange: (view) => this.setPref({ homeView: view }),
     });
     this.bindEvents();
+    this.bindFocusEvents();
     this.setTool('write');
     this.store = await createLocalStore();
     if (this.store.kind === 'memory') {
@@ -219,3 +230,5 @@ Object.assign(QuireApp.prototype, versionActionMethods);
 Object.assign(QuireApp.prototype, exportMethods);
 
 Object.assign(QuireApp.prototype, keyboardMethods);
+
+Object.assign(QuireApp.prototype, focusMethods);
