@@ -35,6 +35,9 @@ const PATHS = {
   chart: '<path d="M2.5 13.5h11"/><rect x="3.5" y="8" width="2.2" height="5"/><rect x="7" y="5" width="2.2" height="8"/><rect x="10.5" y="2.5" width="2.2" height="10.5"/>',
   close: '<path d="M4 4l8 8M12 4l-8 8"/>',
   shuffle: '<path d="M2.5 4.5h2c2 0 3 1 4 3.5 1 2.5 2 3.5 4 3.5h1M2.5 11.5h2c1 0 1.8-.4 2.5-1.2M9.5 6.5c.7-1 1.5-2 2.5-2h1.5"/><path d="M11.5 2.5l2 2-2 2M11.5 9.5l2 2-2 2"/>',
+  pin: '<path d="M5.2 2.6h5.6M6.1 2.6l.5 4.3-2 2.1h6.8l-2-2.1.5-4.3"/><path d="M8 9v4.6"/>',
+  star: '<path d="M8 2.3l1.75 3.55 3.9.57-2.83 2.75.67 3.9L8 11.3l-3.5 1.82.67-3.9L2.34 6.42l3.9-.57z"/>',
+  notebook: '<rect x="3.2" y="2.5" width="9.6" height="11" rx=".7"/><path d="M5.8 2.5v11M7.6 6h3.2M7.6 8.6h3.2"/>',
 };
 
 export function icon(name) {

@@ -11,15 +11,21 @@ import { KINDS, MOODS, WEATHERS, displayTitle, formatLongDate, formatShortDate, 
 import { wordCount } from './markdown.js';
 import { NORM_WIDTH, paintInk } from './drawing.js';
 import { icon } from './icons.js';
+import { notebookDialog } from './dialogs.js';
 import {
   SORTS,
   countByKind,
   countByMood,
+  countByNotebook,
   countByTag,
   countByWeather,
+  countFlags,
   excerptOf,
   filterEntries,
+  highlightParts,
   kindLabel,
+  parseQuery,
+  snippetOf,
   sortEntries,
 } from './library.js';
 import {
@@ -54,6 +60,7 @@ const COLUMNS = [
   { label: 'Title', key: 'title', cls: 'col-title' },
   { label: 'Date', key: 'date', cls: 'col-date' },
   { label: 'Kind', key: 'kind', cls: 'col-kind' },
+  { label: 'Notebook', key: null, cls: 'col-notebook' },
   { label: 'Tags', key: null, cls: 'col-tags' },
   { label: 'Mood', key: null, cls: 'col-feel' },
   { label: 'Words', key: 'words', cls: 'col-words num' },
@@ -84,6 +91,25 @@ function inkThumbnail(entry) {
   });
   paintInk(canvas.getContext('2d'), entry.ink.ops, entry.ink.layers, THUMB_PX / NORM_WIDTH);
   return canvas;
+}
+
+/** Text with search hits wrapped in <mark>. Plain text when there is no query. */
+function marked(text, terms) {
+  return highlightParts(text, terms).map((part) => (part.hit ? el('mark', { class: 'hit' }, part.text) : part.text));
+}
+
+/** Pin and star markers after a title. Empty when the entry has neither. */
+function flagIcons(entry) {
+  const flags = [];
+  if (entry.pinned) flags.push(iconNode('pin', 'flag flag-pin'));
+  if (entry.favorite) flags.push(iconNode('star', 'flag flag-star'));
+  if (!flags.length) return null;
+  const label = [entry.pinned && 'Pinned', entry.favorite && 'Favorite'].filter(Boolean).join(', ');
+  return el('span', { class: 'flags', title: label, 'aria-label': label }, flags);
+}
+
+function setLabel(button, text) {
+  button.querySelector('.cmd-label').textContent = text;
 }
 
 function modifiedLabel(iso) {
@@ -135,11 +161,24 @@ export class HomeView {
    */
   constructor(
     root,
-    { view = 'details', showPrompts = true, showOnThisDay = true, onOpen, onNew, onToday, onWritePrompt, onHidePrompts, onDelete, onViewChange } = {},
+    {
+      view = 'details',
+      showPrompts = true,
+      showOnThisDay = true,
+      onOpen,
+      onNew,
+      onToday,
+      onWritePrompt,
+      onHidePrompts,
+      onDelete,
+      onViewChange,
+      onPatch,
+    } = {},
   ) {
     this.root = root;
-    this.callbacks = { onOpen, onNew, onToday, onWritePrompt, onHidePrompts, onDelete, onViewChange };
+    this.callbacks = { onOpen, onNew, onToday, onWritePrompt, onHidePrompts, onDelete, onViewChange, onPatch };
     this.entries = [];
+    this.terms = []; // search terms for the current query, used for highlighting
     this.stripOptions = { showPrompts, showOnThisDay };
     const today = localISODate();
     this.state = {
@@ -196,10 +235,22 @@ export class HomeView {
         this.render();
       },
     });
-    this.newBtn = this.commandButton('New entry', 'plus', () => this.callbacks.onNew?.(), 'cmd-primary');
+    // A new entry made while a notebook is open starts in that notebook.
+    this.newBtn = this.commandButton(
+      'New entry',
+      'plus',
+      () => this.callbacks.onNew?.(this.state.filter.type === 'notebook' ? { notebook: this.state.filter.value } : undefined),
+      'cmd-primary',
+    );
     this.todayBtn = this.commandButton('Today', 'calendar', () => this.callbacks.onToday?.());
     this.todayBtn.title = "Open today's journal, or start one (Alt+T)";
     this.openBtn = this.commandButton('Open', 'open', () => this.openSelected());
+    this.pinBtn = this.commandButton('Pin', 'pin', () => this.togglePinned());
+    this.pinBtn.title = 'Pin to the top of the list';
+    this.favBtn = this.commandButton('Favorite', 'star', () => this.toggleFavorite());
+    this.favBtn.title = 'Mark as a favorite';
+    this.moveBtn = this.commandButton('Notebook', 'notebook', () => this.moveSelected());
+    this.moveBtn.title = 'Move to a notebook';
     this.deleteBtn = this.commandButton('Delete', 'trash', () => this.deleteSelected());
     this.streak = el('span', { class: 'streak-chip' });
     this.detailsBtn = el(
@@ -244,6 +295,9 @@ export class HomeView {
         this.newBtn,
         this.todayBtn,
         this.openBtn,
+        this.pinBtn,
+        this.favBtn,
+        this.moveBtn,
         this.deleteBtn,
         el('span', { class: 'cmd-sep', 'aria-hidden': 'true' }),
         el('span', { class: 'cmd-spacer' }),
@@ -267,6 +321,7 @@ export class HomeView {
 
   render() {
     const { state } = this;
+    this.terms = parseQuery(state.query);
     const matches = sortEntries(filterEntries(this.entries, state), state.sort);
     if (!matches.some((entry) => entry.id === state.selectedId)) state.selectedId = null;
     this.renderNav();
@@ -278,6 +333,8 @@ export class HomeView {
   renderNav() {
     const { filter } = this.state;
     const kinds = countByKind(this.entries);
+    const flags = countFlags(this.entries);
+    const notebooks = countByNotebook(this.entries);
     const tags = countByTag(this.entries);
     const moods = countByMood(this.entries);
     const weathers = countByWeather(this.entries);
@@ -299,6 +356,20 @@ export class HomeView {
         active: filter.type === 'all',
         onSelect: () => this.setFilter({ type: 'all', value: null }),
       }),
+      navItem({
+        label: 'Pinned',
+        count: flags.pinned,
+        icon: 'pin',
+        active: filter.type === 'pinned',
+        onSelect: () => this.setFilter({ type: 'pinned', value: null }),
+      }),
+      navItem({
+        label: 'Favorites',
+        count: flags.favorite,
+        icon: 'star',
+        active: filter.type === 'favorite',
+        onSelect: () => this.setFilter({ type: 'favorite', value: null }),
+      }),
       ...KINDS.map((kind) =>
         navItem({
           label: kind.label,
@@ -308,6 +379,18 @@ export class HomeView {
           onSelect: () => this.setFilter({ type: 'kind', value: kind.id }),
         }),
       ),
+      el('h3', {}, 'Notebooks'),
+      ...(notebooks.length
+        ? notebooks.map(({ name, count }) =>
+            navItem({
+              label: name,
+              count,
+              icon: 'notebook',
+              active: filter.type === 'notebook' && filter.value === name,
+              onSelect: () => this.setFilter({ type: 'notebook', value: name }),
+            }),
+          )
+        : [el('p', { class: 'nav-empty' }, 'Move an entry into a notebook to start one.')]),
       el('h3', {}, 'Tags'),
       ...(tags.length
         ? tags.map(({ tag, count }) =>
@@ -353,6 +436,9 @@ export class HomeView {
     else if (filter.type === 'tag') this.crumb.textContent = `#${filter.value}`;
     else if (filter.type === 'mood') this.crumb.textContent = labelFor(MOODS, filter.value);
     else if (filter.type === 'weather') this.crumb.textContent = labelFor(WEATHERS, filter.value);
+    else if (filter.type === 'notebook') this.crumb.textContent = filter.value;
+    else if (filter.type === 'pinned') this.crumb.textContent = 'Pinned';
+    else if (filter.type === 'favorite') this.crumb.textContent = 'Favorites';
     else this.crumb.textContent = 'All entries';
   }
 
@@ -419,8 +505,16 @@ export class HomeView {
 
   renderCommands() {
     const hasSelection = Boolean(this.state.selectedId);
+    const selected = this.selectedEntry();
     this.openBtn.disabled = !hasSelection;
     this.deleteBtn.disabled = !hasSelection;
+    this.pinBtn.disabled = !hasSelection;
+    this.favBtn.disabled = !hasSelection;
+    this.moveBtn.disabled = !hasSelection;
+    setLabel(this.pinBtn, selected?.pinned ? 'Unpin' : 'Pin');
+    setLabel(this.favBtn, selected?.favorite ? 'Unfavorite' : 'Favorite');
+    this.pinBtn.setAttribute('aria-pressed', String(Boolean(selected?.pinned)));
+    this.favBtn.setAttribute('aria-pressed', String(Boolean(selected?.favorite)));
     this.detailsBtn.setAttribute('aria-pressed', String(this.state.view === 'details'));
     this.tilesBtn.setAttribute('aria-pressed', String(this.state.view === 'tiles'));
     this.calendarBtn.setAttribute('aria-pressed', String(this.state.view === 'calendar'));
@@ -466,10 +560,18 @@ export class HomeView {
         el(
           'td',
           { class: 'col-title' },
-          el('span', { class: 'cell-title' }, iconNode('page'), el('span', { class: 'cell-name' }, displayTitle(entry))),
+          el(
+            'span',
+            { class: 'cell-title' },
+            iconNode('page'),
+            el('span', { class: 'cell-name' }, marked(displayTitle(entry), this.terms)),
+            flagIcons(entry),
+          ),
+          this.terms.length ? el('span', { class: 'cell-snippet' }, marked(snippetOf(entry, this.terms), this.terms)) : null,
         ),
         el('td', { class: 'col-date' }, formatShortDate(entry.date)),
         el('td', { class: 'col-kind' }, kindLabel(entry.kind)),
+        el('td', { class: 'col-notebook' }, entry.notebook ?? ''),
         el('td', { class: 'col-tags' }, entry.tags.join(', ')),
         el('td', { class: 'col-feel' }, feelText(entry)),
         el('td', { class: 'col-words num' }, String(wordCount(entry.body))),
@@ -500,9 +602,9 @@ export class HomeView {
   }
 
   tile(entry) {
-    const text = excerptOf(entry, 240);
+    const text = this.terms.length ? snippetOf(entry, this.terms, 240) : excerptOf(entry, 240);
     const hasInk = entry.ink.ops.length > 0;
-    const fallback = text || (hasInk ? '' : 'Blank page');
+    const fallback = text ? marked(text, this.terms) : hasInk ? '' : 'Blank page';
     const page = el(
       'div',
       { class: 'tile-page', style: `background-color: ${entry.pageColor}` },
@@ -524,7 +626,12 @@ export class HomeView {
       el(
         'div',
         { class: 'tile-meta' },
-        el('span', { class: 'tile-title' }, displayTitle(entry)),
+        el(
+          'span',
+          { class: 'tile-title' },
+          el('span', { class: 'tile-name' }, marked(displayTitle(entry), this.terms)),
+          flagIcons(entry),
+        ),
         el('span', { class: 'tile-sub' }, `${formatShortDate(entry.date)} · ${kindLabel(entry.kind)}`),
       ),
     );
@@ -619,7 +726,7 @@ export class HomeView {
                 'button',
                 { class: 'cal-entry', type: 'button', onClick: () => this.open(entry.id) },
                 iconNode('page'),
-                el('span', { class: 'cal-entry-title' }, displayTitle(entry)),
+                el('span', { class: 'cal-entry-title' }, marked(displayTitle(entry), this.terms), flagIcons(entry)),
                 el('span', { class: 'cal-entry-sub' }, [kindLabel(entry.kind), feelText(entry)].filter(Boolean).join(' · ')),
               ),
             ),
@@ -954,6 +1061,38 @@ export class HomeView {
   select(id) {
     this.state.selectedId = id;
     this.markSelection({ focus: true });
+  }
+
+  selectedEntry() {
+    return this.entries.find((entry) => entry.id === this.state.selectedId) ?? null;
+  }
+
+  /** Changes pin, favorite, or notebook for one entry. The app saves it and reloads the list. */
+  patch(id, fields) {
+    this.callbacks.onPatch?.(id, fields);
+  }
+
+  togglePinned() {
+    const entry = this.selectedEntry();
+    if (entry) this.patch(entry.id, { pinned: !entry.pinned });
+  }
+
+  toggleFavorite() {
+    const entry = this.selectedEntry();
+    if (entry) this.patch(entry.id, { favorite: !entry.favorite });
+  }
+
+  moveSelected() {
+    const entry = this.selectedEntry();
+    if (!entry) return;
+    notebookDialog({
+      entryName: displayTitle(entry),
+      notebooks: countByNotebook(this.entries).map((notebook) => notebook.name),
+      current: entry.notebook,
+      onSave: (notebook) => {
+        if (notebook !== entry.notebook) this.patch(entry.id, { notebook });
+      },
+    });
   }
 
   open(id) {

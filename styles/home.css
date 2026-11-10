@@ -335,13 +335,14 @@
   color: var(--text);
 }
 
-.home-table .col-title { width: 30%; }
-.home-table .col-date { width: 11%; }
-.home-table .col-kind { width: 10%; }
-.home-table .col-tags { width: 14%; }
-.home-table .col-feel { width: 14%; }
-.home-table .col-words { width: 7%; }
-.home-table .col-modified { width: 14%; }
+.home-table .col-title { width: 26%; }
+.home-table .col-date { width: 10%; }
+.home-table .col-kind { width: 9%; }
+.home-table .col-notebook { width: 11%; }
+.home-table .col-tags { width: 12%; }
+.home-table .col-feel { width: 13%; }
+.home-table .col-words { width: 6%; }
+.home-table .col-modified { width: 13%; }
 .home-table .num { text-align: right; font-variant-numeric: tabular-nums; }
 
 .home-table thead .num .th-btn { justify-content: flex-end; }
@@ -369,6 +370,46 @@
 }
 
 .cell-title .icon { color: var(--accent); }
+
+/* Search: matches are highlighted the way Vista's Find marks text. */
+mark.hit {
+  padding: 0 1px;
+  border-radius: 2px;
+  background: #ffe36e;
+  color: #1d1a12;
+}
+
+.cell-snippet {
+  display: block;
+  padding-left: 24px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.is-selected .cell-snippet { color: inherit; opacity: 0.9; }
+
+/* Pin and star markers after a title. */
+.flags {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 3px;
+  margin-left: 2px;
+  vertical-align: middle;
+}
+
+.flag .icon,
+.flag { width: 13px; height: 13px; }
+.flag-pin { color: var(--accent); }
+.flag-star { color: #d39a12; }
+.is-selected .flag-pin,
+.is-selected .flag-star,
+.tile.is-selected .flag-pin,
+.tile.is-selected .flag-star,
+.is-selected .flags .icon { color: inherit; }
 .is-selected .cell-title .icon { color: inherit; }
 
 .cell-name {
@@ -695,6 +736,10 @@
 }
 
 .tile-title {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -708,6 +753,13 @@
   white-space: nowrap;
   font-size: 12px;
   color: var(--muted);
+}
+
+.tile-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .tile.is-selected .tile-title { color: #0f2540; }
@@ -777,6 +829,7 @@
   .nav-item { width: auto; flex: none; }
 
   .home-table .col-kind,
+  .home-table .col-notebook,
   .home-table .col-tags,
   .home-table .col-feel,
   .home-table .col-words { display: none; }

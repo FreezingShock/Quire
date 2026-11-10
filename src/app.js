@@ -20,6 +20,7 @@ import {
   parseTags,
 } from './model.js';
 import { todaysJournal } from './journal.js';
+import { countByNotebook } from './library.js';
 import { wordCount } from './markdown.js';
 import { LiveEditor } from './livetext.js';
 import {
@@ -72,7 +73,7 @@ import {
   printEntry,
 } from './export.js';
 import { createMenuBar } from './menubar.js';
-import { confirmDialog, entriesDialog, showAbout, showShortcuts } from './dialogs.js';
+import { confirmDialog, entriesDialog, notebookDialog, showAbout, showShortcuts } from './dialogs.js';
 import { HomeView } from './home.js';
 import { MAX_VERSIONS, makeVersion, shouldKeepVersion } from './versions.js';
 import { formatVersionTime, historyDialog } from './history.js';
@@ -221,6 +222,7 @@ export class QuireApp {
       onWritePrompt: (prompt) => this.openToday({ prompt }),
       onHidePrompts: () => this.setPref({ showPrompts: false }),
       onDelete: (id) => this.deleteEntry(id),
+      onPatch: (id, fields) => this.patchEntry(id, fields),
       onViewChange: (view) => this.setPref({ homeView: view }),
     });
     this.bindEvents();
@@ -472,6 +474,18 @@ export class QuireApp {
           { label: "Today's entry", shortcut: 'Alt+T', action: () => this.openToday() },
           { label: 'Open entry…', shortcut: 'Ctrl+O', action: () => this.showEntries() },
           { label: 'Delete entry…', disabled: !this.entry, action: () => this.entry && this.deleteEntry(this.entry.id) },
+          'sep',
+          { label: 'Move to notebook…', disabled: !this.entry, action: () => this.entry && this.moveEntryToNotebook(this.entry.id) },
+          {
+            label: this.entry?.pinned ? 'Unpin from top' : 'Pin to top',
+            disabled: !this.entry,
+            action: () => this.entry && this.patchEntry(this.entry.id, { pinned: !this.entry.pinned }),
+          },
+          {
+            label: this.entry?.favorite ? 'Remove from favorites' : 'Add to favorites',
+            disabled: !this.entry,
+            action: () => this.entry && this.patchEntry(this.entry.id, { favorite: !this.entry.favorite }),
+          },
           'sep',
           { label: 'Save now', shortcut: 'Ctrl+S', action: () => this.persist() },
           { label: 'Save version now', disabled: !this.entry, action: () => this.saveVersionNow() },
@@ -1542,6 +1556,37 @@ export class QuireApp {
       onOpen: (id) => this.openEntry(id),
       onNew: () => this.newEntry(),
       onDelete: (id) => this.deleteEntry(id),
+    });
+  }
+
+  /**
+   * Changes pin, favorite, or notebook on a stored entry. Any unsaved text of
+   * the open entry is written first, so this never drops an edit. The open
+   * entry's copy is updated to match.
+   */
+  async patchEntry(id, fields) {
+    await this.persist();
+    const current = await this.store.get(id);
+    if (!current) return;
+    const saved = await this.store.save({ ...current, ...fields });
+    if (this.entry?.id === id) {
+      this.entry = { ...this.entry, notebook: saved.notebook, pinned: saved.pinned, favorite: saved.favorite };
+    }
+    await this.refreshHome();
+  }
+
+  async moveEntryToNotebook(id) {
+    await this.persist();
+    const entries = await this.store.list();
+    const current = entries.find((entry) => entry.id === id);
+    if (!current) return;
+    notebookDialog({
+      entryName: displayTitle(current),
+      notebooks: countByNotebook(entries).map((notebook) => notebook.name),
+      current: current.notebook,
+      onSave: (notebook) => {
+        if (notebook !== current.notebook) this.patchEntry(id, { notebook });
+      },
     });
   }
 

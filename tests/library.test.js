@@ -1,7 +1,20 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createEntry } from '../src/model.js';
-import { countByKind, countByMood, countByTag, countByWeather, excerptOf, filterEntries, sortEntries } from '../src/library.js';
+import {
+  countByKind,
+  countByMood,
+  countByNotebook,
+  countByTag,
+  countByWeather,
+  countFlags,
+  excerptOf,
+  filterEntries,
+  highlightParts,
+  parseQuery,
+  snippetOf,
+  sortEntries,
+} from '../src/library.js';
 
 const sample = () => [
   createEntry({ id: 'a', title: 'Winter walk', date: '2026-01-05', kind: 'journal', tags: ['winter'], body: 'Cold and bright.', updatedAt: '2026-01-05T10:00:00.000Z' }),
@@ -81,4 +94,92 @@ test('countByMood and countByWeather list only values in use, in option order', 
   ];
   assert.deepEqual(countByMood(entries).map(({ id, count }) => [id, count]), [['great', 1], ['rough', 2]]);
   assert.deepEqual(countByWeather(entries).map(({ id, label }) => [id, label]), [['sunny', 'Sunny'], ['storm', 'Storm']]);
+});
+
+test('parseQuery splits words and keeps quoted phrases whole', () => {
+  assert.deepEqual(parseQuery('  Winter   WALK harbor '), ['winter', 'walk', 'harbor']);
+  assert.deepEqual(parseQuery('"winter walk" harbor'), ['winter walk', 'harbor']);
+  assert.deepEqual(parseQuery('gulls gulls GULLS'), ['gulls']);
+  assert.deepEqual(parseQuery('   '), []);
+  assert.equal(parseQuery('a b c d e f g h i j k').length, 8);
+});
+
+test('filterEntries needs every term, so a multi-word search narrows the list', () => {
+  const entries = sample();
+  assert.deepEqual(filterEntries(entries, { query: 'cold bright' }).map((e) => e.id), ['a']);
+  assert.deepEqual(filterEntries(entries, { query: 'cold harbor' }).map((e) => e.id), []);
+  assert.deepEqual(filterEntries(entries, { query: '"cold and bright"' }).map((e) => e.id), ['a']);
+  assert.deepEqual(filterEntries(entries, { query: '"bright cold"' }).map((e) => e.id), []);
+});
+
+test('full-text search reads the rendered text, not Markdown markers', () => {
+  const entries = sample();
+  assert.deepEqual(filterEntries(entries, { query: 'harbor' }).map((e) => e.id), ['b']);
+  assert.deepEqual(filterEntries(entries, { query: '# harbor' }).map((e) => e.id), []);
+  assert.deepEqual(filterEntries(entries, { query: 'winter' }).map((e) => e.id).sort(), ['a', 'b']);
+});
+
+test('highlightParts splits text around case-insensitive hits', () => {
+  assert.deepEqual(highlightParts('Gulls over the GULLS', ['gulls']), [
+    { text: 'Gulls', hit: true },
+    { text: ' over the ', hit: false },
+    { text: 'GULLS', hit: true },
+  ]);
+  assert.deepEqual(highlightParts('plain', []), [{ text: 'plain', hit: false }]);
+  assert.deepEqual(highlightParts('a+b (c)', ['(c)']), [
+    { text: 'a+b ', hit: false },
+    { text: '(c)', hit: true },
+  ]);
+  assert.deepEqual(highlightParts('', ['x']), [{ text: '', hit: false }]);
+});
+
+test('snippetOf centers the snippet on the first hit with ellipses', () => {
+  const body = 'Lorem ipsum dolor sit amet. '.repeat(10) + 'The harbor was quiet at dawn. ' + 'Dolor sit amet again. '.repeat(10);
+  const entry = createEntry({ id: 's', title: 'Long', body });
+  const snippet = snippetOf(entry, ['harbor'], 80);
+  assert.ok(snippet.includes('harbor'));
+  assert.ok(snippet.startsWith('…') && snippet.endsWith('…'));
+  assert.ok(snippet.length <= 90);
+  // No term means the plain excerpt, so the list shows the start of the entry.
+  assert.equal(snippetOf(entry, [], 40), excerptOf(entry, 40));
+  assert.equal(snippetOf(createEntry({ id: 'n', body: 'Short' }), ['harbor']), 'Short');
+});
+
+test('sortEntries keeps pinned entries above the rest, in the chosen order', () => {
+  const entries = [
+    createEntry({ id: 'x', title: 'Zeta', date: '2026-04-01', body: '' }),
+    createEntry({ id: 'y', title: 'Alpha', date: '2026-02-01', body: '', pinned: true }),
+    createEntry({ id: 'z', title: 'Mid', date: '2026-03-01', body: '', pinned: true }),
+  ];
+  assert.deepEqual(sortEntries(entries, { key: 'date', dir: 'desc' }).map((e) => e.id), ['z', 'y', 'x']);
+  assert.deepEqual(sortEntries(entries, { key: 'title', dir: 'asc' }).map((e) => e.id), ['y', 'z', 'x']);
+});
+
+test('filterEntries filters by pinned, favorite, and notebook', () => {
+  const entries = [
+    createEntry({ id: 'p', body: '', pinned: true, notebook: 'Travel' }),
+    createEntry({ id: 'f', body: '', favorite: true }),
+    createEntry({ id: 'n', body: '', notebook: 'Travel' }),
+    createEntry({ id: 'o', body: '' }),
+  ];
+  assert.deepEqual(filterEntries(entries, { filter: { type: 'pinned', value: null } }).map((e) => e.id), ['p']);
+  assert.deepEqual(filterEntries(entries, { filter: { type: 'favorite', value: null } }).map((e) => e.id), ['f']);
+  assert.deepEqual(filterEntries(entries, { filter: { type: 'notebook', value: 'Travel' } }).map((e) => e.id), ['p', 'n']);
+  assert.deepEqual(filterEntries(entries, { filter: { type: 'notebook', value: 'Work' } }).map((e) => e.id), []);
+  // The notebook name is searchable too.
+  assert.deepEqual(filterEntries(entries, { query: 'travel' }).map((e) => e.id), ['p', 'n']);
+});
+
+test('countByNotebook and countFlags count what is in use', () => {
+  const entries = [
+    createEntry({ id: 'a', body: '', notebook: 'Work', pinned: true }),
+    createEntry({ id: 'b', body: '', notebook: 'Travel' }),
+    createEntry({ id: 'c', body: '', notebook: 'Work' }),
+    createEntry({ id: 'd', body: '', favorite: true }),
+  ];
+  assert.deepEqual(countByNotebook(entries), [
+    { name: 'Travel', count: 1 },
+    { name: 'Work', count: 2 },
+  ]);
+  assert.deepEqual(countFlags(entries), { pinned: 1, favorite: 1 });
 });

@@ -6,6 +6,7 @@ import {
   fileStem,
   isBlankEntry,
   isISODate,
+  NOTEBOOK_MAX,
   normalizeEntry,
   parseTags,
   slugify,
@@ -97,4 +98,21 @@ test('normalizeEntry keeps only known mood and weather ids, defaulting to null',
   const old = normalizeEntry({ id: 'x', body: 'old' });
   assert.equal(old.mood, null);
   assert.equal(old.weather, null);
+});
+
+test('normalizeEntry keeps notebook, pinned, and favorite, and defaults them for older entries', () => {
+  const older = normalizeEntry({ id: 'old', body: 'x' });
+  assert.equal(older.notebook, null);
+  assert.equal(older.pinned, false);
+  assert.equal(older.favorite, false);
+
+  const set = normalizeEntry({ id: 'new', notebook: '  Road   trip ', pinned: true, favorite: true });
+  assert.equal(set.notebook, 'Road trip');
+  assert.equal(set.pinned, true);
+  assert.equal(set.favorite, true);
+
+  assert.equal(normalizeEntry({ notebook: '   ' }).notebook, null);
+  assert.equal(normalizeEntry({ notebook: 42 }).notebook, null);
+  assert.equal(normalizeEntry({ notebook: 'n'.repeat(80) }).notebook.length, NOTEBOOK_MAX);
+  assert.equal(normalizeEntry({ pinned: 'yes', favorite: 1 }).pinned, false);
 });
