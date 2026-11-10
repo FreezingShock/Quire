@@ -16,18 +16,12 @@ import {
 } from './model.js';
 import { LiveEditor } from './livetext.js';
 import { BASE_LAYER, Drawing } from './drawing.js';
-import { PALETTE, TOOL_BY_KEY } from './tools.js';
+import { PALETTE } from './tools.js';
 import { loadPrefs, savePrefs } from './prefs.js';
-import { showShortcuts } from './dialogs.js';
 import { startPwa, startReminders, REMINDER_DEFAULTS } from './pwa.js';
 import { HomeView } from './home.js';
 import { sampleEntry } from './onboarding.js';
-import { NUDGE, NUDGE_FAST } from './controller/constants.js';
-import {
-  $,
-  fillSelect,
-  isTextTarget,
-} from './controller/helpers.js';
+import { $, fillSelect } from './controller/helpers.js';
 import { routeEntryId } from './controller/routes.js';
 import { chromeMethods } from './controller/chrome.js';
 import { routingMethods } from './controller/routing.js';
@@ -46,6 +40,7 @@ import { savingMethods } from './controller/saving.js';
 import { entryMethods } from './controller/entries.js';
 import { versionActionMethods } from './controller/version-actions.js';
 import { exportMethods } from './controller/export-actions.js';
+import { keyboardMethods } from './controller/keyboard.js';
 
 
 
@@ -187,104 +182,6 @@ export class QuireApp {
     await this.store.save(createEntry(sampleEntry(localISODate())));
   }
 
-  // ---------- keyboard ----------
-
-  onGlobalKeydown(event) {
-    if (document.querySelector('dialog[open]')) return;
-    const typing = isTextTarget(event.target);
-    const key = event.key.toLowerCase();
-
-    if (event.key === 'F1') {
-      event.preventDefault();
-      showShortcuts();
-      return;
-    }
-    if (event.altKey && !event.ctrlKey && !event.metaKey && key === 't') {
-      event.preventDefault();
-      this.openToday();
-      return;
-    }
-    if (event.ctrlKey || event.metaKey) {
-      if (this.view === 'home' && key === 'f') {
-        event.preventDefault();
-        this.home.focusSearch();
-        return;
-      }
-      switch (key) {
-        case 'h':
-          if (event.shiftKey) {
-            event.preventDefault();
-            this.showHome();
-          }
-          break;
-        case 'n':
-          event.preventDefault();
-          this.newEntry();
-          break;
-        case 'o':
-          event.preventDefault();
-          this.showEntries();
-          break;
-        case 's':
-          event.preventDefault();
-          this.persist();
-          break;
-        case 'e':
-          event.preventDefault();
-          this.exportMarkdown();
-          break;
-        case 'p':
-          event.preventDefault();
-          this.printPdf();
-          break;
-        case ',':
-          event.preventDefault();
-          this.openOptions();
-          break;
-        case 'z':
-        case 'y': {
-          if (typing && this.lastSurface === 'text') break; // native text undo
-          event.preventDefault();
-          if (key === 'y' || event.shiftKey) this.redo();
-          else this.undo();
-          break;
-        }
-        default:
-          break;
-      }
-      return;
-    }
-    if (typing || event.altKey || this.view === 'home') return;
-    if (this.draft && (event.key === 'Enter' || event.key === 'Escape')) {
-      event.preventDefault();
-      this.commitDraft();
-      return;
-    }
-    if (this.selection.size) {
-      if (event.key === 'Delete' || event.key === 'Backspace') {
-        event.preventDefault();
-        this.deleteSelection();
-        return;
-      }
-      const step = event.shiftKey ? NUDGE_FAST : NUDGE;
-      const nudge = { ArrowLeft: [-step, 0], ArrowRight: [step, 0], ArrowUp: [0, -step], ArrowDown: [0, step] }[event.key];
-      if (nudge) {
-        event.preventDefault();
-        this.nudgeSelection(...nudge);
-        return;
-      }
-    }
-    if (event.key === 'Escape' && this.selection.size) {
-      this.selection = new Set();
-      this.requestRedraw();
-      return;
-    }
-    const toolId = TOOL_BY_KEY[key];
-    if (toolId) {
-      event.preventDefault();
-      this.setTool(toolId);
-    }
-  }
 }
 
 Object.assign(QuireApp.prototype, chromeMethods);
@@ -320,3 +217,5 @@ Object.assign(QuireApp.prototype, entryMethods);
 Object.assign(QuireApp.prototype, versionActionMethods);
 
 Object.assign(QuireApp.prototype, exportMethods);
+
+Object.assign(QuireApp.prototype, keyboardMethods);
