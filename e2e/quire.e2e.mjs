@@ -586,6 +586,49 @@ test('moving the last entry out of a notebook returns the list to All entries', 
 
     assert.equal((await page.textContent('.home-crumb-current')).trim(), 'All entries', 'the filter does not stay on an empty notebook');
     assert.equal(await notebookRow(page, 'Lab').count(), 0);
+test('a deleted entry waits in the desk drawer until it is restored or deleted for good', async () => {
+  const page = await freshPage();
+  try {
+    await openQuire(page);
+    await page.click('button[aria-label="Details view"]');
+    const sample = page.locator('tr[data-id]', { hasText: 'Welcome to Quire' });
+    await sample.click();
+    await page.keyboard.press('Delete');
+    await page.waitForFunction(() => /moved to the desk drawer/.test(document.querySelector('#save-status')?.textContent ?? ''));
+    assert.equal(await sample.count(), 0, 'the entry left the library list');
+
+    const drawerNav = page.getByRole('button', { name: /Desk drawer/ });
+    assert.match(await drawerNav.textContent(), /1/);
+    await drawerNav.click();
+    assert.match(await page.textContent('.home-crumb-current'), /Desk drawer/);
+    assert.equal(await page.isVisible('.drawer-note'), true);
+    assert.match(await page.textContent('.drawer'), /Removed for good in 30 days/);
+
+    // The command bar swaps the entry actions for the drawer's own.
+    assert.equal(await page.getByRole('button', { name: 'Restore', exact: true }).isVisible(), true);
+    assert.equal(await page.getByRole('button', { name: 'New entry', exact: true }).isVisible(), false);
+
+    // Drawer entries cannot be opened until they are restored.
+    await page.locator('tr[data-id]', { hasText: 'Welcome to Quire' }).dblclick();
+    assert.equal(await page.getAttribute('.app', 'data-view'), 'home');
+
+    await page.locator('tr[data-id]', { hasText: 'Welcome to Quire' }).click();
+    await page.getByRole('button', { name: 'Restore', exact: true }).click();
+    await page.waitForFunction(() => /restored/.test(document.querySelector('#save-status')?.textContent ?? ''));
+    assert.equal(await page.locator('.home-empty h2', { hasText: 'The desk drawer is empty' }).count(), 1);
+
+    await page.locator('.nav-item', { hasText: 'All entries' }).click();
+    assert.equal(await page.locator('tr[data-id]', { hasText: 'Welcome to Quire' }).count(), 1, 'the restored entry is back in the library');
+
+    // Delete it again and remove it for good from the drawer.
+    await page.locator('tr[data-id]', { hasText: 'Welcome to Quire' }).click();
+    await page.keyboard.press('Delete');
+    await page.getByRole('button', { name: /Desk drawer/ }).click();
+    await page.locator('tr[data-id]', { hasText: 'Welcome to Quire' }).click();
+    await page.getByRole('button', { name: 'Delete forever', exact: true }).click();
+    await page.locator('dialog[open] button', { hasText: 'Delete forever' }).click();
+    await page.waitForFunction(() => /deleted for good/.test(document.querySelector('#save-status')?.textContent ?? ''));
+    assert.equal(await page.locator('.home-empty h2', { hasText: 'The desk drawer is empty' }).count(), 1);
     expectNoErrors(page);
   } finally {
     await page.close();

@@ -170,6 +170,9 @@ export class QuireApp {
       onHidePrompts: () => this.setPref({ showPrompts: false }),
       onDismissTips: () => this.setPref({ tipsDismissed: true }),
       onDelete: (id) => this.deleteEntry(id),
+      onRestore: (id) => this.restoreEntry(id),
+      onPurge: (id) => this.purgeEntry(id),
+      onEmptyDrawer: () => this.emptyDeskDrawer(),
       onPatch: (id, fields) => this.patchEntry(id, fields),
       onViewChange: (view) => this.setPref({ homeView: view }),
     });

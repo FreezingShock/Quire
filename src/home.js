@@ -50,6 +50,7 @@ import { capsuleStatus, countdownText, isHidden, redactSealed, upcomingCapsules 
 import { capsuleTileArt, envelopeIcon } from './capsule-ui.js';
 import { greetingFor, isFirstRun, lastDays, monthSummary, recentEntries } from './dashboard.js';
 import { addGadget, normalizeGadgetList, removeGadget } from './gadgets.js';
+import { TRASH_DAYS, removalNote } from './trash.js';
 import { buildSidebar } from './gadget-views.js';
 import { TIPS } from './onboarding.js';
 
@@ -183,7 +184,8 @@ export class HomeView {
    * `note` is the sticky note's text. Callbacks: onOpen(id), onNew(options),
    * onToday(), onWritePrompt(prompt), onHidePrompts(), onDismissTips(),
    * onDelete(id), onViewChange(view), onPatch(id, fields), onGadgetsChange(list),
-   * onSaveNote(text).
+   * onSaveNote(text), and for the desk drawer onRestore(id), onPurge(id) (delete
+   * for good) and onEmptyDrawer().
    */
   constructor(
     root,
@@ -205,11 +207,15 @@ export class HomeView {
       onPatch,
       onGadgetsChange,
       onSaveNote,
+      onRestore,
+      onPurge,
+      onEmptyDrawer,
     } = {},
   ) {
     this.root = root;
-    this.callbacks = { onOpen, onNew, onToday, onWritePrompt, onHidePrompts, onDismissTips, onDelete, onViewChange, onPatch, onGadgetsChange, onSaveNote };
+    this.callbacks = { onOpen, onNew, onToday, onWritePrompt, onHidePrompts, onDismissTips, onDelete, onViewChange, onPatch, onGadgetsChange, onSaveNote, onRestore, onPurge, onEmptyDrawer };
     this.entries = [];
+    this.trashed = []; // the desk drawer: deleted entries, which stay out of every list until restored
     this.terms = []; // search terms for the current query, used for highlighting
     this.stripOptions = { showPrompts, showOnThisDay, showTips, showGadgets, gadgets: normalizeGadgetList(gadgets) };
     this.note = ''; // the sticky note's text, kept here so a re-render does not clear it
@@ -235,11 +241,13 @@ export class HomeView {
   }
 
   /**
-   * Replaces the list with the latest entries from storage. Closed time
-   * capsules come in blanked, so no view can show what they hold.
+   * Replaces the lists with the latest entries and desk drawer entries from
+   * storage. Closed time capsules come in blanked, in both lists, so no view
+   * can show what they hold.
    */
-  setEntries(entries) {
+  setEntries(entries, trashed = []) {
     this.entries = redactSealed(entries);
+    this.trashed = redactSealed(trashed);
     this.dropEmptyFilter();
     this.render();
   }
@@ -312,6 +320,16 @@ export class HomeView {
     this.moveBtn = this.commandButton('Notebook', 'notebook', () => this.moveSelected());
     this.moveBtn.title = 'Move to a notebook';
     this.deleteBtn = this.commandButton('Delete', 'trash', () => this.deleteSelected());
+    this.deleteBtn.title = 'Move to the desk drawer';
+    // The desk drawer swaps these in for the entry actions above.
+    this.restoreBtn = this.commandButton('Restore', 'undo', () => this.restoreSelected());
+    this.restoreBtn.title = 'Put back in the library';
+    this.purgeBtn = this.commandButton('Delete forever', 'close', () => this.purgeSelected());
+    this.purgeBtn.title = 'Remove for good';
+    this.emptyBtn = this.commandButton('Empty drawer', 'trash', () => this.callbacks.onEmptyDrawer?.());
+    this.emptyBtn.title = 'Remove every entry in the desk drawer for good';
+    this.libraryCommands = [this.newBtn, this.todayBtn, this.openBtn, this.pinBtn, this.favBtn, this.moveBtn, this.deleteBtn];
+    this.drawerCommands = [this.restoreBtn, this.purgeBtn, this.emptyBtn];
     this.streak = el('span', { class: 'streak-chip' });
     this.dashboardBtn = el(
       'button',
@@ -371,6 +389,9 @@ export class HomeView {
         this.favBtn,
         this.moveBtn,
         this.deleteBtn,
+        this.restoreBtn,
+        this.purgeBtn,
+        this.emptyBtn,
         el('span', { class: 'cmd-sep', 'aria-hidden': 'true' }),
         el('span', { class: 'cmd-spacer' }),
         this.streak,
@@ -394,10 +415,11 @@ export class HomeView {
   render() {
     const { state } = this;
     this.terms = parseQuery(state.query);
-    const matches = sortEntries(filterEntries(this.entries, state), state.sort);
+    const matches = sortEntries(filterEntries(this.pool(), state), state.sort);
     if (!matches.some((entry) => entry.id === state.selectedId)) state.selectedId = null;
     this.renderNav();
     this.renderCrumb();
+    this.swapCommands();
     this.renderStreak();
     this.renderMain(matches);
     if (this.focusGadget) {
@@ -457,6 +479,13 @@ export class HomeView {
           onSelect: () => this.setFilter({ type: 'kind', value: kind.id }),
         }),
       ),
+      navItem({
+        label: 'Desk drawer',
+        count: this.trashed.length,
+        icon: 'trash',
+        active: filter.type === 'trash',
+        onSelect: () => this.setFilter({ type: 'trash', value: null }),
+      }),
       el('h3', {}, 'Notebooks'),
       ...(notebooks.length
         ? notebooks.map(({ name, count }) =>
@@ -508,6 +537,14 @@ export class HomeView {
     );
   }
 
+  /** The command bar changes with the view: in the desk drawer, the entry actions give way to Restore, Delete forever and Empty drawer. */
+  swapCommands() {
+    const drawer = this.inDrawer();
+    for (const button of this.libraryCommands) button.hidden = drawer;
+    for (const button of this.drawerCommands) button.hidden = !drawer;
+    this.emptyBtn.disabled = this.trashed.length === 0;
+  }
+
   renderCrumb() {
     const { filter } = this.state;
     if (filter.type === 'kind') this.crumb.textContent = kindLabel(filter.value);
@@ -517,6 +554,7 @@ export class HomeView {
     else if (filter.type === 'notebook') this.crumb.textContent = filter.value;
     else if (filter.type === 'pinned') this.crumb.textContent = 'Pinned';
     else if (filter.type === 'favorite') this.crumb.textContent = 'Favorites';
+    else if (filter.type === 'trash') this.crumb.textContent = 'Desk drawer';
     else this.crumb.textContent = 'All entries';
   }
 
@@ -531,7 +569,8 @@ export class HomeView {
     const { view } = this.state;
     this.main.dataset.view = view;
     let content;
-    if (view === 'calendar') content = this.calendar(matches);
+    if (this.inDrawer()) content = this.drawer(matches);
+    else if (view === 'calendar') content = this.calendar(matches);
     else if (view === 'moods') content = this.moodView();
     else if (view === 'year') content = this.yearView();
     else if (!this.entries.length) content = this.emptyLibrary();
@@ -561,6 +600,16 @@ export class HomeView {
   chartPoints(today, days) {
     const daily = moodSeries(this.entries, today, days);
     return days > LONG_RANGE_DAYS ? bucketSeries(daily, 7) : daily;
+  }
+
+  /** True while the desk drawer is open. Its list holds the drawer's entries, not the library's. */
+  inDrawer() {
+    return this.state.filter.type === 'trash';
+  }
+
+  /** The entries the open list works on: the drawer's while it is open, the library's otherwise. */
+  pool() {
+    return this.inDrawer() ? this.trashed : this.entries;
   }
 
   isUnfiltered() {
@@ -981,9 +1030,7 @@ export class HomeView {
             el('span', { class: 'cell-name' }, marked(displayTitle(entry), this.terms)),
             flagIcons(entry),
           ),
-          closed
-            ? el('span', { class: 'cell-snippet' }, countdownText(entry, today))
-            : this.terms.length ? el('span', { class: 'cell-snippet' }, marked(snippetOf(entry, this.terms), this.terms)) : null,
+          this.rowNote(entry, closed, today),
         ),
         el('td', { class: 'col-date' }, formatShortDate(entry.date)),
         el('td', { class: 'col-kind' }, kindLabel(entry.kind)),
@@ -1004,6 +1051,39 @@ export class HomeView {
         el('thead', {}, head),
         el('tbody', {}, rows),
       ),
+    );
+  }
+
+  /** The small line under a row's title: how long a drawer entry has left, or the search snippet. */
+  rowNote(entry, closed, today) {
+    if (this.inDrawer()) return el('span', { class: 'cell-snippet' }, removalNote(entry));
+    if (closed) return el('span', { class: 'cell-snippet' }, countdownText(entry, today));
+    if (!this.terms.length) return null;
+    return el('span', { class: 'cell-snippet' }, marked(snippetOf(entry, this.terms), this.terms));
+  }
+
+  /** The desk drawer: deleted entries in a list, with a line on how long they wait. */
+  drawer(matches) {
+    if (!this.trashed.length) {
+      return el(
+        'div',
+        { class: 'home-empty' },
+        iconNode('trash', 'empty-icon'),
+        el('h2', {}, 'The desk drawer is empty'),
+        el('p', {}, `Entries you delete land here. They wait ${TRASH_DAYS} days, and you can restore them until then.`),
+      );
+    }
+    if (!matches.length) return this.emptyMatches();
+    return el(
+      'div',
+      { class: 'drawer' },
+      el(
+        'p',
+        { class: 'drawer-note' },
+        iconNode('trash'),
+        el('span', {}, `Deleted entries wait here for ${TRASH_DAYS} days, then they are removed for good. Restore puts one back in the library.`),
+      ),
+      this.table(matches),
     );
   }
 
@@ -1628,7 +1708,7 @@ export class HomeView {
   }
 
   selectedEntry() {
-    return this.entries.find((entry) => entry.id === this.state.selectedId) ?? null;
+    return this.pool().find((entry) => entry.id === this.state.selectedId) ?? null;
   }
 
   /** Changes pin, favorite, or notebook for one entry. The app saves it and reloads the list. */
@@ -1691,6 +1771,8 @@ export class HomeView {
   }
 
   open(id) {
+    // A drawer entry opens only once it is restored.
+    if (this.inDrawer()) return;
     this.callbacks.onOpen?.(id);
   }
 
@@ -1698,8 +1780,19 @@ export class HomeView {
     if (this.state.selectedId) this.open(this.state.selectedId);
   }
 
+  /** Delete moves an entry to the desk drawer. In the drawer it removes the entry for good. */
   deleteSelected() {
-    if (this.state.selectedId) this.callbacks.onDelete?.(this.state.selectedId);
+    if (!this.state.selectedId) return;
+    if (this.inDrawer()) this.purgeSelected();
+    else this.callbacks.onDelete?.(this.state.selectedId);
+  }
+
+  restoreSelected() {
+    if (this.state.selectedId) this.callbacks.onRestore?.(this.state.selectedId);
+  }
+
+  purgeSelected() {
+    if (this.state.selectedId) this.callbacks.onPurge?.(this.state.selectedId);
   }
 
   onKeydown(event) {

@@ -4,11 +4,13 @@
  * account-backed store can replace them without touching the UI:
  *
  *   kind: 'indexeddb' | 'memory' | (future: 'remote')
- *   list()                     -> Promise<Entry[]>    newest first, without pictures or sketches
- *   listFull()                 -> Promise<Entry[]>    every entry with its pictures and sketches (backups)
- *   get(id)                    -> Promise<Entry|null> with its pictures and sketches
+ *   list()                     -> Promise<Entry[]>    newest first, without pictures or sketches; desk drawer entries are left out
+ *   listTrash()                -> Promise<Entry[]>    the desk drawer: entries with a deletedAt time, newest deletion first
+ *   setTrashed(id, deletedAt)  -> Promise<void>       puts an entry in the desk drawer (an ISO time), or takes it out (null). Pictures, sketches and versions stay put
+ *   listFull()                 -> Promise<Entry[]>    every entry, drawer included, with its pictures and sketches (backups)
+ *   get(id)                    -> Promise<Entry|null> any entry, drawer included, with its pictures and sketches
  *   save(entry)                -> Promise<Entry>      upserts by id; writes the entry's media too
- *   remove(id)                 -> Promise<void>       also removes the entry's versions and media
+ *   remove(id)                 -> Promise<void>       removes for good: also the entry's versions and media
  *   listVersions(entryId)      -> Promise<Version[]>  newest first
  *   latestVersion(entryId)     -> Promise<Version|null>
  *   listAllVersions()          -> Promise<Version[]>
@@ -45,6 +47,11 @@ const LOCKED = Symbol('locked');
 
 /** The sticky note's record in the meta store. Its text is sealed like entries when the lock is on. */
 const NOTE_META = 'sticky-note';
+
+/** Live entries are the ones not in the desk drawer. */
+const isLive = (entry) => !entry.deletedAt;
+const isTrashed = (entry) => Boolean(entry.deletedAt);
+const newestDeletionFirst = (a, b) => b.deletedAt.localeCompare(a.deletedAt);
 
 export class LockedError extends Error {
   constructor() {
@@ -312,7 +319,21 @@ function createIndexedDBStore(db) {
       codec.ready();
       const rows = await readTransaction(db, STORE, (tx) => requestToPromise(tx.objectStore(STORE).getAll()));
       const decoded = await Promise.all(rows.map((row) => codec.decodeRow(row)));
-      return decoded.map((row) => normalizeEntry(row)).sort(compareEntries);
+      return decoded.map((row) => normalizeEntry(row)).filter(isLive).sort(compareEntries);
+    },
+    async listTrash() {
+      codec.ready();
+      const rows = await readTransaction(db, STORE, (tx) => requestToPromise(tx.objectStore(STORE).getAll()));
+      const decoded = await Promise.all(rows.map((row) => codec.decodeRow(row)));
+      return decoded.map((row) => normalizeEntry(row)).filter(isTrashed).sort(newestDeletionFirst);
+    },
+    async setTrashed(id, deletedAt) {
+      codec.ready();
+      const row = await readTransaction(db, STORE, (tx) => requestToPromise(tx.objectStore(STORE).get(id)));
+      if (!row) return;
+      const plain = await codec.decodeRow(row);
+      const sealed = await codec.encodeRow({ ...plain, deletedAt });
+      await writeTransaction(db, STORE, (tx) => tx.objectStore(STORE).put(sealed));
     },
     async listFull() {
       codec.ready();
@@ -463,7 +484,20 @@ export function createMemoryStore() {
     async list() {
       codec.ready();
       // The list reads rows only, so pictures and sketches are never touched here.
-      return assembleEntries(codec, [...rows.values()].map(clone), []);
+      const entries = await assembleEntries(codec, [...rows.values()].map(clone), []);
+      return entries.filter(isLive);
+    },
+    async listTrash() {
+      codec.ready();
+      const entries = await assembleEntries(codec, [...rows.values()].map(clone), []);
+      return entries.filter(isTrashed).sort(newestDeletionFirst);
+    },
+    async setTrashed(id, deletedAt) {
+      codec.ready();
+      const row = rows.get(id);
+      if (!row) return;
+      const plain = await codec.decodeRow(clone(row));
+      rows.set(id, clone(await codec.encodeRow({ ...plain, deletedAt })));
     },
     async listFull() {
       codec.ready();

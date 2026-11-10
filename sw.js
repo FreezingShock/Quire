@@ -79,6 +79,7 @@ const SHELL = [
   './src/splash.js',
   './src/vault.js',
   './src/storage.js',
+  './src/trash.js',
   './src/tools.js',
   './src/textops.js',
   './src/versions.js',
