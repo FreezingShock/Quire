@@ -44,6 +44,8 @@ import {
   summarizeDays,
 } from './journal.js';
 import { promptFor } from './prompts.js';
+import { capsuleStatus, countdownText, isHidden, redactSealed, upcomingCapsules } from './capsule.js';
+import { capsuleTileArt, envelopeIcon } from './capsule-ui.js';
 import { greetingFor, isFirstRun, lastDays, monthSummary, recentEntries } from './dashboard.js';
 import { addGadget, normalizeGadgetList, removeGadget } from './gadgets.js';
 import { buildSidebar } from './gadget-views.js';
@@ -228,9 +230,12 @@ export class HomeView {
     this.render();
   }
 
-  /** Replaces the list with the latest entries from storage. */
+  /**
+   * Replaces the list with the latest entries from storage. Closed time
+   * capsules come in blanked, so no view can show what they hold.
+   */
   setEntries(entries) {
-    this.entries = entries;
+    this.entries = redactSealed(entries);
     this.dropEmptyFilter();
     this.render();
   }
@@ -604,8 +609,9 @@ export class HomeView {
     const flags = countFlags(written);
     const todayMood = summarizeDays(this.entries)[today]?.mood ?? null;
     const wroteToday = written.some((entry) => entry.date === today);
+    const capsules = upcomingCapsules(this.entries, today);
     const { showPrompts, showOnThisDay, showTips } = this.stripOptions;
-    const memories = showOnThisDay ? onThisDay(this.entries, today) : [];
+    const memories = showOnThisDay ? onThisDay(this.entries.filter((entry) => !isHidden(entry, today)), today) : [];
 
     const heading = isFirstRun(this.entries) ? 'Welcome to Quire' : greetingFor(new Date().getHours());
     const line = isFirstRun(this.entries)
@@ -683,7 +689,8 @@ export class HomeView {
       { class: 'dash-col' },
       firstRun ? tips : null,
       showPrompts ? this.promptCard(today, 'dash-card') : null,
-      this.recentCard(recentEntries(this.entries, 6)),
+      capsules.length ? this.capsuleListCard(capsules, today) : null,
+      this.recentCard(recentEntries(this.entries, 6), today),
     );
     const right = el(
       'div',
@@ -738,7 +745,44 @@ export class HomeView {
     );
   }
 
-  recentCard(recent) {
+  /** Closed time capsules, soonest first, with their countdowns. Up to five show here. */
+  capsuleListCard(capsules, today) {
+    const shown = capsules.slice(0, 5);
+    const more = capsules.length - shown.length;
+    return el(
+      'section',
+      { class: 'strip-card dash-card dash-capsules', 'aria-label': 'Time capsules' },
+      el('div', { class: 'strip-head' }, envelopeIcon(), el('h3', {}, 'Time capsules')),
+      el(
+        'ul',
+        { class: 'capsule-list' },
+        shown.map((entry) =>
+          el(
+            'li',
+            {},
+            el(
+              'button',
+              { class: 'capsule-item', type: 'button', onClick: () => this.open(entry.id) },
+              envelopeIcon('capsule-item-icon'),
+              el(
+                'span',
+                { class: 'capsule-item-text' },
+                el(
+                  'span',
+                  { class: 'capsule-item-date' },
+                  `${capsuleStatus(entry, today) === 'ready' ? 'Sealed until' : 'Opens'} ${formatLongDate(entry.capsule.openOn)}`,
+                ),
+                el('span', { class: 'capsule-item-count' }, countdownText(entry, today)),
+              ),
+            ),
+          ),
+        ),
+      ),
+      more > 0 ? el('p', { class: 'dash-empty' }, `${more} more sealed ${more === 1 ? 'letter' : 'letters'} after these.`) : null,
+    );
+  }
+
+  recentCard(recent, today = localISODate()) {
     return el(
       'section',
       { class: 'strip-card dash-card dash-recent', 'aria-label': 'Recent entries' },
@@ -754,15 +798,19 @@ export class HomeView {
             'ul',
             { class: 'dash-recent-list' },
             recent.map((entry) => {
-              const sub = [formatShortDate(entry.date), kindLabel(entry.kind), feelText(entry)].filter(Boolean).join(' · ');
-              const excerpt = excerptOf(entry, 140);
+              const closed = isHidden(entry, today);
+              const parts = closed
+                ? [formatShortDate(entry.date), countdownText(entry, today)]
+                : [formatShortDate(entry.date), kindLabel(entry.kind), feelText(entry)];
+              const sub = parts.filter(Boolean).join(' · ');
+              const excerpt = closed ? '' : excerptOf(entry, 140);
               return el(
                 'li',
                 {},
                 el(
                   'button',
                   { class: 'dash-recent-item', type: 'button', onClick: () => this.open(entry.id) },
-                  el('span', { class: 'dash-recent-title' }, displayTitle(entry), flagIcons(entry)),
+                  el('span', { class: 'dash-recent-title' }, displayTitle(entry), isHidden(entry) ? envelopeIcon('flag flag-capsule') : null, flagIcons(entry)),
                   el('span', { class: 'dash-recent-sub' }, sub),
                   excerpt ? el('span', { class: 'dash-recent-excerpt' }, excerpt) : null,
                 ),
@@ -899,10 +947,13 @@ export class HomeView {
       }),
     );
 
-    const rows = matches.map((entry) =>
-      el(
+    const today = localISODate();
+    const rows = matches.map((entry) => {
+      const closed = isHidden(entry, today);
+      return el(
         'tr',
         {
+          class: closed ? 'is-capsule' : null,
           'data-id': entry.id,
           'aria-selected': 'false',
           onClick: () => this.select(entry.id),
@@ -915,21 +966,23 @@ export class HomeView {
           el(
             'span',
             { class: 'cell-title' },
-            iconNode('page'),
+            closed ? envelopeIcon() : iconNode('page'),
             el('span', { class: 'cell-name' }, marked(displayTitle(entry), this.terms)),
             flagIcons(entry),
           ),
-          this.terms.length ? el('span', { class: 'cell-snippet' }, marked(snippetOf(entry, this.terms), this.terms)) : null,
+          closed
+            ? el('span', { class: 'cell-snippet' }, countdownText(entry, today))
+            : this.terms.length ? el('span', { class: 'cell-snippet' }, marked(snippetOf(entry, this.terms), this.terms)) : null,
         ),
         el('td', { class: 'col-date' }, formatShortDate(entry.date)),
         el('td', { class: 'col-kind' }, kindLabel(entry.kind)),
         el('td', { class: 'col-notebook' }, entry.notebook ?? ''),
         el('td', { class: 'col-tags' }, entry.tags.join(', ')),
-        el('td', { class: 'col-feel' }, feelText(entry)),
-        el('td', { class: 'col-words num' }, String(wordCount(entry.body))),
+        el('td', { class: 'col-feel' }, closed ? '' : feelText(entry)),
+        el('td', { class: 'col-words num' }, closed ? '—' : String(wordCount(entry.body))),
         el('td', { class: 'col-modified' }, modifiedLabel(entry.updatedAt)),
-      ),
-    );
+      );
+    });
 
     return el(
       'div',
@@ -954,14 +1007,16 @@ export class HomeView {
   }
 
   tile(entry) {
-    const text = this.terms.length ? snippetOf(entry, this.terms, 240) : excerptOf(entry, 240);
-    const hasInk = entry.ink.ops.length > 0;
+    const closed = isHidden(entry);
+    const text = closed ? '' : this.terms.length ? snippetOf(entry, this.terms, 240) : excerptOf(entry, 240);
+    const hasInk = !closed && entry.ink.ops.length > 0;
     const fallback = text ? marked(text, this.terms) : hasInk ? '' : 'Blank page';
     const page = el(
       'div',
-      { class: 'tile-page', style: `background-color: ${entry.pageColor}` },
-      el('p', { class: `tile-text${text ? '' : ' is-empty'}` }, fallback),
-      hasInk ? inkThumbnail(entry) : null,
+      { class: `tile-page${closed ? ' is-capsule' : ''}`, style: `background-color: ${entry.pageColor}` },
+      closed
+        ? capsuleTileArt(entry)
+        : [el('p', { class: `tile-text${text ? '' : ' is-empty'}` }, fallback), hasInk ? inkThumbnail(entry) : null],
     );
     return el(
       'div',
@@ -984,7 +1039,13 @@ export class HomeView {
           el('span', { class: 'tile-name' }, marked(displayTitle(entry), this.terms)),
           flagIcons(entry),
         ),
-        el('span', { class: 'tile-sub' }, `${formatShortDate(entry.date)} · ${kindLabel(entry.kind)}`),
+        el(
+          'span',
+          { class: 'tile-sub' },
+          closed
+            ? `${capsuleStatus(entry) === 'ready' ? 'Sealed until' : 'Opens'} ${formatShortDate(entry.capsule.openOn)}`
+            : `${formatShortDate(entry.date)} · ${kindLabel(entry.kind)}`,
+        ),
       ),
     );
   }
@@ -1077,9 +1138,13 @@ export class HomeView {
               el(
                 'button',
                 { class: 'cal-entry', type: 'button', onClick: () => this.open(entry.id) },
-                iconNode('page'),
+                isHidden(entry) ? envelopeIcon() : iconNode('page'),
                 el('span', { class: 'cal-entry-title' }, marked(displayTitle(entry), this.terms), flagIcons(entry)),
-                el('span', { class: 'cal-entry-sub' }, [kindLabel(entry.kind), feelText(entry)].filter(Boolean).join(' · ')),
+                el(
+                  'span',
+                  { class: 'cal-entry-sub' },
+                  isHidden(entry) ? countdownText(entry) : [kindLabel(entry.kind), feelText(entry)].filter(Boolean).join(' · '),
+                ),
               ),
             ),
           ),
@@ -1115,7 +1180,7 @@ export class HomeView {
   stripSection() {
     const today = localISODate();
     const { showPrompts, showOnThisDay } = this.stripOptions;
-    const memories = showOnThisDay ? onThisDay(this.entries, today) : [];
+    const memories = showOnThisDay ? onThisDay(this.entries.filter((entry) => !isHidden(entry, today)), today) : [];
     const cards = [showPrompts ? this.promptCard(today) : null, memories.length ? this.onThisDayCard(memories) : null].filter(Boolean);
     if (!cards.length) return null;
     return el('section', { class: 'home-strip', 'aria-label': 'Today in Quire' }, cards);

@@ -7,7 +7,7 @@
  */
 
 import { createLocalStore } from './storage.js';
-import { unlockStore } from './lock.js';
+import { lockNow, unlockStore } from './lock.js';
 import {
   MOODS,
   WEATHERS,
@@ -19,6 +19,7 @@ import { BASE_LAYER, Drawing } from './drawing.js';
 import { PALETTE } from './tools.js';
 import { loadPrefs, savePrefs } from './prefs.js';
 import { startPwa, startReminders, REMINDER_DEFAULTS } from './pwa.js';
+import { startScreensaver } from './screensaver.js';
 import { HomeView } from './home.js';
 import { sampleEntry } from './onboarding.js';
 import { $, fillSelect } from './controller/helpers.js';
@@ -43,6 +44,9 @@ import { exportMethods } from './controller/export-actions.js';
 import { keyboardMethods } from './controller/keyboard.js';
 import { focusMethods } from './controller/focus-mode.js';
 import { navigationMethods } from './controller/navigation.js';
+import { capsuleActionMethods } from './controller/capsule-actions.js';
+import { mixtapeMethods } from './controller/mixtape.js';
+import { MixtapeView } from './mixtape-view.js';
 
 
 
@@ -87,9 +91,15 @@ export class QuireApp {
       onFiles: (files, range) => this.insertImages(files, range),
       inkStyle: () => ({ color: this.fg, size: this.size }),
     });
+    this.mixtape = new MixtapeView($('#mixtape'), {
+      onAdd: () => this.addSong(),
+      onRemove: (id) => this.removeSong(id),
+      onMove: (id, direction) => this.moveSong(id, direction),
+    });
     this.prefs = loadPrefs();
     this.store = null;
     this.passcodeOn = false; // whether the passcode lock is on; the File menu reads it
+    this.screensaver = null; // the idle watch and its preview, started once the store is open
     this.entry = null;
     this.drawing = new Drawing();
     this.base = document.createElement('canvas');
@@ -133,6 +143,7 @@ export class QuireApp {
     this.session = null; // { id, base }: the open entry and its word count when this session began
     this.goalCelebrated = false; // the goal chime has played for this session
     this.typeFrame = 0; // the pending animation frame for typewriter scrolling
+    this.capsuleScanDay = null; // the day the arrival notices were last checked
   }
 
   async start() {
@@ -177,6 +188,14 @@ export class QuireApp {
       getReminder: () => this.prefs.reminder ?? REMINDER_DEFAULTS,
       saveReminder: (reminder) => this.setPref({ reminder }),
       hasEntryOn: async (day) => (await this.store.list()).some((entry) => entry.date === day),
+      onCapsuleCheck: (send) => this.announceArrivedCapsules(send),
+    });
+    this.screensaver = startScreensaver({
+      getPrefs: () => this.prefs,
+      getEntries: () => this.store.list(),
+      isLocked: () => this.passcodeOn,
+      // A locked Quire wakes to the passcode. Saving first keeps the open entry.
+      onWake: () => lockNow(() => this.persist()),
     });
     await this.seedSampleEntry();
     // The site opens on the dashboard. A reload on an entry keeps that entry.
@@ -241,3 +260,6 @@ Object.assign(QuireApp.prototype, keyboardMethods);
 
 Object.assign(QuireApp.prototype, focusMethods);
 Object.assign(QuireApp.prototype, navigationMethods);
+Object.assign(QuireApp.prototype, capsuleActionMethods);
+
+Object.assign(QuireApp.prototype, mixtapeMethods);

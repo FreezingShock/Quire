@@ -40,6 +40,9 @@ const DEFAULTS = Object.freeze({
   // Focus mode: the ambient sound (see focus.js) and its volume from 0 to 1.
   ambient: 'off',
   ambientVolume: 0.5,
+  // Screensaver (see screensaver.js): the scene, or 'off', and the idle minutes before it starts.
+  screensaver: 'off',
+  screensaverMinutes: 5,
 });
 
 export function loadPrefs() {

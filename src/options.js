@@ -11,6 +11,7 @@ import { SKINS, normalizeAccent, skinOf } from './skins.js';
 import { playSound } from './sound.js';
 import { reminderRow } from './pwa.js';
 import { AMBIENT_SOUNDS, MAX_WORD_GOAL, normalizeAmbient, normalizeGoal } from './focus.js';
+import { MAX_IDLE_MINUTES, MIN_IDLE_MINUTES, SCREENSAVERS, normalizeIdleMinutes, normalizeScreensaver } from './screensaver.js';
 
 /** The prefs this dialog reads or writes. Each one must have a default in prefs.js. */
 export const OPTION_PREFS = Object.freeze([
@@ -34,6 +35,8 @@ export const OPTION_PREFS = Object.freeze([
   'wordGoal',
   'ambient',
   'ambientVolume',
+  'screensaver',
+  'screensaverMinutes',
 ]);
 
 const TABS = Object.freeze([
@@ -57,7 +60,7 @@ let lastTab = 'appearance';
  * `get()` returns the current prefs. `set(patch)` saves them and applies them.
  * `pickAccent(onChange)` opens the color chooser and calls `onChange` after each pick.
  */
-export function showOptions({ get, set, pickAccent }) {
+export function showOptions({ get, set, pickAccent, onPreview }) {
   const refreshers = [];
   const sync = () => {
     const prefs = get();
@@ -140,6 +143,18 @@ export function showOptions({ get, set, pickAccent }) {
     );
   }
 
+  /** Closes the dialog and shows the screensaver, so you can see it without waiting for the idle time. */
+  function previewRow() {
+    return el(
+      'div',
+      { class: 'options-item' },
+      el('button', { class: 'btn', type: 'button', onClick: () => {
+        dialog.close();
+        onPreview?.();
+      } }, 'Preview screensaver'),
+    );
+  }
+
   function accentRow() {
     const value = el('span', { class: 'accent-value' });
     const reset = el('button', { class: 'btn', type: 'button', onClick: () => change({ accent: null }) }, 'Use skin colors');
@@ -165,35 +180,47 @@ export function showOptions({ get, set, pickAccent }) {
     );
   }
 
+  /** Controls for a setting that only works when sound effects are on. The group hides while sound is off. */
+  function ambientGroup(children) {
+    const group = el('div', { class: 'options-subgroup' }, children);
+    refreshers.push((prefs) => {
+      group.style.display = prefs.sound ? '' : 'none';
+    });
+    return group;
+  }
+
   const panels = {
     general: [
       toggle({
         label: 'Show the startup splash',
-        note: 'The Quire splash plays while the app loads.',
+        note: 'Plays while Quire loads.',
         read: (prefs) => Boolean(prefs.splash),
         write: (on) => ({ splash: on }),
       }),
       toggle({
         label: 'Sound effects',
-        note: 'Short chimes when Quire opens, and when you make, delete or export an entry. Off by default.',
+        note: 'Short chimes when you open, make, delete or export an entry.',
         read: (prefs) => Boolean(prefs.sound),
         write: (on) => ({ sound: on }),
         after: (on) => on && playSound('startup'),
       }),
-      choices({
-        legend: 'Ambient sound for focus mode',
-        note: 'Plays while focus mode is on (F11), if Sound effects is on too. Synthesized in the browser, so nothing is downloaded.',
-        name: 'ambient',
-        options: AMBIENT_SOUNDS,
-        read: (prefs) => normalizeAmbient(prefs.ambient),
-        write: (id) => ({ ambient: id }),
-      }),
-      percentField({
-        label: 'Ambient volume',
-        note: 'How loud the ambient sound plays under your writing.',
-        read: (prefs) => Math.min(1, Math.max(0, Number(prefs.ambientVolume) || 0)),
-        write: (value) => ({ ambientVolume: Math.min(1, Math.max(0, Number(value) / 100)) }),
-      }),
+      // Ambient sound only plays when sound effects are on, so its controls appear only then.
+      ambientGroup([
+        choices({
+          legend: 'Ambient sound for focus mode',
+          note: 'Plays in focus mode (F11).',
+          name: 'ambient',
+          options: AMBIENT_SOUNDS,
+          read: (prefs) => normalizeAmbient(prefs.ambient),
+          write: (id) => ({ ambient: id }),
+        }),
+        percentField({
+          label: 'Ambient volume',
+          note: 'How loud it plays under your writing.',
+          read: (prefs) => Math.min(1, Math.max(0, Number(prefs.ambientVolume) || 0)),
+          write: (value) => ({ ambientVolume: Math.min(1, Math.max(0, Number(value) / 100)) }),
+        }),
+      ]),
     ],
     appearance: [
       choices({
@@ -206,16 +233,34 @@ export function showOptions({ get, set, pickAccent }) {
       accentRow(),
       toggle({
         label: 'Window animations',
-        note: 'Windows open, close and menus slide in. Turn this off to keep the page still.',
+        note: 'Windows and menus animate. Off keeps the page still.',
         read: (prefs) => prefs.motion !== false,
         write: (on) => ({ motion: on }),
       }),
       toggle({
         label: 'Aero wallpaper',
-        note: 'The desktop picture shows around the window in the Aero skins.',
+        note: 'Shows the desktop picture behind the window in Aero.',
         read: (prefs) => Boolean(prefs.wallpaper),
         write: (on) => ({ wallpaper: on }),
       }),
+      choices({
+        legend: 'Screensaver',
+        note: 'Takes over the window after you have been idle. Any movement, click or key brings your page back. With the passcode lock on, Memories shows Aurora instead, so locked entries never drift past, and waking locks Quire again.',
+        name: 'screensaver',
+        options: SCREENSAVERS,
+        read: (prefs) => normalizeScreensaver(prefs.screensaver),
+        write: (id) => ({ screensaver: id }),
+      }),
+      numberField({
+        label: 'Start after this many idle minutes',
+        note: `From ${MIN_IDLE_MINUTES} to ${MAX_IDLE_MINUTES} minutes.`,
+        min: MIN_IDLE_MINUTES,
+        max: MAX_IDLE_MINUTES,
+        step: 1,
+        read: (prefs) => normalizeIdleMinutes(prefs.screensaverMinutes),
+        write: (value) => ({ screensaverMinutes: normalizeIdleMinutes(value) }),
+      }),
+      previewRow(),
     ],
     writing: [
       choices({
@@ -239,7 +284,7 @@ export function showOptions({ get, set, pickAccent }) {
       }),
       numberField({
         label: 'Session word goal',
-        note: `Words to write before the bar fills. A session starts when you open an entry or turn on focus mode. 0 turns the goal off (up to ${MAX_WORD_GOAL.toLocaleString('en-US')}).`,
+        note: 'Words to write this session. 0 turns the goal off.',
         min: 0,
         max: MAX_WORD_GOAL,
         step: 50,
@@ -282,13 +327,13 @@ export function showOptions({ get, set, pickAccent }) {
       }),
       toggle({
         label: 'Sidebar gadgets',
-        note: 'A column of gadgets beside the dashboard: clock, streak, mood, word of the day, a sticky note and drawings. Drag them to reorder, or add and remove them there.',
+        note: 'Clock, streak, mood, word of the day, sticky note and drawings. Drag to reorder.',
         read: (prefs) => prefs.showGadgets !== false,
         write: (on) => ({ showGadgets: on }),
       }),
       toggle({
         label: 'Getting started tips',
-        note: 'Four short tips at the top of the dashboard on a new library. Got it hides them.',
+        note: 'Four short tips on a new library. "Got it" hides them.',
         read: (prefs) => !prefs.tipsDismissed,
         write: (on) => ({ tipsDismissed: !on }),
       }),

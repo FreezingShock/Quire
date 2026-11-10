@@ -12,6 +12,8 @@ import {
   isBlankEntry,
   localISODate,
 } from '../model.js';
+import { isHidden, redactSealed, capsuleStatus, unsealedEntry } from '../capsule.js';
+import { unsealAnimation } from '../capsule-ui.js';
 import { playSound } from '../sound.js';
 
 export const entryMethods = {
@@ -19,6 +21,19 @@ export const entryMethods = {
 
   async openEntry(id, { history: mode = 'push' } = {}) {
     if (this.entry?.id === id && this.view === 'editor') return;
+    // A closed time capsule is never loaded into the editor. Its text is not read until it is unsealed.
+    const peek = await this.store.get(id);
+    const status = capsuleStatus(peek);
+    if (status === 'sealed') {
+      await this.showHome({ history: 'replace' });
+      this.showSealedNotice(peek);
+      return;
+    }
+    if (status === 'ready') {
+      const opened = await unsealAnimation({ entry: peek, animate: this.prefs.motion !== false });
+      if (!opened) return;
+      await this.store.save(unsealedEntry(peek));
+    }
     this.commitTextDraft();
     this.commitDraft();
     await this.persist('leave');
@@ -40,6 +55,7 @@ export const entryMethods = {
     this.dom.mood.value = next.mood ?? '';
     this.dom.weather.value = next.weather ?? '';
     this.dom.tags.value = next.tags.join(', ');
+    this.mixtape.setEntry(next.id, next.mixtape);
     this.drawing = new Drawing(next.ink.ops);
     this.layers = normalizeLayers(next.ink.layers);
     this.savedKey = contentKey(next);
@@ -77,7 +93,9 @@ export const entryMethods = {
   async openToday({ prompt } = {}) {
     await this.persist();
     const today = localISODate();
-    const existing = todaysJournal(await this.store.list(), today);
+    // A closed capsule is never today's journal, so a new page starts instead of opening it.
+    const open = (await this.store.list()).filter((entry) => !isHidden(entry, today));
+    const existing = todaysJournal(open, today);
     if (existing) await this.openEntry(existing.id);
     else await this.newEntry({ date: today, kind: 'journal', body: prompt ? `> ${prompt}\n\n` : '' });
   },
@@ -86,7 +104,7 @@ export const entryMethods = {
     entriesDialog({
       load: async () => {
         await this.persist();
-        return this.store.list();
+        return redactSealed(await this.store.list());
       },
       currentId: this.entry?.id,
       onOpen: (id) => this.openEntry(id),

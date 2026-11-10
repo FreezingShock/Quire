@@ -30,6 +30,7 @@ You can also open `index.html` through any static server.
 - **Writing:** a live preview. Headings, quotes, lists, checklists, rules, code, bold, italics, links, and colors render as you type, and the Markdown markup shows only on the line you are editing. Enter continues lists. Select text and click a color to color it.
 - **Checklists:** type `- [ ] item` or use the checklist button. Click a box to check it off. Enter on a checked item starts a new unchecked one.
 - **Pictures:** paste or drop an image file into the text, or use Insert > Image. Large photos are scaled to 1600 px. The picture sits on its own line, and its file is kept with the entry in a separate media store.
+- **Mixtape:** Insert > Song for the mixtape… (or the Add song button above the page) takes a Spotify or YouTube link. Each entry can hold up to 12 songs, shown as a cassette with a track list. Play opens the service's own player, and Stop closes it. The title and artist are saved with the entry, so the cassette still shows with no connection.
 - **Inline sketches:** Insert > Sketch between paragraphs puts a small drawing pad in the text. It has its own pencil, brush, highlighter, eraser, undo and clear, and uses the current ink color.
 - **Word count:** the status bar shows words and reading time (about 238 words a minute). Pictures, sketches and checkboxes do not count as words.
 - **Focus mode:** F11 (or View > Focus mode) hides the menus, ribbon, and status bar, so only the page is left. A bar at the bottom shows the word count and save state. Esc or F11 leaves it. Options has three focus settings: typewriter scrolling (Writing tab) keeps the line you are typing at the middle of the window; a session word goal (Writing tab) fills a progress bar as you write; and ambient sounds (General tab) play rain, a café murmur, or a CRT hum while you write. The ambient sounds are synthesized in the browser, play only in focus mode, and need Sound effects on. A session starts when you open an entry or turn on focus mode.
@@ -38,6 +39,7 @@ You can also open `index.html` through any static server.
 - **Export:** Markdown with front matter (a .zip with the drawing PNG when the entry has ink), drawing as PNG, print or save as PDF, and JSON backup and restore. Backups include version history.
 - **Version history:** Quire keeps a version every five minutes while you edit, when you leave an entry, and before a restore. Open File > Version history to preview a version's text, drawing and sketches, restore it, or delete it. Save version now keeps one by hand. The newest 30 versions are kept per entry. Pictures are kept with the entry until it is deleted, so every version can show its pictures.
 - **Save status:** the dot in the title bar shows whether changes are pending, saving, saved, or failed to save.
+- **Time capsules:** File > Seal as time capsule… seals the open entry until a day you pick: any day from tomorrow up to fifty years out, with quick picks for one month, six months, one year, and five years. A sealed letter shows on the list, tiles, calendar, and dashboard as a closed envelope with a countdown, and its text is not shown anywhere until then. When the day comes, the envelope reads Ready to open. Opening it plays a short unsealing, and the letter is an ordinary entry after that. With reminders on and notifications allowed, Quire sends one notice when a capsule is ready, while Quire is open. A sealed letter can be moved to a later day, or opened early after a confirm, from its notice. Sealing clears the editor. Version history for a letter is available once it is opened.
 - **Passcode lock:** File > Passcode lock turns on a passcode. While it is on, entries, their versions and their pictures are encrypted in the browser, and Quire asks for the passcode each time it opens. Change the passcode or turn the lock off from the same menu, and File > Lock Quire now locks it again. There is no way to recover a forgotten passcode. Forgot it? on the lock screen erases every entry.
 - **Look:** the Skin menu picks Aero (the default), Aero dark, Aero Basic, XP Luna, or Classic 98. View > Options (Ctrl+,) holds the rest in one tabbed dialog: the writing font, a custom accent color (which recolors the selection and the title bar), Window animations, the Aero wallpaper, grid and snap, sound effects, the startup splash, and the Home cards. Format holds the color swap and resets. Keyboard shortcuts (F1) lists every key.
 
@@ -55,10 +57,13 @@ You can also open `index.html` through any static server.
 - Restoring a version puts back its sketch strokes, but a sketch that was added after that version is kept as it is.
 - The live editor is a contenteditable that re-renders from the Markdown source on every change. Very long entries (tens of thousands of lines) may type more slowly.
 - Ink is pinned to the page, not to a line of text. If you edit text above a drawing, the ink does not move with it.
+- A time capsule is sealed by Quire, not by encryption. Until it opens, the lists and editor never show its text, but the text is still in the browser's storage. Turn on the passcode lock to encrypt it as well. Arrival notices only go out while Quire is open, since nothing runs in the background.
 - The passcode lock covers what Quire stores in the browser. Backup files and Markdown or PNG exports are not encrypted, and the lock does not lock itself after a period of inactivity; use Lock Quire now.
 - The lock uses WebCrypto: PBKDF2-SHA-256 with 600,000 rounds to derive a key, and AES-GCM for each entry, picture, sketch, and version. Entry ids and version times stay readable so the store can index them.
 - The print/PDF layout is close to the screen layout but can differ slightly.
 - There is no zoom or lasso selection yet.
+- Mixtapes are not in version history, Markdown export, or print. The JSON backup includes them.
+- The player is the service's own embed, so Quire cannot pause or seek it. Next and Prev switch the song, and the cassette reels turn while a player is open.
 - Each version keeps a full copy of the text, ink and sketch strokes, so a long entry with many versions takes more browser storage. Pictures are not copied into versions.
 
 ## Layout
@@ -68,6 +73,8 @@ index.html          app shell
 src/app.js          controller: editor, drawing layer, saving, menus
 src/livetext.js     live-preview editor (contenteditable over the Markdown source)
 src/livemarkup.js   pure line and inline model for the live view
+src/mixtape.js     song links for the mixtape: parsing, embed and lookup addresses, list rules (no DOM)
+src/mixtape-view.js the cassette strip, its track list, the player, and the add-a-song dialog
 src/media.js        pictures and sketches on an entry: image preparation, export bytes (no DOM for the helpers)
 src/sketch.js       inline sketch pad: its toolbar and strokes
 src/model.js        entry schema and helpers (no DOM)
@@ -81,6 +88,8 @@ src/keypen.js       keyboard pen: sends pointer events from arrow keys and Space
 src/storage.js      IndexedDB and memory stores behind one interface (entries, media, versions, and the lock record); seals rows when a vault is set
 src/vault.js        passcode encryption: wrapped data key, AES-GCM rows, no DOM
 src/lock.js         passcode dialogs: unlock screen, turn on, change, turn off, lock now, erase
+src/capsule.js      time capsules: when an entry is closed, what a closed entry shows, and date rules (no DOM)
+src/capsule-ui.js   seal dialog, sealed notice, unsealing animation, and envelope drawings
 src/export.js       Markdown, ZIP, PNG, print, backup
 src/versions.js     version rules: when a copy is kept and what it holds (no DOM)
 src/history.js      version history dialog
