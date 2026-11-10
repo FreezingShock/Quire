@@ -900,7 +900,7 @@ export class HomeView {
                 {},
                 el(
                   'button',
-                  { class: 'dash-recent-item', type: 'button', onClick: () => this.open(entry.id) },
+                  { class: 'dash-recent-item', type: 'button', 'data-id': entry.id, onClick: () => this.open(entry.id) },
                   el('span', { class: 'dash-recent-title' }, displayTitle(entry), isHidden(entry) ? envelopeIcon('flag flag-capsule') : null, flagIcons(entry)),
                   el('span', { class: 'dash-recent-sub' }, sub),
                   excerpt ? el('span', { class: 'dash-recent-excerpt' }, excerpt) : null,

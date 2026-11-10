@@ -6,7 +6,8 @@ import { entryRoute } from './routes.js';
 import { confirmDialog, entriesDialog, notebookDialog } from '../dialogs.js';
 import { Drawing, normalizeLayers } from '../drawing.js';
 import { todaysJournal } from '../journal.js';
-import { countByNotebook } from '../library.js';
+import { countByNotebook, sortEntries } from '../library.js';
+import { neighbourId } from '../gestures.js';
 import {
   createEntry,
   displayTitle,
@@ -154,6 +155,24 @@ export const entryMethods = {
       return;
     }
     await this.openEntry(pick.id);
+  },
+
+  /**
+   * Opens the next or previous entry in the All entries order. `step` is +1 for
+   * the next (older) entry and -1 for the previous (newer). Used by the swipe
+   * gesture. Sealed time capsules are skipped, as on the lists.
+   */
+  async openNeighbourEntry(step) {
+    await this.persist();
+    const today = localISODate();
+    const visible = (await this.store.list()).filter((entry) => !isHidden(entry, today));
+    const ids = sortEntries(visible).map((entry) => entry.id);
+    const id = neighbourId(ids, this.entry?.id, step);
+    if (!id) {
+      this.showStatus(step > 0 ? 'This is the oldest entry.' : 'This is the newest entry.');
+      return;
+    }
+    await this.openEntry(id);
   },
 
   showEntries() {

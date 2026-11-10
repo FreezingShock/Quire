@@ -8,7 +8,7 @@
  * Keyboard follows the menu button pattern: Enter, Space or Down opens a menu and
  * moves focus to its first item, Up and Down move between items, Home and End go
  * to the ends, Left and Right change menus, and Escape or Tab closes the menu and
- * returns focus to its title.
+ * returns focus to its title. F10, or a lone Alt tap, focuses the first title.
  */
 
 import { el } from './dom.js';
@@ -162,5 +162,13 @@ export function createMenuBar(root, menus) {
     }
   });
 
-  return { close, refresh };
+  /** Moves focus to the first menu title that is showing, as F10 and a lone Alt tap do. */
+  function focusMenu() {
+    const first = titles.find((title) => !title.hidden);
+    if (!first) return;
+    if (open) close();
+    first.focus();
+  }
+
+  return { close, refresh, focusMenu };
 }

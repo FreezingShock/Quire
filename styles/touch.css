@@ -1,0 +1,66 @@
+/*
+ * Finger-sized targets. Loaded last and scoped to coarse pointers, so a mouse
+ * desktop keeps its dense layout. Each rule only grows a control to a minimum
+ * size; skins still choose colours and borders. The dense palette swatches and
+ * the day cells in the mini calendar stay small, but never below 28px.
+ */
+@media (pointer: coarse) {
+  /* Touch devices never show a text selection or a native callout on the chrome, so a long-press opens the Quire menu instead. */
+  .titlebar,
+  .menubar-row,
+  .entry-bar,
+  .entry-path,
+  .toolbox,
+  .palette,
+  .statusbar,
+  .gadget-head,
+  .nav-item,
+  .home-search { -webkit-touch-callout: none; user-select: none; }
+
+  /* Primary controls: at least 44px square, the Apple and Android guidance. */
+  .btn,
+  .cmd-btn,
+  .tool-btn,
+  .format-btn,
+  .stamp-btn,
+  .xform-btn,
+  .layer-btn,
+  .sketch-tool,
+  .mixtape-tool,
+  .ribbon-toggle,
+  .entry-back,
+  .gadget-close,
+  .gadget-add-item,
+  .options-tab { min-width: 44px; min-height: 44px; }
+
+  .size-btn { min-width: 44px; min-height: 44px; }
+  .layer-eye { min-width: 40px; min-height: 40px; }
+
+  /* Menus: titles stay in one bar, but are taller and padded apart, and every item is a full row. */
+  .menu-title { min-width: 44px; min-height: 40px; padding-left: 12px; padding-right: 12px; }
+  .menu-item { min-height: 44px; }
+
+  /* Rows and links that sit in a list: about 40px tall. */
+  .nav-item,
+  .entry-path-link,
+  .gadget-head,
+  .dash-recent-item,
+  .version-item,
+  .capsule-item,
+  .mixtape-row { min-height: 40px; }
+
+  /* Calendar cells: the grid keeps seven columns, each cell at least 40px tall. */
+  .dash-mini-day,
+  .cal-day,
+  .gadget-cal-day { min-height: 40px; }
+
+  /* Palette: the swatches are small by design, so give them a bigger hit area without growing the grid much. */
+  .swatch { min-width: 28px; min-height: 28px; }
+
+  /* Form fields are sized for a finger and never zoom the page (see app.css for the 16px font). */
+  .field input,
+  .field select,
+  .input,
+  .entry-title,
+  .home-search input { min-height: 40px; }
+}

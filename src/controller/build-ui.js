@@ -11,6 +11,7 @@ import { attachKeyboardPen } from '../keypen.js';
 import { renderLayerPanel } from '../layers.js';
 import { createMenuBar } from '../menubar.js';
 import { wireContextMenus } from '../contextmenu.js';
+import { wireTouchGestures } from '../touch.js';
 import { scopeItems } from './helpers.js';
 import { DEFAULT_PAGE_COLOR, formatLongDate, localISODate } from '../model.js';
 import { installState } from '../pwa.js';
@@ -412,6 +413,11 @@ export const buildUiMethods = {
     window.addEventListener('popstate', () => this.onRouteChange());
     document.addEventListener('contextmenu', (event) => this.onContextMenu(event));
     wireContextMenus();
+    wireTouchGestures({
+      canSwipeEntry: () => this.view === 'editor' && !this.draft && !this.textDraft && !document.querySelector('dialog[open]'),
+      onSwipeEntry: (step) => this.openNeighbourEntry(step),
+    });
+    document.addEventListener('keyup', (event) => this.onGlobalKeyup(event));
     window.addEventListener('unhandledrejection', (event) => {
       console.error(event.reason);
       this.showStatus(`Something went wrong: ${event.reason?.message ?? event.reason}`, true);
