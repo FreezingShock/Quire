@@ -16,6 +16,8 @@ const DEFAULTS = Object.freeze({
   wallpaper: true,
   splash: true,
   sound: false,
+  showPrompts: true,
+  showOnThisDay: true,
 });
 
 export function loadPrefs() {

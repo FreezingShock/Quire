@@ -20,6 +20,8 @@ You can also open `index.html` through any static server.
 ## What it does
 
 - **Entries:** title, date, kind (journal, poem, blog post, note), mood, weather, and tags. Open entries from the list with search and filters for kind, tag, mood, and weather.
+- **Prompts and reflection:** the top of the entries list shows a writing prompt for today. Write to it, or click Another for the next one. Its text starts a new journal as a quote. The On this day card lists entries from this date in earlier years. Both can be hidden from the View menu.
+- **Mood chart:** the chart button in the view bar plots each day's mood for 30 days, 90 days, a year, or all time (weekly averages for the longer ranges), with the average and how often each mood came up.
 - **Calendar and streaks:** a month view shows how many entries each day has and its mood. The toolbar counts days in a row with at least one entry. Today's entry (Alt+T) opens today's journal, or starts one.
 - **Writing:** a live preview. Headings, quotes, lists, rules, code, bold, italics, links, and colors render as you type, and the Markdown markup shows only on the line you are editing. Enter continues lists. Select text and click a color to color it.
 - **Source mode:** the Source button (or View > Source mode) shows every Markdown marker. Formatting still applies right away.
@@ -54,6 +56,7 @@ src/livetext.js     live-preview editor (contenteditable over the Markdown sourc
 src/livemarkup.js   pure line and inline model for the live view
 src/model.js        entry schema and helpers (no DOM)
 src/markdown.js     safe Markdown renderer
+src/prompts.js      daily writing prompts (pure, no DOM)
 src/textops.js      pure text edits (lists, headings, color spans)
 src/drawing.js      ops, undo stack, flood fill, rendering
 src/storage.js      IndexedDB and memory stores behind one interface (entries and versions)

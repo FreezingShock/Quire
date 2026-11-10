@@ -22,11 +22,33 @@ import {
   kindLabel,
   sortEntries,
 } from './library.js';
-import { dayStreaks, monthGrid, monthOf, shiftISODate, summarizeDays } from './journal.js';
+import {
+  dayStreaks,
+  daysBetween,
+  monthGrid,
+  monthOf,
+  bucketSeries,
+  moodAverage,
+  moodCounts,
+  moodForScore,
+  moodSeries,
+  onThisDay,
+  shiftISODate,
+  summarizeDays,
+} from './journal.js';
+import { promptFor } from './prompts.js';
 
 const PAGE_RATIO = 1.25; // sheet height relative to its width, as on the writing page
 const THUMB_PX = 352; // 2x the tile page width, so ink stays sharp on high-DPI screens
-const VIEWS = ['details', 'tiles', 'calendar'];
+const VIEWS = ['details', 'tiles', 'calendar', 'moods'];
+const MOOD_RANGES = [
+  { id: 30, label: '30 days' },
+  { id: 90, label: '90 days' },
+  { id: 365, label: '1 year' },
+  { id: 'all', label: 'All time' },
+];
+const LONG_RANGE_DAYS = 120; // longer ranges plot weekly averages, so the line stays readable
+const CHART = { width: 720, height: 260, padLeft: 92, padRight: 16, padTop: 14, padBottom: 30 };
 
 const COLUMNS = [
   { label: 'Title', key: 'title', cls: 'col-title' },
@@ -89,15 +111,36 @@ function streakText({ current, longest, todayDone }) {
   return longest ? `Best streak: ${longest} ${longest === 1 ? 'day' : 'days'}` : 'No streak yet';
 }
 
+function statTile(label, value) {
+  return el('div', { class: 'mood-stat' }, el('span', { class: 'mood-stat-label' }, label), el('span', { class: 'mood-stat-value' }, value));
+}
+
+/** Hover text for a chart point: one day, or a week range for weekly averages. */
+function dotTitle(point) {
+  const when = point.endDate ? `${formatShortDate(point.date)} to ${formatShortDate(point.endDate)}` : formatShortDate(point.date);
+  const mood = point.endDate ? `${labelFor(MOODS, point.mood)}, average ${point.score.toFixed(1)}` : labelFor(MOODS, point.mood);
+  return `${when}: ${mood}`;
+}
+
+function yearsAgoText(years) {
+  return years === 1 ? '1 year ago' : `${years} years ago`;
+}
+
 export class HomeView {
   /**
-   * `view` is 'details', 'tiles', or 'calendar'. Callbacks: onOpen(id),
-   * onNew(options), onToday(), onDelete(id), onViewChange(view).
+   * `view` is 'details', 'tiles', 'calendar', or 'moods'. `showPrompts` and
+   * `showOnThisDay` control the strip above the list. Callbacks: onOpen(id),
+   * onNew(options), onToday(), onWritePrompt(prompt), onHidePrompts(),
+   * onDelete(id), onViewChange(view).
    */
-  constructor(root, { view = 'details', onOpen, onNew, onToday, onDelete, onViewChange } = {}) {
+  constructor(
+    root,
+    { view = 'details', showPrompts = true, showOnThisDay = true, onOpen, onNew, onToday, onWritePrompt, onHidePrompts, onDelete, onViewChange } = {},
+  ) {
     this.root = root;
-    this.callbacks = { onOpen, onNew, onToday, onDelete, onViewChange };
+    this.callbacks = { onOpen, onNew, onToday, onWritePrompt, onHidePrompts, onDelete, onViewChange };
     this.entries = [];
+    this.stripOptions = { showPrompts, showOnThisDay };
     const today = localISODate();
     this.state = {
       filter: { type: 'all', value: null },
@@ -108,6 +151,9 @@ export class HomeView {
       // Calendar: the month on screen and the day whose entries are listed below it.
       month: monthOf(today),
       day: today,
+      // Prompts: how many steps past today's prompt the "Another" button has gone. Mood chart: the range in days, or 'all'.
+      promptSkip: 0,
+      moodRange: 30,
     };
     this.buildShell();
     this.render();
@@ -116,6 +162,12 @@ export class HomeView {
   /** Replaces the list with the latest entries from storage. */
   setEntries(entries) {
     this.entries = entries;
+    this.render();
+  }
+
+  /** Shows or hides the prompt card and the On this day card. */
+  setStripOptions(options) {
+    this.stripOptions = { ...this.stripOptions, ...options };
     this.render();
   }
 
@@ -165,6 +217,11 @@ export class HomeView {
       { class: 'cmd-btn cmd-icon-only', type: 'button', title: 'Calendar', 'aria-label': 'Calendar view', onClick: () => this.setViewMode('calendar') },
       iconNode('calendar'),
     );
+    this.moodsBtn = el(
+      'button',
+      { class: 'cmd-btn cmd-icon-only', type: 'button', title: 'Mood chart', 'aria-label': 'Mood chart view', onClick: () => this.setViewMode('moods') },
+      iconNode('chart'),
+    );
     this.nav = el('nav', { class: 'home-nav', 'aria-label': 'Filter entries' });
     this.main = el('div', { class: 'home-main' });
 
@@ -191,7 +248,7 @@ export class HomeView {
         el('span', { class: 'cmd-sep', 'aria-hidden': 'true' }),
         el('span', { class: 'cmd-spacer' }),
         this.streak,
-        el('div', { class: 'view-toggle', role: 'group', 'aria-label': 'View' }, this.detailsBtn, this.tilesBtn, this.calendarBtn),
+        el('div', { class: 'view-toggle', role: 'group', 'aria-label': 'View' }, this.detailsBtn, this.tilesBtn, this.calendarBtn, this.moodsBtn),
       ),
       el('div', { class: 'home-body' }, this.nav, this.main),
     );
@@ -307,13 +364,40 @@ export class HomeView {
   }
 
   renderMain(matches) {
-    this.main.dataset.view = this.state.view;
-    if (this.state.view === 'calendar') this.main.replaceChildren(this.calendar(matches));
-    else if (!this.entries.length) this.main.replaceChildren(this.emptyLibrary());
-    else if (!matches.length) this.main.replaceChildren(this.emptyMatches());
-    else if (this.state.view === 'tiles') this.main.replaceChildren(this.tileGrid(matches));
-    else this.main.replaceChildren(this.table(matches));
+    const { view } = this.state;
+    this.main.dataset.view = view;
+    let content;
+    if (view === 'calendar') content = this.calendar(matches);
+    else if (view === 'moods') content = this.moodView();
+    else if (!this.entries.length) content = this.emptyLibrary();
+    else if (!matches.length) content = this.emptyMatches();
+    else if (view === 'tiles') content = this.tileGrid(matches);
+    else content = this.table(matches);
+    // The strip is for the whole journal, so it hides while a filter or search narrows the list.
+    const strip = view !== 'calendar' && this.isUnfiltered() ? this.stripSection() : null;
+    this.main.replaceChildren(...[strip, content].filter(Boolean));
+    this.drawMoodChart();
     this.markSelection();
+  }
+
+  /** The chart goes in after the view is built, since it is markup rather than DOM nodes. */
+  drawMoodChart() {
+    const card = this.main.querySelector('.mood-chart-card');
+    if (!card) return;
+    const today = localISODate();
+    const { moodRange } = this.state;
+    const days = moodRange === 'all' ? this.daysSinceFirstEntry(today) : moodRange;
+    card.innerHTML = this.moodChartSvg(this.chartPoints(today, days));
+  }
+
+  /** One point per day for short ranges, one per week for long ones. */
+  chartPoints(today, days) {
+    const daily = moodSeries(this.entries, today, days);
+    return days > LONG_RANGE_DAYS ? bucketSeries(daily, 7) : daily;
+  }
+
+  isUnfiltered() {
+    return this.state.filter.type === 'all' && !this.state.query.trim();
   }
 
   /** Updates selection classes and the roving tab stop without rebuilding rows. */
@@ -340,6 +424,7 @@ export class HomeView {
     this.detailsBtn.setAttribute('aria-pressed', String(this.state.view === 'details'));
     this.tilesBtn.setAttribute('aria-pressed', String(this.state.view === 'tiles'));
     this.calendarBtn.setAttribute('aria-pressed', String(this.state.view === 'calendar'));
+    this.moodsBtn.setAttribute('aria-pressed', String(this.state.view === 'moods'));
   }
 
   // ---------- details list ----------
@@ -558,6 +643,225 @@ export class HomeView {
       ),
       list,
     );
+  }
+
+  // ---------- strip: today's prompt and On this day ----------
+
+  stripSection() {
+    const today = localISODate();
+    const { showPrompts, showOnThisDay } = this.stripOptions;
+    const memories = showOnThisDay ? onThisDay(this.entries, today) : [];
+    const cards = [showPrompts ? this.promptCard(today) : null, memories.length ? this.onThisDayCard(memories) : null].filter(Boolean);
+    if (!cards.length) return null;
+    return el('section', { class: 'home-strip', 'aria-label': 'Today in Quire' }, cards);
+  }
+
+  promptCard(today) {
+    const prompt = promptFor(today, this.state.promptSkip);
+    const hasJournal = this.entries.some((entry) => entry.kind === 'journal' && entry.date === today);
+    return el(
+      'section',
+      { class: 'strip-card prompt-card', 'aria-label': 'Writing prompt' },
+      el(
+        'div',
+        { class: 'strip-head' },
+        iconNode('pencil'),
+        el('h3', {}, `Writing prompt · ${formatShortDate(today)}`),
+        el(
+          'button',
+          {
+            class: 'cmd-btn cmd-icon-only strip-dismiss',
+            type: 'button',
+            title: 'Hide writing prompts (View menu brings them back)',
+            'aria-label': 'Hide writing prompts',
+            onClick: () => this.callbacks.onHidePrompts?.(),
+          },
+          iconNode('close'),
+        ),
+      ),
+      el('p', { class: 'prompt-text' }, prompt),
+      el(
+        'div',
+        { class: 'strip-actions' },
+        el(
+          'button',
+          { class: 'cmd-btn cmd-primary', type: 'button', onClick: () => this.callbacks.onWritePrompt?.(prompt) },
+          iconNode('plus'),
+          el('span', { class: 'cmd-label' }, hasJournal ? "Open today's journal" : 'Write to this'),
+        ),
+        el(
+          'button',
+          {
+            class: 'cmd-btn',
+            type: 'button',
+            onClick: () => {
+              this.state.promptSkip += 1;
+              this.render();
+            },
+          },
+          iconNode('shuffle'),
+          el('span', { class: 'cmd-label' }, 'Another'),
+        ),
+      ),
+    );
+  }
+
+  onThisDayCard(groups) {
+    return el(
+      'section',
+      { class: 'strip-card otd-card', 'aria-label': 'On this day in earlier years' },
+      el('div', { class: 'strip-head' }, iconNode('calendar'), el('h3', {}, 'On this day')),
+      groups.map((group) =>
+        el(
+          'div',
+          { class: 'otd-group' },
+          el('h4', { class: 'otd-when' }, `${group.year} · ${yearsAgoText(group.yearsAgo)}`),
+          el(
+            'ul',
+            { class: 'otd-list' },
+            group.entries.map((entry) =>
+              el(
+                'li',
+                {},
+                el(
+                  'button',
+                  { class: 'otd-entry', type: 'button', onClick: () => this.open(entry.id) },
+                  iconNode('page'),
+                  el('span', { class: 'otd-title' }, displayTitle(entry)),
+                  el('span', { class: 'otd-sub' }, [kindLabel(entry.kind), feelText(entry)].filter(Boolean).join(' · ')),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ---------- mood chart ----------
+
+  /** Days from the first entry to today, so "All time" starts on the first day anyone wrote. */
+  daysSinceFirstEntry(today) {
+    if (!this.entries.length) return 30;
+    const first = this.entries.reduce((min, entry) => (entry.date < min ? entry.date : min), this.entries[0].date);
+    return Math.max(1, daysBetween(first, today) + 1);
+  }
+
+  moodView() {
+    const today = localISODate();
+    const { moodRange } = this.state;
+    const days = moodRange === 'all' ? this.daysSinceFirstEntry(today) : moodRange;
+    const series = moodSeries(this.entries, today, days);
+    const logged = series.filter((point) => point.score !== null).length;
+    const average = moodAverage(series);
+    const counts = moodCounts(series);
+    const top = counts.reduce((best, item) => (item.count > best.count ? item : best), counts[0]);
+    const averageMood = moodForScore(average);
+
+    return el(
+      'div',
+      { class: 'mood-view' },
+      el(
+        'div',
+        { class: 'mood-range' },
+        el('h2', { class: 'mood-title' }, 'Mood'),
+        el(
+          'div',
+          { class: 'view-toggle', role: 'group', 'aria-label': 'Mood range' },
+          MOOD_RANGES.map((range) =>
+            el(
+              'button',
+              {
+                class: 'cmd-btn range-btn',
+                type: 'button',
+                'aria-pressed': String(moodRange === range.id),
+                onClick: () => this.setMoodRange(range.id),
+              },
+              range.label,
+            ),
+          ),
+        ),
+      ),
+      el(
+        'div',
+        { class: 'mood-stats' },
+        statTile('Days with a mood', `${logged} of ${days}`),
+        statTile('Average', averageMood ? `${averageMood.label} · ${average.toFixed(1)} of 5` : 'Nothing yet'),
+        statTile('Most common', top.count ? top.label : '—'),
+      ),
+      logged
+        ? el('div', { class: 'mood-chart-card' })
+        : el('p', { class: 'mood-empty' }, 'Pick a mood in the entry bar and that day shows up here.'),
+      logged ? el('div', { class: 'mood-bars' }, counts.map((item) => this.moodBar(item, logged))) : null,
+    );
+  }
+
+  moodBar(item, logged) {
+    const share = logged ? Math.round((item.count / logged) * 100) : 0;
+    return el(
+      'div',
+      { class: 'mood-bar-row' },
+      el('span', { class: 'mood-bar-label' }, item.label),
+      el('div', { class: 'mood-bar-track' }, el('div', { class: 'mood-bar-fill', 'data-mood': item.id, style: `width: ${share}%` })),
+      el('span', { class: 'mood-bar-count' }, `${item.count} · ${share}%`),
+    );
+  }
+
+  /** The line chart as SVG. Only numbers, fixed mood labels and formatted dates go into the markup. */
+  moodChartSvg(series) {
+    const { width: W, height: H, padLeft, padRight, padTop, padBottom } = CHART;
+    const innerW = W - padLeft - padRight;
+    const innerH = H - padTop - padBottom;
+    const n = series.length;
+    const top = MOODS.length;
+    const x = (i) => padLeft + (n === 1 ? innerW / 2 : (i / (n - 1)) * innerW);
+    const y = (score) => padTop + ((top - score) / (top - 1)) * innerH;
+
+    const grid = MOODS.map((mood, index) => {
+      const gy = y(top - index).toFixed(1);
+      return `<line class="gridline" x1="${padLeft}" x2="${W - padRight}" y1="${gy}" y2="${gy}"/>`
+        + `<text class="axis-label" x="${padLeft - 10}" y="${gy}" dy="0.35em" text-anchor="end">${mood.label}</text>`;
+    }).join('');
+
+    // The line breaks at days with no mood, so a gap reads as a gap.
+    let path = '';
+    let pen = false;
+    series.forEach((point, i) => {
+      if (point.score === null) {
+        pen = false;
+        return;
+      }
+      path += `${pen ? 'L' : 'M'}${x(i).toFixed(1)} ${y(point.score).toFixed(1)} `;
+      pen = true;
+    });
+
+    const radius = n > 180 ? 1.6 : n > 60 ? 2.8 : 4.5;
+    const dots = series
+      .map((point, i) =>
+        point.score === null
+          ? ''
+          : `<circle class="mood-dot" data-mood="${point.mood}" cx="${x(i).toFixed(1)}" cy="${y(point.score).toFixed(1)}" r="${radius}">`
+            + `<title>${dotTitle(point)}</title></circle>`,
+      )
+      .join('');
+
+    const mid = Math.floor((n - 1) / 2);
+    const xLabels = [0, mid, n - 1]
+      .filter((i, pos, all) => all.indexOf(i) === pos)
+      .map((i) => {
+        const anchor = i === 0 ? 'start' : i === n - 1 ? 'end' : 'middle';
+        return `<text class="axis-label" x="${x(i).toFixed(1)}" y="${H - 8}" text-anchor="${anchor}">${formatShortDate(series[i].date)}</text>`;
+      })
+      .join('');
+
+    const svg = `<svg class="mood-svg" viewBox="0 0 ${W} ${H}" role="img" aria-label="Mood for the last ${n} days">`
+      + `${grid}<path class="mood-trend" d="${path.trim()}"/>${dots}${xLabels}</svg>`;
+    return svg;
+  }
+
+  setMoodRange(range) {
+    this.state.moodRange = range;
+    this.render();
   }
 
   // ---------- empty states ----------
