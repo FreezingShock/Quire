@@ -44,6 +44,8 @@ import { keyboardMethods } from './controller/keyboard.js';
 import { focusMethods } from './controller/focus-mode.js';
 import { navigationMethods } from './controller/navigation.js';
 import { capsuleActionMethods } from './controller/capsule-actions.js';
+import { mixtapeMethods } from './controller/mixtape.js';
+import { MixtapeView } from './mixtape-view.js';
 
 
 
@@ -87,6 +89,11 @@ export class QuireApp {
       onHistory: (redo) => (redo ? this.redo() : this.undo()),
       onFiles: (files, range) => this.insertImages(files, range),
       inkStyle: () => ({ color: this.fg, size: this.size }),
+    });
+    this.mixtape = new MixtapeView($('#mixtape'), {
+      onAdd: () => this.addSong(),
+      onRemove: (id) => this.removeSong(id),
+      onMove: (id, direction) => this.moveSong(id, direction),
     });
     this.prefs = loadPrefs();
     this.store = null;
@@ -245,3 +252,5 @@ Object.assign(QuireApp.prototype, keyboardMethods);
 Object.assign(QuireApp.prototype, focusMethods);
 Object.assign(QuireApp.prototype, navigationMethods);
 Object.assign(QuireApp.prototype, capsuleActionMethods);
+
+Object.assign(QuireApp.prototype, mixtapeMethods);

@@ -240,6 +240,7 @@ export const buildUiMethods = {
         items: () => [
           { label: 'Image…', disabled: !this.entry, action: () => this.pickImages() },
           { label: 'Sketch between paragraphs', disabled: !this.entry, action: () => this.insertSketch() },
+          { label: 'Song for the mixtape…', disabled: !this.entry, action: () => this.addSong() },
           'sep',
           { label: 'Today’s date', action: () => this.insertText(formatLongDate(localISODate())) },
           { label: 'Current time', action: () => this.insertText(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })) },

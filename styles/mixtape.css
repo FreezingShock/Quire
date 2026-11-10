@@ -1,0 +1,355 @@
+/*
+ * Mixtape: a cassette and its song list above the page. The cassette is drawn
+ * in CSS only, so it shows with no connection. Its reels turn while a player is
+ * open. The strip uses the skin's panel and field colors, so every skin fits.
+ */
+
+.mixtape {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 10px 14px 12px;
+  background: linear-gradient(to bottom, var(--panel-hi), var(--panel-lo));
+  border-bottom: 1px solid var(--panel-edge);
+  font-family: var(--ui-font);
+  font-size: 12px;
+  color: var(--raised-ink);
+}
+
+.mixtape-deck {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 18px;
+}
+
+/* ---------- the cassette ---------- */
+
+.cassette {
+  position: relative;
+  flex: 0 0 auto;
+  box-sizing: border-box;
+  width: 200px;
+  height: 138px;
+  padding: 8px 10px 0;
+  border: 1px solid #1b1d25;
+  border-radius: 9px;
+  background: linear-gradient(to bottom, #6b7080 0%, #3b3f4c 55%, #272a34 100%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.28), 0 3px 6px rgba(20, 30, 50, 0.28);
+}
+
+/* The two screws at the top corners. */
+.cassette::before,
+.cassette::after {
+  content: "";
+  position: absolute;
+  top: 4px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #181a20;
+  box-shadow: inset 0 0 0 1px #4a4f5e;
+}
+
+.cassette::before {
+  left: 4px;
+}
+
+.cassette::after {
+  right: 4px;
+}
+
+.cassette-label {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  height: 58px;
+  padding: 0 9px 3px;
+  border: 1px solid #b9ab78;
+  border-top: 7px solid #d2473b;
+  border-radius: 3px;
+  background: linear-gradient(to bottom, #fffdf4, #f2ead0);
+  overflow: hidden;
+}
+
+.cassette-side {
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #7a6d45;
+  white-space: nowrap;
+}
+
+.cassette-title {
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.25;
+  color: #2a2418;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cassette-artist {
+  font-size: 10px;
+  line-height: 1.3;
+  color: #5a4f32;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cassette-window {
+  position: absolute;
+  left: 22px;
+  right: 22px;
+  bottom: 10px;
+  box-sizing: border-box;
+  height: 46px;
+  padding: 0 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  overflow: hidden;
+  border-radius: 5px;
+  background: #0f1116;
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.7);
+}
+
+/* The tape running between the reels. */
+.cassette-window::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 6px;
+  margin-top: -3px;
+  background: #4a2e18;
+}
+
+.cassette-reel {
+  position: relative;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: radial-gradient(circle, #5b3a1e 0 58%, #2a1a0c 60% 100%);
+  box-shadow: 0 0 0 1px #050505;
+}
+
+/* The hub, with teeth so a turning reel shows motion. */
+.cassette-reel::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 12px;
+  height: 12px;
+  margin: -6px 0 0 -6px;
+  border-radius: 50%;
+  background: repeating-conic-gradient(#e8e4d6 0 30deg, #9a968a 30deg 60deg);
+}
+
+.cassette.is-playing .cassette-reel {
+  animation: cassette-spin 1.8s linear infinite;
+}
+
+@keyframes cassette-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ---------- the controls and song list ---------- */
+
+.mixtape-main {
+  flex: 1 1 260px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.mixtape-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.mixtape-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  max-height: 138px;
+  margin: 0;
+  padding: 2px;
+  overflow: auto;
+  list-style: none;
+  background: var(--field);
+  border: 1px solid var(--field-edge);
+  border-radius: 3px;
+}
+
+.mixtape-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  border-radius: 2px;
+}
+
+.mixtape-row:hover {
+  background: var(--row-hover);
+}
+
+.mixtape-row.is-current {
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+
+.mixtape-play {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: 3px 6px;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.mixtape-num {
+  flex: 0 0 1.6em;
+  text-align: right;
+  opacity: 0.6;
+  font-variant-numeric: tabular-nums;
+}
+
+.mixtape-name {
+  min-width: 0;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.mixtape-artist {
+  min-width: 0;
+  opacity: 0.75;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.mixtape-service {
+  flex: 0 0 auto;
+  margin-left: auto;
+  padding: 0 4px;
+  border: 1px solid currentColor;
+  border-radius: 2px;
+  font-size: 10px;
+  opacity: 0.7;
+}
+
+.mixtape-tools {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 1px;
+  padding-right: 3px;
+}
+
+.mixtape-tool {
+  min-width: 22px;
+  min-height: 22px;
+  padding: 0 4px;
+  border: 1px solid transparent;
+  border-radius: 2px;
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-size: 11px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.mixtape-tool:hover:not(:disabled) {
+  border-color: var(--field-edge);
+  background: var(--field);
+  color: var(--raised-ink);
+}
+
+.mixtape-tool:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.mixtape-empty {
+  margin: 0;
+  opacity: 0.85;
+}
+
+/* ---------- the player ---------- */
+
+.mixtape-stage {
+  width: 100%;
+}
+
+.mixtape-stage[hidden] {
+  display: none;
+}
+
+.mixtape-frame {
+  display: block;
+  width: 100%;
+  max-width: 640px;
+  border: 0;
+  border-radius: 10px;
+}
+
+.mixtape-note {
+  margin: 0;
+  padding: 6px 8px;
+  background: var(--field);
+  border: 1px solid var(--field-edge);
+  border-radius: 3px;
+}
+
+/* ---------- the add-a-song dialog ---------- */
+
+.mixtape-field {
+  display: grid;
+  gap: 4px;
+}
+
+.mixtape-status.is-error {
+  color: #a1281c;
+}
+
+@media (pointer: coarse) {
+  .mixtape-tool {
+    min-width: 36px;
+    min-height: 36px;
+  }
+}
+
+@media (max-width: 760px) {
+  .mixtape {
+    padding: 10px 16px 12px;
+  }
+
+  .cassette {
+    width: 100%;
+    max-width: 260px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cassette.is-playing .cassette-reel {
+    animation: none;
+  }
+}

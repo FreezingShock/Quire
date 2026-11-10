@@ -30,6 +30,7 @@ You can also open `index.html` through any static server.
 - **Writing:** a live preview. Headings, quotes, lists, checklists, rules, code, bold, italics, links, and colors render as you type, and the Markdown markup shows only on the line you are editing. Enter continues lists. Select text and click a color to color it.
 - **Checklists:** type `- [ ] item` or use the checklist button. Click a box to check it off. Enter on a checked item starts a new unchecked one.
 - **Pictures:** paste or drop an image file into the text, or use Insert > Image. Large photos are scaled to 1600 px. The picture sits on its own line, and its file is kept with the entry in a separate media store.
+- **Mixtape:** Insert > Song for the mixtape… (or the Add song button above the page) takes a Spotify or YouTube link. Each entry can hold up to 12 songs, shown as a cassette with a track list. Play opens the service's own player, and Stop closes it. The title and artist are saved with the entry, so the cassette still shows with no connection.
 - **Inline sketches:** Insert > Sketch between paragraphs puts a small drawing pad in the text. It has its own pencil, brush, highlighter, eraser, undo and clear, and uses the current ink color.
 - **Word count:** the status bar shows words and reading time (about 238 words a minute). Pictures, sketches and checkboxes do not count as words.
 - **Focus mode:** F11 (or View > Focus mode) hides the menus, ribbon, and status bar, so only the page is left. A bar at the bottom shows the word count and save state. Esc or F11 leaves it. Options has three focus settings: typewriter scrolling (Writing tab) keeps the line you are typing at the middle of the window; a session word goal (Writing tab) fills a progress bar as you write; and ambient sounds (General tab) play rain, a café murmur, or a CRT hum while you write. The ambient sounds are synthesized in the browser, play only in focus mode, and need Sound effects on. A session starts when you open an entry or turn on focus mode.
@@ -61,6 +62,8 @@ You can also open `index.html` through any static server.
 - The lock uses WebCrypto: PBKDF2-SHA-256 with 600,000 rounds to derive a key, and AES-GCM for each entry, picture, sketch, and version. Entry ids and version times stay readable so the store can index them.
 - The print/PDF layout is close to the screen layout but can differ slightly.
 - There is no zoom or lasso selection yet.
+- Mixtapes are not in version history, Markdown export, or print. The JSON backup includes them.
+- The player is the service's own embed, so Quire cannot pause or seek it. Next and Prev switch the song, and the cassette reels turn while a player is open.
 - Each version keeps a full copy of the text, ink and sketch strokes, so a long entry with many versions takes more browser storage. Pictures are not copied into versions.
 
 ## Layout
@@ -70,6 +73,8 @@ index.html          app shell
 src/app.js          controller: editor, drawing layer, saving, menus
 src/livetext.js     live-preview editor (contenteditable over the Markdown source)
 src/livemarkup.js   pure line and inline model for the live view
+src/mixtape.js     song links for the mixtape: parsing, embed and lookup addresses, list rules (no DOM)
+src/mixtape-view.js the cassette strip, its track list, the player, and the add-a-song dialog
 src/media.js        pictures and sketches on an entry: image preparation, export bytes (no DOM for the helpers)
 src/sketch.js       inline sketch pad: its toolbar and strokes
 src/model.js        entry schema and helpers (no DOM)
