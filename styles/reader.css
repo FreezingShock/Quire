@@ -38,3 +38,25 @@
 }
 .sheet-text pre code { background: none; padding: 0; }
 .sheet-text a { color: #2f5d7c; }
+
+/* Checklists and pictures in the read view and the print/PDF export. */
+.sheet-text li.task {
+  list-style: none;
+  margin-left: -26px;
+}
+.sheet-text li.task input {
+  margin: 0 8px 0 0;
+  vertical-align: -1px;
+  accent-color: #5a7d4a;
+}
+.sheet-text li.task.is-done {
+  color: #8c8577;
+  text-decoration: line-through;
+}
+.sheet-text figure.media { margin: 14px 0; }
+.sheet-text figure.media img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  border-radius: 3px;
+}

@@ -11,9 +11,17 @@
  *
  * Markers (**, #, >, `, [ ] and color tags) are hidden on lines that do not
  * hold the caret. In Source mode, which is a class on the root, they always show.
+ *
+ * Pictures and inline sketches live on the entry (see media.js). A picture line
+ * shows its image under the raw reference. A sketch line gets a live SketchPad,
+ * which is cached per id and moved into place after each render. Clicking a
+ * checklist box toggles it in the source, and pasted or dropped image files go
+ * to `onFiles` instead of the text.
  */
 
 import { parseLiveLines, documentHtml } from './livemarkup.js';
+import { SketchPad } from './sketch.js';
+import { dataUrlToBlob, imageFiles } from './media.js';
 
 const GROUP_MS = 1200;
 const HISTORY_LIMIT = 300;
@@ -69,15 +77,39 @@ function pointInLine(line, offset) {
   return last ? [last, last.length] : [line, 0];
 }
 
+/** True when a drag carries files, so the browser must not open them. */
+function hasFiles(dataTransfer) {
+  return Array.from(dataTransfer?.types ?? []).includes('Files');
+}
+
+/** Files from a clipboard, whether the browser lists them as items or as files. */
+function clipboardFiles(clipboard) {
+  if (!clipboard) return [];
+  const items = Array.from(clipboard.items ?? []);
+  const fromItems = items.filter((item) => item.kind === 'file' && item.type.startsWith('image/')).map((item) => item.getAsFile());
+  return fromItems.length ? fromItems : Array.from(clipboard.files ?? []);
+}
+
 export class LiveEditor {
   /**
    * @param {HTMLElement} root contenteditable element
-   * @param {{ onChange?: () => void, onHistory?: (redo: boolean) => void }} [options]
+   * @param {{
+   *   onChange?: () => void,
+   *   onHistory?: (redo: boolean) => void,
+   *   onFiles?: (files: File[], range: { start: number, end: number }) => void,
+   *   inkStyle?: () => { color: string, size: number },
+   * }} [options]
    */
-  constructor(root, { onChange = () => {}, onHistory = () => {} } = {}) {
+  constructor(root, { onChange = () => {}, onHistory = () => {}, onFiles = () => {}, inkStyle = () => ({ color: '#1d1b19', size: 3 }) } = {}) {
     this.root = root;
     this.onChange = onChange;
     this.onHistory = onHistory;
+    this.onFiles = onFiles;
+    this.inkStyle = inkStyle;
+    this.images = {}; // id -> data URL, from the open entry
+    this.sketches = {}; // id -> { h, ops }, from the open entry
+    this.urls = new Map(); // image id -> object URL for display
+    this.pads = new Map(); // sketch id -> SketchPad
     this.source = '';
     this.sel = { start: 0, end: 0 };
     this.focused = false;
@@ -90,6 +122,18 @@ export class LiveEditor {
     root.addEventListener('beforeinput', (event) => this.onBeforeInput(event));
     root.addEventListener('keydown', (event) => this.onKeydown(event));
     root.addEventListener('input', () => this.onInput());
+    root.addEventListener('mousedown', (event) => {
+      if (event.target.closest?.('.lv-check')) event.preventDefault();
+    });
+    root.addEventListener('click', (event) => this.onClick(event));
+    root.addEventListener('paste', (event) => this.onPaste(event));
+    root.addEventListener('dragover', (event) => {
+      if (hasFiles(event.dataTransfer)) {
+        event.preventDefault();
+        event.dataTransfer.dropEffect = 'copy';
+      }
+    });
+    root.addEventListener('drop', (event) => this.onDrop(event));
     root.addEventListener('focus', () => {
       this.focused = true;
       this.getSelection();
@@ -127,6 +171,19 @@ export class LiveEditor {
     this.groupKind = null;
     const end = this.source.length;
     this.render({ start: end, end });
+  }
+
+  /**
+   * Points the editor at an entry's pictures and sketches. Call it before setting
+   * `value`, because the value setter renders. The objects are shared with the
+   * entry, so a sketch edit lands in the entry without a copy.
+   */
+  setMedia(entry) {
+    for (const url of this.urls.values()) URL.revokeObjectURL(url);
+    this.urls = new Map();
+    this.pads = new Map();
+    this.images = entry?.images ?? {};
+    this.sketches = entry?.sketches ?? {};
   }
 
   get selectionStart() {
@@ -233,6 +290,66 @@ export class LiveEditor {
     // Formatting and other input types are ignored. Formatting goes through the toolbar.
   }
 
+  /** Pasted pictures become entry pictures. Pasted text is left to beforeinput. */
+  onPaste(event) {
+    const files = imageFiles(clipboardFiles(event.clipboardData));
+    if (!files.length) return;
+    event.preventDefault();
+    const { start, end } = this.getSelection();
+    this.onFiles(files, { start, end });
+  }
+
+  /** Dropped pictures go where the pointer is. Other drops are left alone. */
+  onDrop(event) {
+    if (!hasFiles(event.dataTransfer)) return;
+    event.preventDefault();
+    const files = imageFiles(event.dataTransfer.files);
+    if (!files.length) return;
+    // A drop lands after the line under the pointer, so a picture never splits a sentence.
+    const under = this.offsetAtPoint(event.clientX, event.clientY) ?? this.getSelection().start;
+    const newline = this.source.indexOf('\n', under);
+    const at = newline === -1 ? this.source.length : newline;
+    this.onFiles(files, { start: at, end: at });
+  }
+
+  /** Source offset under a screen point, or null when the point is outside the text. */
+  offsetAtPoint(x, y) {
+    let node = null;
+    let offset = 0;
+    if (document.caretPositionFromPoint) {
+      const position = document.caretPositionFromPoint(x, y);
+      if (position) [node, offset] = [position.offsetNode, position.offset];
+    } else if (document.caretRangeFromPoint) {
+      const range = document.caretRangeFromPoint(x, y);
+      if (range) [node, offset] = [range.startContainer, range.startOffset];
+    }
+    if (!node || !this.root.contains(node)) return null;
+    return this.offsetOf(node, offset);
+  }
+
+  /** A click on a checklist box flips it between [ ] and [x] in the source. */
+  onClick(event) {
+    const box = event.target.closest?.('.lv-check');
+    if (!box || !box.firstChild) return;
+    event.preventDefault();
+    const at = this.offsetOf(box.firstChild, 0);
+    const mark = this.source.slice(at, at + 3);
+    if (mark !== '[ ]' && mark.toLowerCase() !== '[x]') return;
+    const next = this.source.slice(0, at) + (mark === '[ ]' ? '[x]' : '[ ]') + this.source.slice(at + 3);
+    this.commit(next, { ...this.sel }, 'edit');
+  }
+
+  /** Removes a sketch's line from the text. The sketch itself stays on the entry, so Undo brings it back. */
+  removeSketch(id) {
+    const at = this.source.indexOf(`(quire-sketch:${id})`);
+    if (at < 0) return;
+    const from = this.source.lastIndexOf('\n', at - 1) + 1;
+    const end = this.source.indexOf('\n', at);
+    const next = end === -1 ? this.source.slice(0, Math.max(0, from - 1)) : this.source.slice(0, from) + this.source.slice(end + 1);
+    const caret = Math.min(from, next.length);
+    this.commit(next, { start: caret, end: caret }, 'edit');
+  }
+
   onKeydown(event) {
     if (!(event.ctrlKey || event.metaKey) || event.altKey) return;
     const key = event.key.toLowerCase();
@@ -319,13 +436,50 @@ export class LiveEditor {
   // ---------- rendering ----------
 
   render(sel) {
-    this.root.innerHTML = documentHtml(parseLiveLines(this.source));
+    this.root.innerHTML = documentHtml(parseLiveLines(this.source), { resolve: (kind, id) => this.mediaFor(kind, id) });
     this.root.dataset.empty = this.source ? 'false' : 'true';
+    this.mountSketches();
     if (sel) {
       this.sel = { start: this.clamp(sel.start), end: this.clamp(Math.max(this.clamp(sel.start), sel.end)) };
       if (this.focused) this.applySelection(this.sel.start, this.sel.end);
     }
     this.updateActive();
+  }
+
+  /** What a picture or sketch id resolves to while drawing a line. */
+  mediaFor(kind, id) {
+    if (kind === 'image') return this.imageUrl(id);
+    return Object.hasOwn(this.sketches, id) ? true : null;
+  }
+
+  /** Display URL for a stored picture, made once per picture from its data URL. */
+  imageUrl(id) {
+    if (this.urls.has(id)) return this.urls.get(id);
+    if (!Object.hasOwn(this.images, id)) return null;
+    const blob = dataUrlToBlob(this.images[id]);
+    if (!blob) return null;
+    const url = URL.createObjectURL(blob);
+    this.urls.set(id, url);
+    return url;
+  }
+
+  /** Moves each sketch's pad into its slot, creating the pad the first time. */
+  mountSketches() {
+    for (const slot of this.root.querySelectorAll('.lv-sketch[data-sketch-id]')) {
+      const id = slot.dataset.sketchId;
+      if (!Object.hasOwn(this.sketches, id)) continue;
+      let pad = this.pads.get(id);
+      if (!pad) {
+        pad = new SketchPad(this.sketches[id], {
+          ink: this.inkStyle,
+          onChange: () => this.onChange(),
+          onRemove: () => this.removeSketch(id),
+        });
+        this.pads.set(id, pad);
+      }
+      slot.replaceChildren(pad.el);
+      pad.sync();
+    }
   }
 
   /** Puts the `is-active` class on lines that the selection touches. Only those show their markers. */

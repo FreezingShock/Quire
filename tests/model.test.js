@@ -116,3 +116,17 @@ test('normalizeEntry keeps notebook, pinned, and favorite, and defaults them for
   assert.equal(normalizeEntry({ notebook: 'n'.repeat(80) }).notebook.length, NOTEBOOK_MAX);
   assert.equal(normalizeEntry({ pinned: 'yes', favorite: 1 }).pinned, false);
 });
+
+test('normalizeEntry keeps pictures as image data URLs and sketches as ops', () => {
+  const entry = normalizeEntry({
+    images: { a: 'data:image/png;base64,AAAA', bad: 'javascript:alert(1)', n: 4 },
+    sketches: { s: { h: 99999, ops: [{ t: 'stroke', c: '#000000', w: 2, p: [[1, 2], [3, 4]] }] }, junk: 'x' },
+  });
+  assert.deepEqual(Object.keys(entry.images), ['a']);
+  assert.equal(entry.sketches.s.h, 4000);
+  assert.equal(entry.sketches.s.ops.length, 1);
+  assert.equal(Object.keys(entry.sketches).includes('junk'), false);
+  const empty = normalizeEntry({});
+  assert.deepEqual(empty.images, {});
+  assert.deepEqual(empty.sketches, {});
+});

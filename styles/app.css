@@ -1145,7 +1145,7 @@ kbd {
   .tool-btn { width: 34px; height: 34px; }
   .size-row { flex-direction: row; flex: none; }
   .size-btn { height: 26px; }
-  .format-grid { grid-template-columns: repeat(9, 30px); gap: 2px; flex: none; }
+  .format-grid { grid-template-columns: repeat(10, 30px); gap: 2px; flex: none; }
   .format-btn { width: 30px; height: 30px; }
   .source-btn { flex: none; height: 30px; }
   .layer-panel { flex: none; width: 200px; }

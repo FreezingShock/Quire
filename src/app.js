@@ -17,11 +17,13 @@ import {
   isBlankEntry,
   isISODate,
   localISODate,
+  newId,
   parseTags,
 } from './model.js';
 import { todaysJournal } from './journal.js';
 import { countByNotebook } from './library.js';
-import { wordCount } from './markdown.js';
+import { readingMinutes, wordCount } from './markdown.js';
+import { SKETCH_HEIGHT, mediaResolver, prepareImage } from './media.js';
 import { LiveEditor } from './livetext.js';
 import {
   BASE_LAYER,
@@ -53,6 +55,7 @@ import { renderLayerPanel } from './layers.js';
 import { shapeEnd, snapToGrid } from './snap.js';
 import { FORMAT_BUTTONS, PALETTE, POINTER_TOOLS, SHAPE_TOOLS, STROKE_SIZES, TOOLS, TOOL_BY_KEY } from './tools.js';
 import {
+  blockInsertEdit,
   colorEdit,
   dividerEdit,
   enterEdit,
@@ -135,6 +138,9 @@ function contentKey(entry) {
     entry.pageColor,
     entry.ink.ops,
     normalizeLayers(entry.ink.layers),
+    // Pictures are never edited once added, so their ids are enough to notice a new one.
+    Object.keys(entry.images ?? {}).sort(),
+    entry.sketches ?? {},
   ]);
 }
 
@@ -170,6 +176,8 @@ export class QuireApp {
     this.dom.editor = new LiveEditor(this.dom.editorEl, {
       onChange: () => this.onEditorChanged(),
       onHistory: (redo) => (redo ? this.redo() : this.undo()),
+      onFiles: (files, range) => this.insertImages(files, range),
+      inkStyle: () => ({ color: this.fg, size: this.size }),
     });
     this.prefs = loadPrefs();
     this.store = null;
@@ -286,7 +294,14 @@ export class QuireApp {
     this.dom.windowTitle.textContent = title;
     document.title = `${title} · Quire`;
     this.dom.statusDate.textContent = this.entry ? formatLongDate(this.entry.date) : '';
-    this.dom.words.textContent = `${wordCount(this.dom.editor.value)} words`;
+    this.dom.words.textContent = this.wordLabel(this.dom.editor.value);
+  }
+
+  /** "120 words · 1 min read". The reading time is about 238 words a minute. */
+  wordLabel(text) {
+    const words = wordCount(text);
+    if (!words) return '0 words';
+    return `${words} ${words === 1 ? 'word' : 'words'} · ${readingMinutes(words)} min read`;
   }
 
   // ---------- views and routing ----------
@@ -528,6 +543,7 @@ export class QuireApp {
           { label: 'Quote', action: () => this.applyFormat('quote') },
           { label: 'Bulleted list', action: () => this.applyFormat('ul') },
           { label: 'Numbered list', action: () => this.applyFormat('ol') },
+          { label: 'Checklist', action: () => this.applyFormat('task') },
           { label: 'Divider', action: () => this.applyFormat('divider') },
           'sep',
           { label: 'Bold', shortcut: 'Ctrl+B', action: () => this.applyFormat('bold') },
@@ -537,6 +553,9 @@ export class QuireApp {
       {
         label: 'Insert',
         items: () => [
+          { label: 'Image…', disabled: !this.entry, action: () => this.pickImages() },
+          { label: 'Sketch between paragraphs', disabled: !this.entry, action: () => this.insertSketch() },
+          'sep',
           { label: 'Today’s date', action: () => this.insertText(formatLongDate(localISODate())) },
           { label: 'Current time', action: () => this.insertText(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })) },
         ],
@@ -651,6 +670,21 @@ export class QuireApp {
     };
     document.addEventListener('keydown', trackShift);
     document.addEventListener('keyup', trackShift);
+    // A file dropped outside the text should not make the browser open it in place of the page.
+    const dragsFiles = (event) => Array.from(event.dataTransfer?.types ?? []).includes('Files');
+    window.addEventListener('dragover', (event) => {
+      if (dragsFiles(event)) event.preventDefault();
+    });
+    window.addEventListener('drop', (event) => {
+      if (dragsFiles(event)) event.preventDefault();
+    });
+    this.imageInput = el('input', { type: 'file', accept: 'image/*', multiple: true, hidden: true, 'aria-hidden': 'true' });
+    this.imageInput.addEventListener('change', () => {
+      const files = Array.from(this.imageInput.files ?? []);
+      this.imageInput.value = '';
+      if (files.length) this.insertImages(files, this.pendingRange);
+    });
+    document.body.append(this.imageInput);
     document.addEventListener('visibilitychange', () => {
       if (document.hidden) this.persist();
     });
@@ -785,6 +819,52 @@ export class QuireApp {
     this.prepareEditing();
     const ta = this.dom.editor;
     this.applyEdit(insertEdit(ta.selectionStart, ta.selectionEnd, text));
+  }
+
+  /** Menu: opens the file picker, remembering where the text caret is. */
+  pickImages() {
+    if (!this.entry) return;
+    this.prepareEditing();
+    const ta = this.dom.editor;
+    this.pendingRange = { start: ta.selectionStart, end: ta.selectionEnd };
+    this.imageInput.click();
+  }
+
+  /**
+   * Adds picked, pasted or dropped pictures to the entry and places a reference
+   * line for each at `range`. The bytes are stored on the entry, not in the text.
+   */
+  async insertImages(files, range = null) {
+    const entry = this.entry;
+    if (!entry) return;
+    const refs = [];
+    for (const file of files) {
+      try {
+        const { src, alt } = await prepareImage(file);
+        if (this.entry !== entry) return; // The entry was switched while the picture was read.
+        const id = newId();
+        entry.images[id] = src;
+        refs.push(`![${alt}](quire-image:${id})`);
+      } catch (error) {
+        this.showStatus(`Could not add ${file.name || 'that picture'}: ${error.message}`, true);
+      }
+    }
+    if (!refs.length || this.entry !== entry) return;
+    const ta = this.dom.editor;
+    const from = Math.min(range?.start ?? ta.selectionStart, ta.value.length);
+    const to = Math.min(Math.max(from, range?.end ?? from), ta.value.length);
+    this.applyEdit(blockInsertEdit(ta.value, from, to, refs.join('\n')));
+    this.showStatus(refs.length === 1 ? 'Picture added' : `${refs.length} pictures added`);
+  }
+
+  /** Menu: a blank sketch on its own line between the paragraphs at the caret. */
+  insertSketch() {
+    if (!this.entry) return;
+    this.prepareEditing();
+    const id = newId();
+    this.entry.sketches[id] = { h: SKETCH_HEIGHT, ops: [] };
+    const ta = this.dom.editor;
+    this.applyEdit(blockInsertEdit(ta.value, ta.selectionStart, ta.selectionEnd, `![Sketch](quire-sketch:${id})`));
   }
 
   onEditorChanged() {
@@ -1497,6 +1577,7 @@ export class QuireApp {
       return;
     }
     this.entry = next;
+    this.dom.editor.setMedia(next);
     this.dom.editor.value = next.body;
     this.dom.title.value = next.title;
     this.dom.date.value = next.date;
@@ -1634,6 +1715,7 @@ export class QuireApp {
       onRestore: (version) => this.restoreVersion(version),
       onSaveNow: () => this.saveVersionNow(),
       onDelete: (version) => this.deleteVersion(version),
+      media: mediaResolver(this.entry),
     });
   }
 

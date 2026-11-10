@@ -23,7 +23,11 @@ You can also open `index.html` through any static server.
 - **Prompts and reflection:** the top of the entries list shows a writing prompt for today. Write to it, or click Another for the next one. Its text starts a new journal as a quote. The On this day card lists entries from this date in earlier years. Both can be hidden from the View menu.
 - **Mood chart:** the chart button in the view bar plots each day's mood for 30 days, 90 days, a year, or all time (weekly averages for the longer ranges), with the average and how often each mood came up.
 - **Calendar and streaks:** a month view shows how many entries each day has and its mood. The toolbar counts days in a row with at least one entry. Today's entry (Alt+T) opens today's journal, or starts one.
-- **Writing:** a live preview. Headings, quotes, lists, rules, code, bold, italics, links, and colors render as you type, and the Markdown markup shows only on the line you are editing. Enter continues lists. Select text and click a color to color it.
+- **Writing:** a live preview. Headings, quotes, lists, checklists, rules, code, bold, italics, links, and colors render as you type, and the Markdown markup shows only on the line you are editing. Enter continues lists. Select text and click a color to color it.
+- **Checklists:** type `- [ ] item` or use the checklist button. Click a box to check it off. Enter on a checked item starts a new unchecked one.
+- **Pictures:** paste or drop an image file into the text, or use Insert > Image. Large photos are scaled to 1600 px. The picture sits on its own line, and its file is stored with the entry.
+- **Inline sketches:** Insert > Sketch between paragraphs puts a small drawing pad in the text. It has its own pencil, brush, highlighter, eraser, undo and clear, and uses the current ink color.
+- **Word count:** the status bar shows words and reading time (about 238 words a minute). Pictures, sketches and checkboxes do not count as words.
 - **Source mode:** the Source button (or View > Source mode) shows every Markdown marker. Formatting still applies right away.
 - **Drawing:** pencil, brush, highlighter, eraser, line, rectangle, ellipse, fill, and color picker. Stroke widths 1, 3, and 6. Undo and redo follow whichever surface you touched last. Right-click a swatch to change the page color.
 - **Export:** Markdown with front matter (a .zip with the drawing PNG when the entry has ink), drawing as PNG, print or save as PDF, and JSON backup and restore. Backups include version history.
@@ -41,6 +45,8 @@ You can also open `index.html` through any static server.
 ## Known limits
 
 - In Source mode, color spans appear as tags. Colors show in the live preview and in exports.
+- Pictures and sketches are stored on the entry, not in version history. Removing a picture line leaves its file on the entry until the entry is deleted, so an old version can always bring it back. Restoring a version does not undo sketch edits.
+- The entries list loads each entry in full, so entries with many pictures make the list slower. Moving media into its own store is the next step.
 - The live editor is a contenteditable that re-renders from the Markdown source on every change. Very long entries (tens of thousands of lines) may type more slowly.
 - Ink is pinned to the page, not to a line of text. If you edit text above a drawing, the ink does not move with it.
 - The print/PDF layout is close to the screen layout but can differ slightly.
@@ -54,6 +60,8 @@ index.html          app shell
 src/app.js          controller: editor, drawing layer, saving, menus
 src/livetext.js     live-preview editor (contenteditable over the Markdown source)
 src/livemarkup.js   pure line and inline model for the live view
+src/media.js        pictures and sketches on an entry: image preparation, export bytes (no DOM for the helpers)
+src/sketch.js       inline sketch pad: its toolbar and strokes
 src/model.js        entry schema and helpers (no DOM)
 src/markdown.js     safe Markdown renderer
 src/prompts.js      daily writing prompts (pure, no DOM)

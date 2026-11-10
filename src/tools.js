@@ -27,6 +27,7 @@ export const FORMAT_BUTTONS = [
   { id: 'quote', label: 'Quote', text: '“' },
   { id: 'ul', label: 'Bulleted list', text: '•' },
   { id: 'ol', label: 'Numbered list', text: '1.' },
+  { id: 'task', label: 'Checklist', text: '☐' },
   { id: 'bold', label: 'Bold (Ctrl+B)', text: 'B', cls: 'is-bold' },
   { id: 'italic', label: 'Italic (Ctrl+I)', text: 'I', cls: 'is-italic' },
   { id: 'divider', label: 'Divider', text: '—' },
