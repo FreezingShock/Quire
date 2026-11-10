@@ -94,7 +94,7 @@ export function highlightParts(text, terms = []) {
 
 /**
  * The words that a search matches against for one entry: title, plain body,
- * tags, notebook, kind, and the mood and weather labels.
+ * tags, notebook, place, kind, and the mood and weather labels.
  */
 function searchText(entry) {
   const feel = `${labelFor(MOODS, entry.mood)} ${labelFor(WEATHERS, entry.weather)}`;
@@ -103,6 +103,7 @@ function searchText(entry) {
     plainText(entry.body),
     entry.tags.join(' '),
     entry.notebook ?? '',
+    entry.place ?? '',
     kindLabel(entry.kind),
     feel,
   ].join(' ');
@@ -140,9 +141,9 @@ export function snippetOf(entry, terms = [], max = 160) {
 
 /**
  * `filter` is { type, value }. Types: 'all', 'pinned', 'favorite', 'notebook',
- * 'kind', 'tag', 'mood', 'weather'.
+ * 'place', 'kind', 'tag', 'mood', 'weather'.
  * `query` is a full-text search: every term (or quoted phrase) must appear in
- * the title, body, tags, notebook, kind, or mood and weather labels, ignoring case.
+ * the title, body, tags, notebook, place, kind, or mood and weather labels, ignoring case.
  */
 export function filterEntries(entries, { filter = { type: 'all', value: null }, query = '' } = {}) {
   const terms = parseQuery(query);
@@ -150,6 +151,7 @@ export function filterEntries(entries, { filter = { type: 'all', value: null }, 
     if (filter.type === 'pinned' && !entry.pinned) return false;
     if (filter.type === 'favorite' && !entry.favorite) return false;
     if (filter.type === 'notebook' && entry.notebook !== filter.value) return false;
+    if (filter.type === 'place' && entry.place !== filter.value) return false;
     if (filter.type === 'kind' && entry.kind !== filter.value) return false;
     if (filter.type === 'tag' && !entry.tags.includes(filter.value)) return false;
     if (filter.type === 'mood' && entry.mood !== filter.value) return false;
@@ -186,15 +188,33 @@ export function countFlags(entries) {
   };
 }
 
-/** [{ name, count }] for each notebook in use, sorted by name. */
-export function countByNotebook(entries) {
+/** [{ name, count }] for each value of one text field in use, sorted by name. */
+function countNamed(entries, field) {
   const counts = new Map();
   for (const entry of entries) {
-    if (entry.notebook) counts.set(entry.notebook, (counts.get(entry.notebook) ?? 0) + 1);
+    if (entry[field]) counts.set(entry[field], (counts.get(entry[field]) ?? 0) + 1);
   }
   return [...counts]
     .sort(([a], [b]) => a.localeCompare(b, undefined, { sensitivity: 'base' }))
     .map(([name, count]) => ({ name, count }));
+}
+
+/** [{ name, count }] for each notebook in use, sorted by name. */
+export function countByNotebook(entries) {
+  return countNamed(entries, 'notebook');
+}
+
+/** [{ name, count }] for each place in use, sorted by name. */
+export function countByPlace(entries) {
+  return countNamed(entries, 'place');
+}
+
+/**
+ * The place name to store for one typed by hand. Same rule as notebooks: a name
+ * that matches a known place ignoring case becomes that place. Empty input gives ''.
+ */
+export function resolvePlaceName(typed, places = []) {
+  return resolveNotebookName(typed, places);
 }
 
 /**

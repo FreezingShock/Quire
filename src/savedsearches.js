@@ -7,9 +7,9 @@ import { newId } from './model.js';
 
 export const SAVED_SEARCH_MAX = 12;
 export const SAVED_NAME_MAX = 40;
-const FILTER_TYPES = ['all', 'pinned', 'favorite', 'notebook', 'kind', 'tag', 'mood', 'weather'];
+const FILTER_TYPES = ['all', 'pinned', 'favorite', 'notebook', 'place', 'kind', 'tag', 'mood', 'weather'];
 // Filters that name one value. The others ignore the value.
-const VALUED = ['notebook', 'kind', 'tag', 'mood', 'weather'];
+const VALUED = ['notebook', 'place', 'kind', 'tag', 'mood', 'weather'];
 
 /** A filter as stored: a known type, and a string value only where the type needs one. Anything else is "all". */
 export function normalizeFilter(raw) {

@@ -3,7 +3,7 @@
 import { el } from './dom.js';
 import { KINDS, displayTitle, formatShortDate } from './model.js';
 import { wordCount } from './markdown.js';
-import { resolveNotebookName } from './library.js';
+import { resolveNotebookName, resolvePlaceName } from './library.js';
 
 /*
  * Every shortcut the app answers to, grouped the way the menus are. Keep this
@@ -219,6 +219,63 @@ export function notebookDialog({ title = 'Move to notebook', entryName, notebook
   select.addEventListener('keydown', (event) => event.stopPropagation());
   showDialog(dialog);
   select.focus();
+  return dialog;
+}
+
+/**
+ * Sets where an entry was written: a name typed by hand, with the places already
+ * in use offered as suggestions. An empty name clears the place. `onSave(name)`
+ * gets the trimmed name, or null for no place.
+ */
+export function placeDialog({ entryName, places = [], current = null, onSave }) {
+  const input = el('input', {
+    class: 'dialog-input',
+    type: 'text',
+    maxlength: 60,
+    placeholder: 'Place name',
+    'aria-label': 'Place name',
+    autocomplete: 'off',
+    list: 'place-options',
+  });
+  input.value = current ?? '';
+  const suggestions = el(
+    'datalist',
+    { id: 'place-options' },
+    places.map((name) => el('option', { value: name })),
+  );
+  const dialog = el(
+    'dialog',
+    { class: 'dialog' },
+    el(
+      'form',
+      {
+        class: 'dialog-form',
+        onSubmit: (event) => {
+          event.preventDefault();
+          onSave(resolvePlaceName(input.value, places) || null);
+          dialog.close();
+        },
+      },
+      el('h2', { class: 'dialog-title' }, 'Set place'),
+      el(
+        'p',
+        { class: 'dialog-text' },
+        entryName ? `Where was “${entryName}” written? Leave it empty to clear the place.` : 'Where was this written? Leave it empty to clear the place.',
+      ),
+      input,
+      suggestions,
+      el(
+        'div',
+        { class: 'dialog-actions' },
+        el('button', { class: 'btn', type: 'button', onClick: () => dialog.close() }, 'Cancel'),
+        el('button', { class: 'btn btn-primary', type: 'submit' }, 'Save'),
+      ),
+    ),
+  );
+  input.addEventListener('keydown', (event) => event.stopPropagation());
+  showDialog(dialog);
+  input.focus();
+  input.select();
   return dialog;
 }
 
