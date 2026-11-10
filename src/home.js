@@ -11,6 +11,7 @@ import { KINDS, MOODS, WEATHERS, displayTitle, formatLongDate, formatShortDate, 
 import { wordCount } from './markdown.js';
 import { NORM_WIDTH, paintInk } from './drawing.js';
 import { icon } from './icons.js';
+import { normalizeNavSections, sectionForFilter, toggleNavSection } from './nav-sections.js';
 import { downloadBlob } from './export.js';
 import { pixelState, posterBlob, yearGrid } from './yearpixels.js';
 import { notebookDialog, placeDialog, saveSearchDialog } from './dialogs.js';
@@ -192,7 +193,8 @@ export class HomeView {
    * sidebar. Callbacks: onOpen(id), onNew(options), onToday(),
    * onWritePrompt(prompt), onHidePrompts(), onDismissTips(), onDelete(id),
    * onViewChange(view), onPatch(id, fields), onGadgetsChange(list),
-   * onSaveNote(text), onSavedSearchesChange(list), onHabitsChange(state).
+   * onSaveNote(text), onSavedSearchesChange(list), onHabitsChange(state), onNavSectionsChange(sections).
+   * `navSections` says which sidebar sections are open (see nav-sections.js).
    */
   constructor(
     root,
@@ -216,12 +218,15 @@ export class HomeView {
       onPatch,
       onGadgetsChange,
       onSaveNote,
+      onNavSectionsChange,
+      navSections,
       onSavedSearchesChange,
       onHabitsChange,
     } = {},
   ) {
     this.root = root;
-    this.callbacks = { onOpen, onNew, onToday, onWritePrompt, onHidePrompts, onDismissTips, onDelete, onViewChange, onPatch, onGadgetsChange, onSaveNote, onSavedSearchesChange, onHabitsChange };
+    this.callbacks = { onOpen, onNew, onToday, onWritePrompt, onHidePrompts, onDismissTips, onDelete, onViewChange, onPatch, onGadgetsChange, onSaveNote, onNavSectionsChange, onSavedSearchesChange, onHabitsChange };
+    this.navOpen = normalizeNavSections(navSections); // which sidebar sections are open
     this.savedSearches = normalizeSavedSearches(savedSearches);
     this.habits = normalizeHabits(habits); // the habit tracker's list and checks (see habits.js)
     this.habitError = ''; // why the last habit could not be added, shown in the gadget
@@ -445,103 +450,147 @@ export class HomeView {
         el('span', { class: 'nav-label' }, label),
         el('span', { class: 'nav-count' }, String(count)),
       );
+    // A section heading is a disclosure button inside a heading, with its count, so a collapsed list still says how big it is.
+    const section = (id, title, count, rows) => {
+      const open = Boolean(this.navOpen[id]);
+      return [
+        el(
+          'h3',
+          { class: 'nav-group' },
+          el(
+            'button',
+            {
+              class: 'nav-group-toggle',
+              type: 'button',
+              'aria-expanded': String(open),
+              'aria-controls': `nav-${id}`,
+              onClick: () => this.toggleNavSection(id),
+            },
+            iconNode('chevronDown', 'nav-caret'),
+            el('span', { class: 'nav-group-name' }, title),
+            el('span', { class: 'nav-count' }, String(count)),
+          ),
+        ),
+        el('div', { class: 'nav-group-body', id: `nav-${id}`, hidden: open ? null : true }, rows),
+      ];
+    };
 
     this.nav.replaceChildren(
-      // Hidden heading so the Library, Notebooks, Tags, Mood and Weather headings sit under a level 2 heading.
+      // Hidden heading so the section headings sit under a level 2 heading.
       el('h2', { class: 'sr-only' }, 'Filter entries'),
-      el('h3', {}, 'Library'),
-      navItem({
-        label: 'All entries',
-        count: this.entries.length,
-        icon: 'page',
-        active: filter.type === 'all',
-        onSelect: () => this.setFilter({ type: 'all', value: null }),
-      }),
-      navItem({
-        label: 'Pinned',
-        count: flags.pinned,
-        icon: 'pin',
-        active: filter.type === 'pinned',
-        onSelect: () => this.setFilter({ type: 'pinned', value: null }),
-      }),
-      navItem({
-        label: 'Favorites',
-        count: flags.favorite,
-        icon: 'star',
-        active: filter.type === 'favorite',
-        onSelect: () => this.setFilter({ type: 'favorite', value: null }),
-      }),
-      ...KINDS.map((kind) =>
+      ...section('library', 'Library', this.entries.length, [
         navItem({
-          label: kind.label,
-          count: kinds[kind.id] ?? 0,
-          icon: 'folder',
-          active: filter.type === 'kind' && filter.value === kind.id,
-          onSelect: () => this.setFilter({ type: 'kind', value: kind.id }),
+          label: 'All entries',
+          count: this.entries.length,
+          icon: 'page',
+          active: filter.type === 'all',
+          onSelect: () => this.setFilter({ type: 'all', value: null }),
         }),
+        navItem({
+          label: 'Pinned',
+          count: flags.pinned,
+          icon: 'pin',
+          active: filter.type === 'pinned',
+          onSelect: () => this.setFilter({ type: 'pinned', value: null }),
+        }),
+        navItem({
+          label: 'Favorites',
+          count: flags.favorite,
+          icon: 'star',
+          active: filter.type === 'favorite',
+          onSelect: () => this.setFilter({ type: 'favorite', value: null }),
+        }),
+        ...KINDS.map((kind) =>
+          navItem({
+            label: kind.label,
+            count: kinds[kind.id] ?? 0,
+            icon: 'folder',
+            active: filter.type === 'kind' && filter.value === kind.id,
+            onSelect: () => this.setFilter({ type: 'kind', value: kind.id }),
+          }),
+        ),
+      ]),
+      ...section('saved', 'Saved searches', this.savedSearches.length, this.savedSearchRows()),
+      ...section(
+        'notebooks',
+        'Notebooks',
+        notebooks.length,
+        notebooks.length
+          ? notebooks.map(({ name, count }) =>
+              navItem({
+                label: name,
+                count,
+                icon: 'notebook',
+                active: filter.type === 'notebook' && filter.value === name,
+                onSelect: () => this.setFilter({ type: 'notebook', value: name }),
+              }),
+            )
+          : [el('p', { class: 'nav-empty' }, 'Move an entry into a notebook to start one.')],
       ),
-      el('h3', {}, 'Saved searches'),
-      ...this.savedSearchRows(),
-      el('h3', {}, 'Notebooks'),
-      ...(notebooks.length
-        ? notebooks.map(({ name, count }) =>
-            navItem({
-              label: name,
-              count,
-              icon: 'notebook',
-              active: filter.type === 'notebook' && filter.value === name,
-              onSelect: () => this.setFilter({ type: 'notebook', value: name }),
-            }),
-          )
-        : [el('p', { class: 'nav-empty' }, 'Move an entry into a notebook to start one.')]),
-      el('h3', {}, 'Places'),
-      ...(places.length
-        ? places.map(({ name, count }) =>
-            navItem({
-              label: name,
-              count,
-              icon: 'tag',
-              active: filter.type === 'place' && filter.value === name,
-              onSelect: () => this.setFilter({ type: 'place', value: name }),
-            }),
-          )
-        : [el('p', { class: 'nav-empty' }, 'Set a place on an entry to list it here.')]),
-      el('h3', {}, 'Tags'),
-      ...(tags.length
-        ? tags.map(({ tag, count }) =>
-            navItem({
-              label: tag,
-              count,
-              icon: 'tag',
-              active: filter.type === 'tag' && filter.value === tag,
-              onSelect: () => this.setFilter({ type: 'tag', value: tag }),
-            }),
-          )
-        : [el('p', { class: 'nav-empty' }, 'Tags you add to entries show up here.')]),
-      el('h3', {}, 'Mood'),
-      ...(moods.length
-        ? moods.map(({ id, label, count }) =>
-            navItem({
-              label,
-              count,
-              icon: 'smile',
-              active: filter.type === 'mood' && filter.value === id,
-              onSelect: () => this.setFilter({ type: 'mood', value: id }),
-            }),
-          )
-        : [el('p', { class: 'nav-empty' }, 'Moods you pick show up here.')]),
-      el('h3', {}, 'Weather'),
-      ...(weathers.length
-        ? weathers.map(({ id, label, count }) =>
-            navItem({
-              label,
-              count,
-              icon: 'cloud',
-              active: filter.type === 'weather' && filter.value === id,
-              onSelect: () => this.setFilter({ type: 'weather', value: id }),
-            }),
-          )
-        : [el('p', { class: 'nav-empty' }, 'Weather you pick show up here.')]),
+      ...section(
+        'places',
+        'Places',
+        places.length,
+        places.length
+          ? places.map(({ name, count }) =>
+              navItem({
+                label: name,
+                count,
+                icon: 'tag',
+                active: filter.type === 'place' && filter.value === name,
+                onSelect: () => this.setFilter({ type: 'place', value: name }),
+              }),
+            )
+          : [el('p', { class: 'nav-empty' }, 'Set a place on an entry to list it here.')],
+      ),
+      ...section(
+        'tags',
+        'Tags',
+        tags.length,
+        tags.length
+          ? tags.map(({ tag, count }) =>
+              navItem({
+                label: tag,
+                count,
+                icon: 'tag',
+                active: filter.type === 'tag' && filter.value === tag,
+                onSelect: () => this.setFilter({ type: 'tag', value: tag }),
+              }),
+            )
+          : [el('p', { class: 'nav-empty' }, 'Tags you add to entries show up here.')],
+      ),
+      ...section(
+        'mood',
+        'Mood',
+        moods.length,
+        moods.length
+          ? moods.map(({ id, label, count }) =>
+              navItem({
+                label,
+                count,
+                icon: 'smile',
+                active: filter.type === 'mood' && filter.value === id,
+                onSelect: () => this.setFilter({ type: 'mood', value: id }),
+              }),
+            )
+          : [el('p', { class: 'nav-empty' }, 'Moods you pick show up here.')],
+      ),
+      ...section(
+        'weather',
+        'Weather',
+        weathers.length,
+        weathers.length
+          ? weathers.map(({ id, label, count }) =>
+              navItem({
+                label,
+                count,
+                icon: 'cloud',
+                active: filter.type === 'weather' && filter.value === id,
+                onSelect: () => this.setFilter({ type: 'weather', value: id }),
+              }),
+            )
+          : [el('p', { class: 'nav-empty' }, 'Weather you pick show up here.')],
+      ),
     );
   }
 
@@ -1706,7 +1755,21 @@ export class HomeView {
 
   setFilter(filter) {
     this.state.filter = filter;
+    // A row picked from a collapsed section opens that section, so the active row is in view.
+    const section = sectionForFilter(filter.type);
+    if (section && !this.navOpen[section]) {
+      this.navOpen = { ...this.navOpen, [section]: true };
+      this.callbacks.onNavSectionsChange?.(this.navOpen);
+    }
     this.render();
+  }
+
+  /** Opens or closes one sidebar section and remembers it. Focus stays on the section's heading. */
+  toggleNavSection(id) {
+    this.navOpen = toggleNavSection(this.navOpen, id);
+    this.callbacks.onNavSectionsChange?.(this.navOpen);
+    this.renderNav();
+    this.nav.querySelector(`[aria-controls="nav-${id}"]`)?.focus();
   }
 
   setViewMode(view) {
