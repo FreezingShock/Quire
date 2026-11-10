@@ -23,6 +23,7 @@ export const chromeMethods = {
     const skin = skinOf(this.prefs);
     root.dataset.skin = skin;
     root.dataset.theme = isDark(this.prefs) ? 'dark' : 'light';
+    if (this.entry) this.rebuildInk();
     root.dataset.motion = this.prefs.motion === false ? 'off' : 'on';
     root.classList.toggle('typewriter', Boolean(this.prefs.typewriter));
     // A custom accent overrides the skin's selection and title bar colors. Without one, the skin's own colors show.

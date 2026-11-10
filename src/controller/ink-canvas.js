@@ -22,8 +22,36 @@ import { DEFAULT_PAGE_COLOR } from '../model.js';
 import { shapeEnd, snapToGrid } from '../snap.js';
 import { POINTER_TOOLS, SHAPE_TOOLS } from '../tools.js';
 
+/** The ink color a dark default page shows. Stored colors never change; only what is drawn on screen does. */
+const DARK_PAGE_INK = '#e3eaf5';
+
+/** True for near-black ink (the default black and its close shades), by luma. */
+function isNearBlack(hex) {
+  const m = /^#([0-9a-f]{6})$/i.exec(hex ?? '');
+  if (!m) return false;
+  const n = parseInt(m[1], 16);
+  const luma = 0.2126 * ((n >> 16) & 255) + 0.7152 * ((n >> 8) & 255) + 0.0722 * (n & 255);
+  return luma < 80;
+}
+
 export const inkCanvasMethods = {
   // ---------- drawing ----------
+
+  /** True when the page is the default cream shown in a dark theme, so ink must be drawn light. */
+  onDarkPage() {
+    return this.entry?.pageColor === DEFAULT_PAGE_COLOR && document.documentElement.dataset.theme === 'dark';
+  },
+
+  /** An op as it should look on screen. On a dark page, near-black ink is drawn light; the stored op is untouched. */
+  onScreen(op) {
+    if (!this.onDarkPage() || !op.c || !isNearBlack(op.c)) return op;
+    return { ...op, c: DARK_PAGE_INK };
+  },
+
+  /** A stand-in for the layer stack that draws each op as it should look on screen. */
+  screenStack() {
+    return { apply: (op, scale) => this.stack.apply(this.onScreen(op), scale) };
+  },
 
   requestSync() {
     if (this.syncFrame) return;
@@ -64,7 +92,7 @@ export const inkCanvasMethods = {
     if (!this.stack) return;
     this.stack.setLayers(this.layers.map((layer) => layer.id));
     this.stack.reset();
-    replayInk(this.stack, this.drawing.ops, this.scale, this.lifted?.ids ?? null);
+    replayInk(this.screenStack(), this.drawing.ops, this.scale, this.lifted?.ids ?? null);
     this.stack.composite(this.baseCtx, visibleLayerIds(this.layers));
     this.redraw();
   },
@@ -100,13 +128,13 @@ export const inkCanvasMethods = {
     ctx.drawImage(this.base, 0, 0);
     if (this.lifted?.ops.length) {
       const { dx, dy } = this.lifted;
-      for (const op of this.lifted.ops) applyOp(ctx, moveOp(op, dx, dy), this.scale);
+      for (const op of this.lifted.ops) applyOp(ctx, this.onScreen(moveOp(op, dx, dy)), this.scale);
     }
     const draft = this.draftOp();
-    if (draft) applyOp(ctx, draft, this.scale);
+    if (draft) applyOp(ctx, this.onScreen(draft), this.scale);
     if (this.live) {
       if (this.live.t === 'textbox') this.dashedBox(ctx, this.live.a, this.live.b);
-      else applyOp(ctx, this.live, this.scale);
+      else applyOp(ctx, this.onScreen(this.live), this.scale);
     }
     this.drawSelectionFrame(ctx);
     this.syncXformRow();

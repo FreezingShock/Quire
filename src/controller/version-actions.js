@@ -5,6 +5,7 @@ import { Drawing } from '../drawing.js';
 import { formatVersionTime, historyDialog } from '../history.js';
 import { mediaResolver } from '../media.js';
 import { isBlankEntry } from '../model.js';
+import { paintSheet } from './helpers.js';
 
 export const versionActionMethods = {
   // ---------- version history ----------
@@ -57,7 +58,7 @@ export const versionActionMethods = {
     this.dom.kind.value = c.kind;
     this.dom.tags.value = c.tags.join(', ');
     this.drawing = new Drawing(c.ink.ops);
-    this.dom.sheet.style.backgroundColor = c.pageColor;
+    paintSheet(this.dom.sheet, c.pageColor);
     this.lastSurface = 'text';
     this.renderInkChip();
     this.syncCanvas();
