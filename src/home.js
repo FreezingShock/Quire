@@ -231,7 +231,20 @@ export class HomeView {
   /** Replaces the list with the latest entries from storage. */
   setEntries(entries) {
     this.entries = entries;
+    this.dropEmptyFilter();
     this.render();
+  }
+
+  /**
+   * A notebook, tag, mood, or weather filter whose last entry has been moved or
+   * deleted would leave an empty list with no sidebar row to explain it. Show
+   * everything instead. Kind, pinned and favorite filters always stay.
+   */
+  dropEmptyFilter() {
+    const { filter } = this.state;
+    if (!['notebook', 'tag', 'mood', 'weather'].includes(filter.type)) return;
+    if (filterEntries(this.entries, { filter }).length) return;
+    this.state.filter = { type: 'all', value: null };
   }
 
   /** Shows or hides the prompt card and the On this day card. Also the sidebar and its gadget list. */
