@@ -12,16 +12,22 @@
   --pattern: radial-gradient(circle at 1px 1px, rgba(47, 111, 191, 0.16) 1px, transparent 1.6px);
   --pattern-size: 14px;
   --glare: linear-gradient(115deg, rgba(255, 255, 255, 0.75), rgba(255, 255, 255, 0) 42%);
+  /* Frosted grain: fine noise drawn as an SVG, so the blank space has texture without an image file. */
+  --frost: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.22  0 0 0 0 0.42  0 0 0 0 0.68  0 0 0 0.16 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  --frost-glow: radial-gradient(60% 45% at 16% 12%, rgba(150, 200, 255, 0.85), transparent 70%), radial-gradient(50% 40% at 88% 94%, rgba(170, 230, 205, 0.7), transparent 70%), radial-gradient(45% 35% at 72% 30%, rgba(255, 255, 255, 1), transparent 70%);
 }
 
 :root[data-theme="dark"] {
   --pattern: radial-gradient(circle at 1px 1px, rgba(150, 190, 240, 0.12) 1px, transparent 1.6px);
   --glare: linear-gradient(115deg, rgba(180, 210, 255, 0.16), rgba(180, 210, 255, 0) 42%);
+  --frost-glow: radial-gradient(60% 45% at 16% 12%, rgba(70, 110, 170, 0.4), transparent 70%), radial-gradient(50% 40% at 88% 94%, rgba(60, 130, 120, 0.3), transparent 70%), radial-gradient(45% 35% at 72% 30%, rgba(120, 150, 200, 0.2), transparent 70%);
 }
 
 :root:not([data-skin^="aero"]) {
   --pattern: none;
   --glare: none;
+  --frost: none;
+  --frost-glow: none;
 }
 
 /* Reduced motion: the window's Motion setting turns off every animation and transition. */
@@ -348,3 +354,51 @@ html[data-skin="classic"].has-wallpaper { background: #008080; }
 
 /* A dialog pops in only where the skin has motion. */
 :root[data-skin="luna"][data-motion="on"] .dialog[open] { animation: dialog-settle 0.18s ease-out both; }
+
+/* ---------- blank space in each skin: the entries list, every view ---------- */
+
+[data-skin="basic"] .home-main {
+  background-image:
+    linear-gradient(rgba(60, 100, 150, 0.07) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(60, 100, 150, 0.07) 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+
+[data-skin="luna"] .home-main {
+  background-color: #ffffff;
+  background-image:
+    radial-gradient(70% 55% at 8% 0%, rgba(90, 156, 255, 0.22), transparent 70%),
+    radial-gradient(60% 50% at 100% 100%, rgba(255, 214, 120, 0.22), transparent 70%),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0), rgba(198, 211, 247, 0.22));
+}
+
+/* A 50% dither in two grays: the old Windows desktop fill. */
+[data-skin="classic"] .home-main {
+  background-color: #ffffff;
+  background-image: conic-gradient(#ffffff 25%, #d4d0c8 0 50%, #ffffff 0 75%, #d4d0c8 0);
+  background-size: 4px 4px;
+}
+
+/* ---------- Classic 98, more of it: a 24px title bar, a navy band over each dialog title, bold window titles ---------- */
+
+[data-skin="classic"] .titlebar {
+  height: 24px;
+  padding: 0 6px;
+  gap: 8px;
+  font-weight: 700;
+}
+
+[data-skin="classic"] .titlebar-name,
+[data-skin="classic"] .brand span {
+  font-weight: 700;
+}
+
+[data-skin="classic"] .dialog-title {
+  margin: -18px -20px 0;
+  padding: 4px 10px;
+  background: #000080;
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 700;
+}
+
