@@ -1,6 +1,6 @@
 /** Text editing for the Quire controller: edits to the Markdown source, formatting, inserting pictures and sketches, and editor key handling. Mixed into QuireApp. */
 
-import { SKETCH_HEIGHT, prepareImage } from '../media.js';
+import { SKETCH_HEIGHT, prepareImage, readAsDataUrl } from '../media.js';
 import { isISODate, newId, parseTags } from '../model.js';
 import {
   blockInsertEdit,
@@ -10,6 +10,7 @@ import {
   toggleBlockEdit,
   wrapEdit,
 } from '../textops.js';
+import { VOICE_MAX_BYTES, VOICE_MAX_SECONDS, formatDuration, normalizeAudioDataUrl, pickVoiceType } from '../voice.js';
 
 export const textEditingMethods = {
   // ---------- text editing ----------
@@ -74,6 +75,96 @@ export const textEditingMethods = {
     const to = Math.min(Math.max(from, range?.end ?? from), ta.value.length);
     this.applyEdit(blockInsertEdit(ta.value, from, to, refs.join('\n')));
     this.showStatus(refs.length === 1 ? 'Picture added' : `${refs.length} pictures added`);
+  },
+
+  /** Menu: starts a voice note at the caret, or stops the one in progress. */
+  toggleVoiceNote() {
+    if (this.voice) {
+      this.voice.stop();
+      return;
+    }
+    if (!this.entry) return;
+    this.startVoiceNote();
+  },
+
+  /**
+   * Records from the microphone until the user stops it or VOICE_MAX_SECONDS
+   * passes. The clip is stored on the entry and a reference line is placed at
+   * the caret the recording began at, the same way a picture is.
+   */
+  async startVoiceNote() {
+    if (!navigator.mediaDevices?.getUserMedia || typeof globalThis.MediaRecorder !== 'function') {
+      this.showStatus('This browser cannot record voice notes.', true);
+      return;
+    }
+    this.prepareEditing();
+    const entry = this.entry;
+    const ta = this.dom.editor;
+    const range = { start: ta.selectionStart, end: ta.selectionEnd };
+    let stream;
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    } catch {
+      this.showStatus('Microphone access was blocked, so no voice note was recorded.', true);
+      return;
+    }
+    const type = pickVoiceType();
+    const recorder = type ? new MediaRecorder(stream, { mimeType: type }) : new MediaRecorder(stream);
+    const chunks = [];
+    const started = Date.now();
+    let timer = null;
+    const release = () => {
+      clearInterval(timer);
+      stream.getTracks().forEach((track) => track.stop());
+      this.voice = null;
+    };
+    recorder.ondataavailable = (event) => {
+      if (event.data?.size) chunks.push(event.data);
+    };
+    recorder.onstop = async () => {
+      release();
+      const seconds = (Date.now() - started) / 1000;
+      const blob = new Blob(chunks, { type: recorder.mimeType || type || 'audio/webm' });
+      if (!blob.size) {
+        this.showStatus('Nothing was recorded.', true);
+        return;
+      }
+      if (blob.size > VOICE_MAX_BYTES) {
+        this.showStatus('That voice note is too long to keep. Try a shorter one.', true);
+        return;
+      }
+      const src = normalizeAudioDataUrl(await readAsDataUrl(blob));
+      if (!src) {
+        this.showStatus('The voice note could not be saved.', true);
+        return;
+      }
+      if (this.entry !== entry) {
+        this.showStatus('The entry changed while recording, so the voice note was not saved.', true);
+        return;
+      }
+      const id = newId();
+      entry.audio[id] = src;
+      const from = Math.min(range.start, ta.value.length);
+      const to = Math.min(Math.max(from, range.end), ta.value.length);
+      this.applyEdit(blockInsertEdit(ta.value, from, to, `![Voice note](quire-audio:${id})`));
+      this.showStatus(`Voice note added (${formatDuration(seconds)})`);
+    };
+    this.voice = {
+      stop: () => {
+        if (recorder.state !== 'inactive') recorder.stop();
+      },
+    };
+    recorder.start();
+    const tick = () => {
+      const seconds = (Date.now() - started) / 1000;
+      if (seconds >= VOICE_MAX_SECONDS) {
+        recorder.stop();
+        return;
+      }
+      this.showStatus(`Recording ${formatDuration(seconds)}. Choose Insert > Stop voice note to finish.`);
+    };
+    timer = setInterval(tick, 1000);
+    tick();
   },
 
   /** Menu: a blank sketch on its own line between the paragraphs at the caret. */

@@ -40,6 +40,7 @@ const MOOD_IDS = new Set(MOODS.map((mood) => mood.id));
 const WEATHER_IDS = new Set(WEATHERS.map((weather) => weather.id));
 const HEX = /^#[0-9a-f]{6}$/i;
 const DATA_IMAGE = /^data:image\/[a-z0-9.+-]+;base64,/i;
+const DATA_AUDIO = /^data:audio\/[a-z0-9.+-]+;base64,/i;
 const MAX_SKETCH_H = 4000;
 
 /** Pictures on an entry, keyed by id. Only data URLs for images are kept. */
@@ -48,6 +49,16 @@ function normalizeImages(raw) {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return out;
   for (const [id, src] of Object.entries(raw)) {
     if (typeof src === 'string' && DATA_IMAGE.test(src)) out[id] = src;
+  }
+  return out;
+}
+
+/** Voice notes on an entry, keyed by id. Only audio data URLs are kept. */
+function normalizeAudio(raw) {
+  const out = {};
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return out;
+  for (const [id, src] of Object.entries(raw)) {
+    if (typeof src === 'string' && DATA_AUDIO.test(src)) out[id] = src;
   }
   return out;
 }
@@ -149,6 +160,8 @@ export function normalizeEntry(raw = {}) {
     body: typeof raw.body === 'string' ? raw.body : '',
     // Pictures and sketches are referenced from the body by id. Older entries have neither, so both default to empty.
     images: normalizeImages(raw.images),
+    // Voice notes are referenced from the body by id, the same way pictures are.
+    audio: normalizeAudio(raw.audio),
     sketches: normalizeSketches(raw.sketches),
     // Song links for the entry's mixtape. Older entries have none, so they read back as an empty list.
     mixtape: normalizeMixtape(raw.mixtape),

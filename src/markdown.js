@@ -21,9 +21,9 @@ const STASH_REF = /\u0000(\d+)\u0000/g;
 /** A checklist item's text, after the list marker. Group 1 is the box, group 2 the rest. */
 export const TASK_ITEM = /^\[([ xX])\](?:\s+|$)([\s\S]*)$/;
 /** A whole line that is a picture (kind "image") or an inline sketch (kind "sketch"). */
-export const MEDIA_LINE = /^!\[([^\]\n]*)\]\(quire-(image|sketch):([A-Za-z0-9_-]+)\)\s*$/;
+export const MEDIA_LINE = /^!\[([^\]\n]*)\]\(quire-(image|sketch|audio):([A-Za-z0-9_-]+)\)\s*$/;
 /** The same reference anywhere in a line. */
-export const MEDIA_REF = /!\[[^\]\n]*\]\(quire-(?:image|sketch):[A-Za-z0-9_-]+\)/g;
+export const MEDIA_REF = /!\[[^\]\n]*\]\(quire-(?:image|sketch|audio):[A-Za-z0-9_-]+\)/g;
 /** Silent reading speed for non-fiction prose: about 238 words a minute (Brysbaert, 2019, Journal of Memory and Language, 109, 104047). */
 export const READING_WPM = 238;
 
@@ -67,11 +67,16 @@ function listItem(text) {
   return `<li class="task${done ? ' is-done' : ''}">${box} ${renderInline(task[2])}</li>`;
 }
 
-/** Picture or sketch, or nothing when the caller cannot resolve the id. */
+/** Picture, sketch or voice note, or nothing when the caller cannot resolve the id. */
 function mediaHtml(match, media) {
   const [, alt, kind, id] = match;
   const src = media?.(kind, id);
-  if (!src || !/^(data:image\/|blob:)/.test(src)) return '';
+  if (!src) return '';
+  if (kind === 'audio') {
+    if (!/^(data:audio\/|blob:)/.test(src)) return '';
+    return `<figure class="media media-audio"><audio controls preload="metadata" aria-label="${escapeHtml(alt || 'Voice note')}" src="${escapeHtml(src)}"></audio></figure>`;
+  }
+  if (!/^(data:image\/|blob:)/.test(src)) return '';
   return `<figure class="media"><img src="${escapeHtml(src)}" alt="${escapeHtml(alt)}"></figure>`;
 }
 

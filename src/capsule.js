@@ -32,7 +32,7 @@ export function isHidden(entry, today = localISODate()) {
  * The copy of a closed entry that the lists, calendar, and search work from.
  * It keeps the id, dates, pin and favorite flags, and the capsule, so rows can
  * still be opened and counted. Everything you wrote is blanked: title, text,
- * ink, sketches, pictures, tags, notebook, mood and weather.
+ * ink, sketches, pictures, voice notes, tags, notebook, mood and weather.
  */
 export function redactEntry(entry) {
   return {
@@ -44,6 +44,7 @@ export function redactEntry(entry) {
     mood: null,
     weather: null,
     images: {},
+    audio: {},
     sketches: {},
     ink: { ops: [], h: 0, layers: normalizeLayers() },
   };
