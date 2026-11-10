@@ -9,6 +9,7 @@ import { el } from './dom.js';
 import { showDialog } from './dialogs.js';
 import { SKINS, normalizeAccent, skinOf } from './skins.js';
 import { playSound } from './sound.js';
+import { reminderRow } from './pwa.js';
 
 /** The prefs this dialog reads or writes. Each one must have a default in prefs.js. */
 export const OPTION_PREFS = Object.freeze([
@@ -25,6 +26,7 @@ export const OPTION_PREFS = Object.freeze([
   'snapAngles',
   'showPrompts',
   'showOnThisDay',
+  'reminder',
 ]);
 
 const TABS = Object.freeze([
@@ -195,6 +197,7 @@ export function showOptions({ get, set, pickAccent }) {
         read: (prefs) => Boolean(prefs.showOnThisDay),
         write: (on) => ({ showOnThisDay: on }),
       }),
+      reminderRow({ get, set, register: (refresh) => refreshers.push(() => refresh()) }),
     ],
   };
 
