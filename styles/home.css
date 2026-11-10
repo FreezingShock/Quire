@@ -212,7 +212,7 @@
 }
 
 .home-nav h3 {
-  margin: 14px 8px 4px;
+  margin: 0;
   font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.06em;
@@ -220,7 +220,54 @@
   color: var(--muted);
 }
 
-.home-nav h3:first-of-type { margin-top: 6px; }
+/* A sidebar section: a disclosure button with a caret, its count, and the rows below when open. */
+.nav-group-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  min-height: 24px;
+  margin-top: 8px;
+  padding: 2px 8px;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-align: left;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.nav-group-toggle:hover {
+  border-color: var(--hover-edge);
+  background: linear-gradient(to bottom, var(--glow-hi), var(--glow-lo));
+  color: var(--text);
+}
+
+.nav-group-name {
+  flex: 1;
+  min-width: 0;
+}
+
+.nav-group-toggle .nav-count {
+  font-size: 11px;
+  letter-spacing: 0;
+}
+
+.nav-caret {
+  width: 10px;
+  height: 10px;
+  flex: none;
+  color: var(--muted);
+  transition: transform 120ms ease;
+}
+
+.nav-group-toggle[aria-expanded="false"] .nav-caret { transform: rotate(-90deg); }
+
+.nav-group-body[hidden] { display: none; }
 
 .nav-item {
   display: flex;
@@ -828,6 +875,9 @@ mark.hit {
 
   .home-nav h3,
   .nav-empty { display: none; }
+
+  /* On a phone the sidebar is one strip of filters, so every section's rows show. */
+  .home-nav .nav-group-body[hidden] { display: contents; }
 
   .nav-item { width: auto; flex: none; }
 

@@ -1,6 +1,7 @@
 /** Modal dialogs built on the native <dialog> element. */
 
 import { el } from './dom.js';
+import { createDropdown } from './dropdown.js';
 import { KINDS, displayTitle, formatShortDate } from './model.js';
 import { wordCount } from './markdown.js';
 import { resolveNotebookName } from './library.js';
@@ -147,13 +148,15 @@ const NEW_NOTEBOOK = '__new__';
  * `onSave(name)` gets the trimmed name, or null for no notebook.
  */
 export function notebookDialog({ title = 'Move to notebook', entryName, notebooks, current = null, onSave }) {
-  const select = el(
-    'select',
-    { class: 'dialog-select', 'aria-label': 'Notebook' },
-    el('option', { value: '' }, 'No notebook'),
-    notebooks.map((name) => el('option', { value: name }, name)),
-    el('option', { value: NEW_NOTEBOOK }, 'New notebook…'),
-  );
+  const select = createDropdown({
+    label: 'Notebook',
+    className: 'dialog-dd',
+    options: [
+      { value: '', label: 'No notebook' },
+      ...notebooks.map((name) => ({ value: name, label: name })),
+      { value: NEW_NOTEBOOK, label: 'New notebook…' },
+    ],
+  });
   const nameInput = el('input', {
     class: 'dialog-input',
     type: 'text',
@@ -326,12 +329,11 @@ export function entriesDialog({ load, currentId, onOpen, onNew, onDelete }) {
     'aria-label': 'Search entries',
     autocomplete: 'off',
   });
-  const kind = el(
-    'select',
-    { class: 'input', 'aria-label': 'Filter by kind' },
-    el('option', { value: '' }, 'All kinds'),
-    KINDS.map((k) => el('option', { value: k.id }, k.label)),
-  );
+  const kind = createDropdown({
+    label: 'Filter by kind',
+    className: 'dialog-dd',
+    options: [{ value: '', label: 'All kinds' }, ...KINDS],
+  });
   const tbody = el('tbody');
   const count = el('p', { class: 'dialog-note', 'aria-live': 'polite' });
   const openBtn = el('button', { class: 'btn btn-primary', type: 'button', disabled: true }, 'Open');

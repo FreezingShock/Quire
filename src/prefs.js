@@ -43,6 +43,8 @@ const DEFAULTS = Object.freeze({
   // Screensaver (see screensaver.js): the scene, or 'off', and the idle minutes before it starts.
   screensaver: 'off',
   screensaverMinutes: 5,
+  // Library sidebar: which collapsible sections are open (see nav-sections.js).
+  navSections: { library: true, notebooks: true, tags: false, mood: false, weather: false },
 });
 
 export function loadPrefs() {

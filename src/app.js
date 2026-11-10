@@ -9,6 +9,7 @@
 import { createLocalStore } from './storage.js';
 import { lockNow, unlockStore } from './lock.js';
 import {
+  KINDS,
   MOODS,
   WEATHERS,
   createEntry,
@@ -23,6 +24,7 @@ import { startScreensaver } from './screensaver.js';
 import { HomeView } from './home.js';
 import { sampleEntry } from './onboarding.js';
 import { $, fillSelect } from './controller/helpers.js';
+import { mountDropdown } from './dropdown.js';
 import { routeEntryId } from './controller/routes.js';
 import { chromeMethods } from './controller/chrome.js';
 import { routingMethods } from './controller/routing.js';
@@ -60,9 +62,9 @@ export class QuireApp {
       ribbonToggle: $('#ribbon-toggle'),
       title: $('#entry-title'),
       date: $('#entry-date'),
-      kind: $('#entry-kind'),
-      mood: $('#entry-mood'),
-      weather: $('#entry-weather'),
+      kind: mountDropdown($('#entry-kind'), { label: 'Entry kind', options: KINDS, value: 'journal' }),
+      mood: mountDropdown($('#entry-mood'), { label: 'Mood' }),
+      weather: mountDropdown($('#entry-weather'), { label: 'Weather' }),
       tags: $('#entry-tags'),
       sheet: $('#sheet'),
       editorEl: $('#editor'),
@@ -162,6 +164,11 @@ export class QuireApp {
       showGadgets: this.prefs.showGadgets !== false,
       gadgets: this.prefs.gadgets,
       onGadgetsChange: (gadgets) => this.setPref({ gadgets }),
+      navSections: this.prefs.navSections,
+      // Saved quietly: the sidebar is already drawn, so the whole window does not need a refresh.
+      onNavSectionsChange: (navSections) => {
+        this.prefs = savePrefs({ navSections });
+      },
       onSaveNote: (text) => this.saveSidebarNote(text),
       onOpen: (id) => this.openEntry(id),
       onNew: (options) => this.newEntry(options),
