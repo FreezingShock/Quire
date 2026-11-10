@@ -1,11 +1,13 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createEntry } from '../src/model.js';
+import '../src/print-extras.js';
 import {
   buildPrintJob,
   cssString,
   kindById,
   notebooksIn,
+  optionsFor,
   pageSetup,
   printKinds,
   registerPrintKind,
@@ -206,4 +208,67 @@ test('other modules can add a print kind, and it replaces one with the same id',
   assert.equal(printKinds().length, before + 1);
   assert.equal(kindById('test-postcards').label, 'Replaced');
   assert.equal(kindById('missing'), null);
+});
+
+test('a choice option keeps only a listed value and falls back to the default', () => {
+  const kind = {
+    id: 'choosy',
+    options: [{ id: 'template', type: 'choice', default: 'a', choices: [{ id: 'a', label: 'A' }, { id: 'b', label: 'B' }] }],
+  };
+  assert.deepEqual(optionsFor(kind, { template: 'b' }), { template: 'b' });
+  assert.deepEqual(optionsFor(kind, { template: 'zzz' }), { template: 'a' });
+  assert.deepEqual(optionsFor(kind, {}), { template: 'a' });
+});
+
+test('postcards print one per page from the prepared images, oldest first', async () => {
+  const { postcardImages } = await import('../src/print-extras.js');
+  assert.equal(typeof postcardImages, 'function');
+  const first = entry('2026-05-01');
+  const second = entry('2026-05-03');
+  const job = buildPrintJob({
+    kindId: 'postcards',
+    entries: [second, first],
+    options: { template: 'stamped' },
+    fontStack: 'serif',
+    stylesheet: CSS_HREF,
+    inkUrl,
+    today: '2026-05-04',
+    prepared: { images: { [first.id]: 'data:image/png;base64,ONE', [second.id]: 'data:image/png;base64,TWO' }, truncated: false, total: 2 },
+  });
+  assert.equal(job.empty, false);
+  assert.ok(job.html.indexOf('ONE') < job.html.indexOf('TWO'));
+  assert.equal((job.html.match(/class="fit-page/g) ?? []).length, 2);
+});
+
+test('postcards with nothing prepared say so, and a long list notes the cut', () => {
+  const empty = buildPrintJob({ kindId: 'postcards', entries: [entry('2026-05-01')], fontStack: 'serif', stylesheet: CSS_HREF, inkUrl, today: '2026-05-04', prepared: {} });
+  assert.equal(empty.empty, true);
+  const one = entry('2026-05-01');
+  const cut = buildPrintJob({
+    kindId: 'postcards',
+    entries: [one],
+    fontStack: 'serif',
+    stylesheet: CSS_HREF,
+    inkUrl,
+    today: '2026-05-04',
+    prepared: { images: { [one.id]: 'data:image/png;base64,ONE' }, truncated: true, total: 150 },
+  });
+  assert.match(cut.html, /first 1 of 150 postcards/);
+});
+
+test('the year poster takes the year the selection ends in and is empty without entries', () => {
+  const kind = printKinds().find((k) => k.id === 'year');
+  assert.ok(kind, 'year kind is registered');
+  const job = buildPrintJob({
+    kindId: 'year',
+    entries: [entry('2025-02-01'), entry('2026-07-09')],
+    fontStack: 'serif',
+    stylesheet: CSS_HREF,
+    inkUrl,
+    today: '2026-07-10',
+    prepared: { year: 2026, poster: 'data:image/png;base64,POSTER' },
+  });
+  assert.equal(job.title, 'Year in pixels 2026');
+  assert.match(job.html, /src="data:image\/png;base64,POSTER"/);
+  assert.equal(buildPrintJob({ kindId: 'year', entries: [], fontStack: 'serif', stylesheet: CSS_HREF, inkUrl, today: '2026-07-10' }).empty, true);
 });
