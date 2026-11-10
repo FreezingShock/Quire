@@ -237,8 +237,9 @@
 }
 
 .nav-item:hover:not([aria-current="true"]) {
-  border-color: #c3d6ec;
-  background: linear-gradient(to bottom, #ffffff, #e8f1fb);
+  border-color: var(--hover-edge);
+  background: linear-gradient(to bottom, var(--glow-hi), var(--glow-lo));
+  color: var(--text);
 }
 
 .nav-item .icon { color: var(--accent); }
@@ -640,8 +641,9 @@ mark.hit {
 }
 
 .cal-entry:hover {
-  border-color: #c3d6ec;
-  background: linear-gradient(to bottom, #ffffff, #e8f1fb);
+  border-color: var(--hover-edge);
+  background: linear-gradient(to bottom, var(--glow-hi), var(--glow-lo));
+  color: var(--text);
 }
 
 .cal-entry .icon { color: var(--accent); }
@@ -688,11 +690,12 @@ mark.hit {
   cursor: default;
 }
 
-.tile:hover { border-color: #b9cfe8; background: rgba(79, 151, 224, 0.08); }
+.tile:hover { border-color: var(--hover-edge); background: rgba(79, 151, 224, 0.08); }
 
 .tile.is-selected {
   border-color: var(--accent);
-  background: linear-gradient(to bottom, #dcecfc, #bcd9f6);
+  background: linear-gradient(to bottom, var(--glow-hi), var(--glow-lo));
+  color: var(--text);
 }
 
 .tile-page {
