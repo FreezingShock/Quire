@@ -51,6 +51,8 @@ const NOTE_META = 'sticky-note';
 const HABITS_META = 'habits';
 /** The saved searches in the sidebar. They can hold words from the entries, so they are sealed like the rest. */
 const SAVED_SEARCHES_META = 'saved-searches';
+// Set once the voice notes older versions copied have moved into the entries. See migrateVersionClips.
+const VOICE_CLIPS_META = 'voice-clips-moved';
 
 export class LockedError extends Error {
   constructor() {
@@ -442,6 +444,39 @@ function createIndexedDBStore(db) {
     async removeVersion(id) {
       await writeTransaction(db, VERSIONS, (tx) => tx.objectStore(VERSIONS).delete(id));
     },
+    /**
+     * One-time move of voice notes out of version snapshots. Older versions kept
+     * their own copy of each clip. A clip now lives in the media store, and a
+     * version refers to it by id, the way a picture does. A clip the entry does
+     * not hold yet is written first, so nothing is lost. Each step can run again:
+     * a clip already stored is skipped, and the flag is set last. Returns how many
+     * clips were moved.
+     */
+    async migrateVersionClips() {
+      codec.ready();
+      const flag = await readTransaction(db, META, (tx) => requestToPromise(tx.objectStore(META).get(VOICE_CLIPS_META)));
+      if (flag) return 0;
+      const rows = await readTransaction(db, VERSIONS, (tx) => requestToPromise(tx.objectStore(VERSIONS).getAll()));
+      let moved = 0;
+      for (const row of rows) {
+        const version = await codec.decodeVersion(row);
+        const { audio, ...content } = version.content ?? {};
+        if (!audio) continue;
+        for (const [id, src] of Object.entries(audio)) {
+          const key = mediaKey(version.entryId, 'audio', id);
+          const held = await readTransaction(db, MEDIA, (tx) => requestToPromise(tx.objectStore(MEDIA).get(key)));
+          if (!held) {
+            const record = await codec.encodeMedia(audioRecord(version.entryId, id, src));
+            await writeTransaction(db, MEDIA, (tx) => tx.objectStore(MEDIA).put(record));
+            moved += 1;
+          }
+        }
+        const stripped = await codec.encodeVersion({ ...version, content });
+        await writeTransaction(db, VERSIONS, (tx) => tx.objectStore(VERSIONS).put(stripped));
+      }
+      await writeTransaction(db, META, (tx) => tx.objectStore(META).put(true, VOICE_CLIPS_META));
+      return moved;
+    },
     async getMeta(key) {
       return (await readTransaction(db, META, (tx) => requestToPromise(tx.objectStore(META).get(key)))) ?? null;
     },
@@ -581,6 +616,27 @@ export function createMemoryStore() {
     },
     async removeVersion(id) {
       versions.delete(id);
+    },
+    /** Same move as the IndexedDB store. See there for what it does. */
+    async migrateVersionClips() {
+      codec.ready();
+      if (metas.has(VOICE_CLIPS_META)) return 0;
+      let moved = 0;
+      for (const [versionId, row] of [...versions.entries()]) {
+        const version = await codec.decodeVersion(clone(row));
+        const { audio, ...content } = version.content ?? {};
+        if (!audio) continue;
+        for (const [id, src] of Object.entries(audio)) {
+          const key = mediaKey(version.entryId, 'audio', id);
+          if (!media.has(key)) {
+            media.set(key, clone(await codec.encodeMedia(audioRecord(version.entryId, id, src))));
+            moved += 1;
+          }
+        }
+        versions.set(versionId, clone(await codec.encodeVersion({ ...version, content })));
+      }
+      metas.set(VOICE_CLIPS_META, true);
+      return moved;
     },
     async getMeta(key) {
       return metas.has(key) ? clone(metas.get(key)) : null;

@@ -198,6 +198,8 @@ export class QuireApp {
     // Nothing is read until the passcode, if there is one, is typed.
     this.passcodeOn = await unlockStore(this.store);
     mark('quire:unlocked');
+    // Older versions kept their own copy of each voice note. This moves those clips into the entries, once.
+    this.store.migrateVersionClips().catch((error) => console.warn('Voice notes could not be moved out of old versions.', error));
     this.home.setNote((await this.store.getNote()) ?? '');
     this.home.setHabits(await this.store.getHabits());
     this.home.setSavedSearches(await this.loadSavedSearches());

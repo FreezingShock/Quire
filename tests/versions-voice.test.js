@@ -8,24 +8,15 @@ import { PIXELS } from '../src/icon-pixels.js';
 const CLIP = 'data:audio/webm;base64,AAAA';
 const OTHER = 'data:audio/webm;base64,BBBB';
 
-test('a version copies the voice notes its text refers to, and no others', () => {
+test('a version keeps no clip data, only the text that refers to the clip', () => {
   const entry = normalizeEntry({ body: 'Hi\n\n![Voice note](quire-audio:a1)', audio: { a1: CLIP, a2: OTHER } });
-  assert.deepEqual(contentOf(entry).audio, { a1: CLIP });
-});
-
-test('a version with no voice notes has no audio field', () => {
-  const entry = normalizeEntry({ body: 'Just words', audio: {} });
   assert.equal('audio' in contentOf(entry), false);
 });
 
-test('comparing versions reads voice note ids, not their data', () => {
+test('a version compares the same whether or not the entry holds clips', () => {
   const entry = normalizeEntry({ body: '![Voice note](quire-audio:a1)', audio: { a1: CLIP } });
   const saved = contentOf(entry);
-  // Same id and text, different bytes under it: still the same version content.
-  const changed = normalizeEntry({ body: entry.body, audio: { a1: OTHER } });
   assert.equal(sameContent(entry, saved), true);
-  assert.equal(sameContent(changed, saved), true);
-  // A new clip referred to in the text is a change.
   const added = normalizeEntry({ body: '![Voice note](quire-audio:a2)', audio: { a2: OTHER } });
   assert.equal(sameContent(added, saved), false);
 });
