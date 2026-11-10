@@ -423,3 +423,57 @@ html[data-skin="classic"].has-wallpaper { background: #008080; }
 }
 
 [data-skin="classic"][data-motion="off"] .splash-bar span { width: 100%; }
+
+/* ---------- press feedback: every button sinks a pixel while held, in every skin ---------- */
+
+:is(.btn, .cmd-btn, .tool-btn, .format-btn, .source-btn, .size-btn, .layer-btn, .ribbon-toggle, .cal-step, .nav-item, .th-btn, .swatch):not(:disabled) {
+  transition: transform 0.08s ease-out;
+}
+
+:is(.btn, .cmd-btn, .tool-btn, .format-btn, .source-btn, .size-btn, .layer-btn, .ribbon-toggle, .cal-step, .nav-item, .th-btn, .swatch):not(:disabled):active {
+  transform: translateY(1px);
+}
+
+/* Classic 98 already sinks each button with its bevel, so it does not move. */
+[data-skin="classic"] :is(.btn, .cmd-btn, .tool-btn, .format-btn, .source-btn, .size-btn, .layer-btn, .ribbon-toggle, .cal-step, .nav-item, .th-btn, .swatch):not(:disabled):active {
+  transform: none;
+}
+
+[data-skin="luna"] :is(.btn, .cmd-btn, .tool-btn, .format-btn, .source-btn, .size-btn, .layer-btn):not(:disabled):active {
+  background: linear-gradient(to bottom, #d9d3bf, #f2f0e6);
+}
+
+[data-skin="basic"] :is(.btn, .cmd-btn, .tool-btn, .format-btn, .source-btn, .size-btn, .layer-btn):not(:disabled):active {
+  background: linear-gradient(to bottom, #d6e2ef, #eef3f9);
+}
+
+/* ---------- drop target: a dashed outline and a label while files are dragged over the page ---------- */
+
+/* The whole page frames the drop, since a picture can land after any line. */
+.sheet:has(.editor.is-drop-target) {
+  box-shadow: inset 0 0 0 2px var(--accent);
+}
+
+.editor.is-drop-target::after {
+  content: "Drop to place the picture after this line";
+  position: absolute;
+  top: 10px;
+  right: 12px;
+  padding: 4px 9px;
+  border: 1px solid var(--hover-edge);
+  border-radius: 4px;
+  background: linear-gradient(to bottom, var(--glow-hi), var(--glow-lo));
+  color: var(--tile-ink);
+  font: 600 12px/1.2 var(--ui-font);
+  pointer-events: none;
+  z-index: 2;
+}
+
+[data-motion="on"] .editor.is-drop-target::after {
+  animation: drop-label 0.15s ease-out both;
+}
+
+@keyframes drop-label {
+  from { opacity: 0; transform: translateY(-3px); }
+  to { opacity: 1; transform: none; }
+}

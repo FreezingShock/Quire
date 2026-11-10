@@ -22,6 +22,8 @@ const SOUNDS = {
   ],
   // A falling sweep for a deleted entry.
   delete: [{ at: 0, freq: 660, to: 180, dur: 0.28, gain: 0.12, type: 'triangle' }],
+  // A faint tick as the mouse reaches a button or entry tile. Off unless sound effects are on.
+  hover: [{ at: 0, freq: 1760, to: 2100, dur: 0.045, gain: 0.02, type: 'sine' }],
   // One soft bell for a finished export.
   export: [
     { at: 0, freq: 1174.66, dur: 0.7, gain: 0.14 },

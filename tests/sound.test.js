@@ -10,5 +10,6 @@ test('sound effects are off by default', () => {
 test('playSound stays silent and never throws without audio or with sound off', () => {
   assert.doesNotThrow(() => playSound('startup'));
   assert.doesNotThrow(() => playSound('newEntry'));
+  assert.doesNotThrow(() => playSound('hover'));
   assert.doesNotThrow(() => playSound('no-such-sound'));
 });

@@ -85,6 +85,8 @@ import { formatVersionTime, historyDialog } from './history.js';
 const SAVE_DELAY_MS = 400;
 const FONT_STACKS = TEXT_FONTS;
 const NUDGE = 5;
+/** Elements that tick when the mouse reaches them. */
+const HOVER_SOUND_TARGETS = 'button:not(:disabled), .tile';
 /** Letter size on the size row while the text box tool is active. */
 const SIZE_LETTER_PX = { 1: 11, 3: 15, 6: 19 };
 const NUDGE_FAST = 25;
@@ -702,6 +704,18 @@ export class QuireApp {
     document.addEventListener('keydown', trackShift);
     document.addEventListener('keyup', trackShift);
     // A file dropped outside the text should not make the browser open it in place of the page.
+    // A faint tick as the mouse reaches a button or a tile, when sound effects are on.
+    let hovered = null;
+    document.addEventListener(
+      'pointerover',
+      (event) => {
+        const target = event.pointerType === 'mouse' && event.target instanceof Element ? event.target.closest(HOVER_SOUND_TARGETS) : null;
+        if (target === hovered) return;
+        hovered = target;
+        if (target) playSound('hover');
+      },
+      { passive: true },
+    );
     const dragsFiles = (event) => Array.from(event.dataTransfer?.types ?? []).includes('Files');
     window.addEventListener('dragover', (event) => {
       if (dragsFiles(event)) event.preventDefault();

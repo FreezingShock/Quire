@@ -133,6 +133,13 @@ export class LiveEditor {
         event.dataTransfer.dropEffect = 'copy';
       }
     });
+    // While files are dragged over the page, the page shows where a picture will land.
+    root.addEventListener('dragenter', (event) => {
+      if (hasFiles(event.dataTransfer)) root.classList.add('is-drop-target');
+    });
+    root.addEventListener('dragleave', (event) => {
+      if (!root.contains(event.relatedTarget)) root.classList.remove('is-drop-target');
+    });
     root.addEventListener('drop', (event) => this.onDrop(event));
     root.addEventListener('focus', () => {
       this.focused = true;
@@ -301,6 +308,7 @@ export class LiveEditor {
 
   /** Dropped pictures go where the pointer is. Other drops are left alone. */
   onDrop(event) {
+    this.root.classList.remove('is-drop-target');
     if (!hasFiles(event.dataTransfer)) return;
     event.preventDefault();
     const files = imageFiles(event.dataTransfer.files);
