@@ -257,6 +257,7 @@ html[data-skin="luna"].has-wallpaper { background: #3a6fd6; }
 }
 
 :root[data-skin="classic"][data-theme="dark"] {
+  --focus-ring: #9cc8f2;
   --c-face: #3c3f47;
   --c-face-hi: #52565f;
   --c-shade: #1d2026;
