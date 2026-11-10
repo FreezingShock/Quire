@@ -78,6 +78,11 @@ function formatTime(date) {
   return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 }
 
+/** The parts of an entry that count as an edit. Timestamps and the sheet height are left out. */
+function contentKey(entry) {
+  return JSON.stringify([entry.title, entry.date, entry.kind, entry.tags, entry.body, entry.pageColor, entry.ink.ops]);
+}
+
 export class QuireApp {
   constructor() {
     this.dom = {
@@ -111,6 +116,8 @@ export class QuireApp {
     this.store = null;
     this.entry = null;
     this.drawing = new Drawing();
+    // The Drawing the base canvas was last painted from. Opening another entry replaces it.
+    this.paintedDrawing = null;
     this.base = document.createElement('canvas');
     this.baseCtx = this.base.getContext('2d');
     this.inkCtx = this.dom.ink.getContext('2d');
@@ -125,6 +132,7 @@ export class QuireApp {
     this.pointerId = null;
     this.lastSurface = 'text';
     this.saveTimer = 0;
+    this.savedKey = null; // contentKey of the open entry as last written
     this.saveChain = Promise.resolve();
     this.frame = 0;
     this.syncFrame = 0;
@@ -668,7 +676,11 @@ export class QuireApp {
       this.dom.grid.height = h;
     }
     this.scale = w / NORM_WIDTH;
-    if (resized) paintOps(this.baseCtx, this.drawing.ops, this.scale);
+    // Repaint after a resize, and when a different entry is open, so the last entry's ink does not carry over.
+    if (resized || this.paintedDrawing !== this.drawing) {
+      paintOps(this.baseCtx, this.drawing.ops, this.scale);
+      this.paintedDrawing = this.drawing;
+    }
     if (this.prefs.showGrid) paintGrid(this.gridCtx, this.scale);
     this.redraw();
   }
@@ -852,6 +864,13 @@ export class QuireApp {
     this.saveTimer = 0;
     if (!this.entry) return this.saveChain;
     const entry = this.snapshot();
+    const key = contentKey(entry);
+    // Nothing changed since the last write, so skip it. That keeps "Modified" meaning "last edited".
+    if (key === this.savedKey) {
+      this.saveChain = this.saveChain.then(() => this.showStatus(`Saved at ${formatTime(new Date())}`));
+      return this.saveChain;
+    }
+    this.savedKey = key;
     entry.updatedAt = new Date().toISOString();
     this.saveChain = this.saveChain
       .then(() => {
@@ -861,6 +880,7 @@ export class QuireApp {
       .then(() => this.showStatus(`Saved at ${formatTime(new Date())}`))
       .catch((error) => {
         console.error(error);
+        this.savedKey = null; // The write failed, so the next save must try again.
         this.showStatus(`Could not save: ${error.message}`, true);
       });
     return this.saveChain;
@@ -881,6 +901,7 @@ export class QuireApp {
       return;
     }
     this.entry = next;
+    this.savedKey = contentKey(next);
     this.dom.editor.value = next.body;
     this.dom.title.value = next.title;
     this.dom.date.value = next.date;
