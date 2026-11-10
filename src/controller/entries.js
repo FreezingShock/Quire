@@ -15,6 +15,7 @@ import {
 import { isHidden, redactSealed, capsuleStatus, unsealedEntry } from '../capsule.js';
 import { unsealAnimation } from '../capsule-ui.js';
 import { playSound } from '../sound.js';
+import { pickRandomMemory } from '../memories.js';
 
 export const entryMethods = {
   // ---------- entries ----------
@@ -98,6 +99,17 @@ export const entryMethods = {
     const existing = todaysJournal(open, today);
     if (existing) await this.openEntry(existing.id);
     else await this.newEntry({ date: today, kind: 'journal', body: prompt ? `> ${prompt}\n\n` : '' });
+  },
+
+  /** Opens one past entry at random. Sealed capsules, the sample and blank entries are never picked. */
+  async randomMemory() {
+    await this.persist();
+    const pick = pickRandomMemory(await this.store.list(), localISODate());
+    if (!pick) {
+      this.showStatus('Write a few entries first. Random memory picks from them.');
+      return;
+    }
+    await this.openEntry(pick.id);
   },
 
   showEntries() {

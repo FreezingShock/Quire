@@ -274,6 +274,39 @@
   color: var(--muted);
 }
 
+/* A saved search: its row, then a small × to remove it. */
+.nav-saved {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.nav-saved .nav-item { flex: 1; min-width: 0; }
+
+.nav-remove {
+  flex: 0 0 auto;
+  display: inline-grid;
+  place-items: center;
+  width: 19px;
+  height: 19px;
+  padding: 0;
+  border: 1px solid var(--panel-edge);
+  border-radius: 3px;
+  background: var(--panel-hi);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1;
+  cursor: pointer;
+  opacity: 0.6;
+}
+
+.nav-saved:hover .nav-remove,
+.nav-remove:focus-visible { opacity: 1; }
+
+.nav-remove:hover { border-color: var(--hover-edge); }
+
 .home-main {
   min-width: 0;
   min-height: 0;

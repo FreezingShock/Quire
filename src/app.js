@@ -161,6 +161,8 @@ export class QuireApp {
       showTips: !this.prefs.tipsDismissed,
       showGadgets: this.prefs.showGadgets !== false,
       gadgets: this.prefs.gadgets,
+      savedSearches: this.prefs.savedSearches,
+      onSavedSearchesChange: (savedSearches) => this.setPref({ savedSearches }),
       onGadgetsChange: (gadgets) => this.setPref({ gadgets }),
       onSaveNote: (text) => this.saveSidebarNote(text),
       onOpen: (id) => this.openEntry(id),
