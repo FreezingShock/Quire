@@ -1359,6 +1359,15 @@ kbd {
   .titlebar-status { min-width: 0; }
 }
 
+/* Narrow phones (360 to 400 px): the menu titles and the drawing tools shrink to fit without scrolling. */
+@media (max-width: 400px) {
+  .menu-title { padding: 0 6px; }
+  .tool-grid { grid-template-columns: repeat(10, 31px); }
+  .tool-btn { width: 31px; height: 31px; }
+  .format-grid { grid-template-columns: repeat(10, 29px); }
+  .format-btn { width: 29px; height: 29px; }
+}
+
 /* Touch tablets get the same 16px inputs, since Safari zooms in on smaller fields at any width. */
 @media (pointer: coarse) {
   .field input,
@@ -1417,3 +1426,70 @@ kbd {
 
 .kb-pen.is-down::before,
 .kb-pen.is-down::after { background: #d6262c; }
+
+/* Linked from: a strip under the mixtape listing the entries that link to the open one. */
+.backlinks {
+  flex: 0 0 auto;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  padding: 5px 12px;
+  border-bottom: 1px solid var(--panel-edge);
+  background: var(--panel-hi);
+  color: var(--text);
+  font-size: 12px;
+}
+
+.backlinks[hidden] { display: none; }
+
+.backlinks-title {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.backlinks-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.backlinks-list li { display: contents; }
+
+.backlink {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  max-width: 260px;
+  height: 22px;
+  padding: 0 8px;
+  border: 1px solid var(--panel-edge);
+  border-radius: 11px;
+  background: var(--panel-hi);
+  color: var(--accent);
+  font: inherit;
+  cursor: pointer;
+}
+
+.backlink:hover,
+.backlink:focus-visible {
+  border-color: var(--hover-edge);
+  background: linear-gradient(to bottom, var(--glow-hi), var(--glow-lo));
+}
+
+.backlink-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.backlink-date {
+  font-size: 11px;
+  color: var(--muted);
+}

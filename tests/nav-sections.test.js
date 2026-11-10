@@ -3,10 +3,10 @@ import assert from 'node:assert/strict';
 import { NAV_SECTIONS, normalizeNavSections, sectionForFilter, toggleNavSection } from '../src/nav-sections.js';
 
 test('the sidebar starts with Library and Notebooks open, and the rest folded', () => {
-  assert.deepEqual(normalizeNavSections(undefined), { library: true, notebooks: true, tags: false, mood: false, weather: false });
+  assert.deepEqual(normalizeNavSections(undefined), { library: true, saved: true, notebooks: true, tags: false, mood: false, weather: false });
   assert.deepEqual(
     NAV_SECTIONS.map((section) => section.id),
-    ['library', 'notebooks', 'tags', 'mood', 'weather'],
+    ['library', 'saved', 'notebooks', 'tags', 'mood', 'weather'],
   );
 });
 
@@ -16,6 +16,7 @@ test('saved states win, and anything missing or not a yes/no takes its default',
   assert.equal(sections.tags, true);
   assert.equal(sections.mood, false, 'a non-boolean falls back to the default');
   assert.equal(sections.notebooks, true);
+  assert.equal(sections.saved, true, 'saved searches start open');
   assert.equal(sections.weather, false);
 });
 

@@ -217,6 +217,63 @@ export function notebookDialog({ title = 'Move to notebook', entryName, notebook
 }
 
 /**
+ * Names the current search or filter so it can be saved. `check(name)` returns
+ * a problem to show, or null. `onSave(name)` gets the trimmed name.
+ */
+export function saveSearchDialog({ suggested = '', check, onSave }) {
+  const nameInput = el('input', {
+    class: 'dialog-input',
+    type: 'text',
+    maxlength: 40,
+    value: suggested,
+    placeholder: 'Name for this search',
+    'aria-label': 'Saved search name',
+    autocomplete: 'off',
+  });
+  const error = el('p', { class: 'dialog-error', role: 'alert' });
+  const dialog = el(
+    'dialog',
+    { class: 'dialog' },
+    el(
+      'form',
+      {
+        class: 'dialog-form',
+        onSubmit: (event) => {
+          event.preventDefault();
+          const name = nameInput.value.trim();
+          const problem = check(name);
+          if (problem) {
+            error.textContent = problem;
+            nameInput.focus();
+            return;
+          }
+          onSave(name);
+          dialog.close();
+        },
+      },
+      el('h2', { class: 'dialog-title' }, 'Save this search'),
+      el('p', { class: 'dialog-text' }, 'Saved searches stay in this browser and show in the sidebar.'),
+      nameInput,
+      error,
+      el(
+        'div',
+        { class: 'dialog-actions' },
+        el('button', { class: 'btn', type: 'button', onClick: () => dialog.close() }, 'Cancel'),
+        el('button', { class: 'btn btn-primary', type: 'submit' }, 'Save'),
+      ),
+    ),
+  );
+  nameInput.addEventListener('keydown', (event) => event.stopPropagation());
+  nameInput.addEventListener('input', () => {
+    error.textContent = '';
+  });
+  showDialog(dialog);
+  nameInput.focus();
+  nameInput.select();
+  return dialog;
+}
+
+/**
  * Asks for the size of the selection as a percent of its current size. Keeping
  * proportions ties the two fields together. `onSave(kx, ky)` gets the factors,
  * where 1 means no change.

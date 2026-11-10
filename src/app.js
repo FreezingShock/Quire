@@ -86,11 +86,13 @@ export class QuireApp {
       focusFill: $('#focus-fill'),
       focusSave: $('#focus-save'),
       entryPath: $('#entry-path'),
+      backlinks: $('#backlinks'),
     };
     this.dom.editor = new LiveEditor(this.dom.editorEl, {
       onChange: () => this.onEditorChanged(),
       onHistory: (redo) => (redo ? this.redo() : this.undo()),
       onFiles: (files, range) => this.insertImages(files, range),
+      onWikiLink: (title) => this.followWikiLink(title),
       inkStyle: () => ({ color: this.fg, size: this.size }),
     });
     this.mixtape = new MixtapeView($('#mixtape'), {
@@ -163,6 +165,8 @@ export class QuireApp {
       showTips: !this.prefs.tipsDismissed,
       showGadgets: this.prefs.showGadgets !== false,
       gadgets: this.prefs.gadgets,
+      savedSearches: this.prefs.savedSearches,
+      onSavedSearchesChange: (savedSearches) => this.setPref({ savedSearches }),
       onGadgetsChange: (gadgets) => this.setPref({ gadgets }),
       navSections: this.prefs.navSections,
       // Saved quietly: the sidebar is already drawn, so the whole window does not need a refresh.
@@ -199,7 +203,7 @@ export class QuireApp {
     });
     this.screensaver = startScreensaver({
       getPrefs: () => this.prefs,
-      getEntries: () => this.store.list(),
+      getEntries: ({ photos = false } = {}) => (photos ? this.store.listFull() : this.store.list()),
       isLocked: () => this.passcodeOn,
       // A locked Quire wakes to the passcode. Saving first keeps the open entry.
       onWake: () => lockNow(() => this.persist()),

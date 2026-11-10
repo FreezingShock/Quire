@@ -2,7 +2,7 @@
  * Sidebar gadgets on the dashboard. A column of small panels beside the
  * dashboard, in the Vista sidebar's spirit: a glass rail, panels with a title
  * bar, and a close button. Every color is a skin token (see skins.css), so the
- * gadgets follow Aero, Aero dark, Basic, Luna and Classic. The skin overrides
+ * gadgets follow Aero, Basic, Luna and Classic, each in light and dark. The skin overrides
  * at the end only restyle the title bars and edges.
  */
 

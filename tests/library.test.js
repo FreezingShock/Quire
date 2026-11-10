@@ -57,7 +57,13 @@ test('sortEntries does not mutate its input', () => {
 
 test('excerptOf strips Markdown and cuts long text at a word', () => {
   const entry = createEntry({ body: '# Harbor\n\n**Gulls** over the pier.' });
-  assert.equal(excerptOf(entry), 'Harbor Gulls over the pier.');
+  // The first heading is the title, which the card already shows, so the preview starts with the text.
+  assert.equal(excerptOf(entry), 'Gulls over the pier.');
+  const titled = createEntry({ title: 'Harbor', body: '# Harbor\n\nGulls over the pier.' });
+  assert.equal(excerptOf(titled), 'Gulls over the pier.');
+  // A heading that is not the title stays in the preview.
+  const other = createEntry({ title: 'Trip', body: '## Day one\n\nGulls over the pier.' });
+  assert.equal(excerptOf(other), 'Day one Gulls over the pier.');
   const long = createEntry({ body: 'word '.repeat(100) });
   const short = excerptOf(long, 50);
   assert.ok(short.endsWith('…'));

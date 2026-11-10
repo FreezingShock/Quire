@@ -7,6 +7,7 @@
 /** Section ids in sidebar order, with whether each starts open. */
 export const NAV_SECTIONS = Object.freeze([
   { id: 'library', open: true },
+  { id: 'saved', open: true },
   { id: 'notebooks', open: true },
   { id: 'tags', open: false },
   { id: 'mood', open: false },

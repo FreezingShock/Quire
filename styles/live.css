@@ -107,6 +107,14 @@
   text-underline-offset: 2px;
 }
 
+/* [[Entry title]] links. Ctrl+click opens the entry; the marks show only on the line being edited. */
+.lv-wikilink {
+  color: #2f5d7c;
+  border-bottom: 1px dotted currentColor;
+  cursor: text;
+}
+
+
 .lv-num { color: #6b6457; }
 
 /* Markers: dimmed on the active line and in Source mode, hidden everywhere else. */
@@ -270,3 +278,20 @@
   touch-action: none;
   cursor: crosshair;
 }
+
+/* ---------- the default page in the dark theme ----------
+   A page left at the stored default cream follows the theme: dark, with light ink. A custom page
+   color keeps its own colors. Stored colors, exports and printing are never changed. */
+:root { --page-default: #fffdf8; --page-ink: #25221d; --page-muted: #8c96a6; }
+:root[data-theme="dark"] { --page-default: #1d2638; --page-ink: #e3eaf5; --page-muted: #8593a8; }
+
+:root[data-theme="dark"] .sheet[data-page="default"] { color: var(--page-ink); }
+:root[data-theme="dark"] .sheet[data-page="default"] .editor { color: var(--page-ink); }
+:root[data-theme="dark"] .sheet[data-page="default"] .editor[data-empty="true"]::before { color: var(--page-muted); }
+:root[data-theme="dark"] .sheet[data-page="default"] .ln-quote { color: #c3cdde; border-left-color: #55647e; }
+:root[data-theme="dark"] .sheet[data-page="default"] .editor:not(.is-source) .ln-rule:not(.is-active)::after { border-top-color: #41506a; }
+:root[data-theme="dark"] .sheet[data-page="default"] :is(.ln-fence, .lv-num, .ln-task-done, .lv-missing::before) { color: var(--page-muted); }
+:root[data-theme="dark"] .sheet[data-page="default"] :is(.ln-code, .lv-code) { background: rgba(255, 255, 255, 0.08); }
+:root[data-theme="dark"] .sheet[data-page="default"] .lv-link { color: #8fc1e6; }
+:root[data-theme="dark"] .sheet[data-page="default"] .lv-check { border-color: #8593a8; background: #1d2638; }
+:root[data-theme="dark"] .sheet[data-page="default"] .sketch { border-color: #41506a; background: rgba(255, 255, 255, 0.04); }
