@@ -11,4 +11,4 @@ export const HOVER_SOUND_TARGETS = 'button:not(:disabled), .tile';
 /** Letter size on the size row while the text box tool is active. */
 export const SIZE_LETTER_PX = { 1: 11, 3: 15, 6: 19 };
 /** Ops that can be added to the canvas one at a time without a full replay. */
-export const INCREMENTAL_OPS = new Set(['stroke', 'line', 'rect', 'ellipse', 'fill', 'text', 'clear']);
+export const INCREMENTAL_OPS = new Set(['stroke', 'line', 'rect', 'ellipse', 'curve', 'poly', 'stamp', 'fill', 'text', 'clear']);

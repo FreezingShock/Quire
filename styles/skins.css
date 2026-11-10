@@ -267,7 +267,7 @@ html[data-skin="classic"].has-wallpaper { background: #008080; }
 [data-skin="classic"] .dialog-title { color: #000080; }
 
 /* Raised bevels for every button, pressed bevels while held or toggled on. */
-[data-skin="classic"] :is(.btn, .cmd-btn, .tool-btn, .format-btn, .size-btn, .layer-btn, .ribbon-toggle, .cal-step) {
+[data-skin="classic"] :is(.btn, .cmd-btn, .tool-btn, .stamp-btn, .xform-btn, .format-btn, .size-btn, .layer-btn, .ribbon-toggle, .cal-step) {
   background: #c0c0c0;
   background-image: none;
   color: #000000;
@@ -277,9 +277,9 @@ html[data-skin="classic"].has-wallpaper { background: #008080; }
   transition: none;
 }
 
-[data-skin="classic"] :is(.btn, .cmd-btn, .tool-btn, .format-btn, .size-btn, .layer-btn, .ribbon-toggle, .cal-step):active:not(:disabled),
+[data-skin="classic"] :is(.btn, .cmd-btn, .tool-btn, .stamp-btn, .xform-btn, .format-btn, .size-btn, .layer-btn, .ribbon-toggle, .cal-step):active:not(:disabled),
 [data-skin="classic"] :is(.tool-btn, .format-btn)[aria-pressed="true"],
-[data-skin="classic"] .size-btn[aria-checked="true"] {
+[data-skin="classic"] :is(.size-btn, .stamp-btn)[aria-checked="true"] {
   background: #c0c0c0;
   background-image: repeating-conic-gradient(#ffffff 0 25%, #c0c0c0 0 50%) 0 0 / 2px 2px;
   border-color: #000000 #ffffff #ffffff #000000;

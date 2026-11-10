@@ -45,17 +45,25 @@ const SHORTCUT_GROUPS = [
       ['Brush', 'B'],
       ['Highlighter', 'H'],
       ['Eraser', 'E'],
+      ['Spray can', 'K'],
       ['Line', 'L'],
+      ['Curve', 'C'],
       ['Rectangle', 'R'],
       ['Ellipse', 'O'],
+      ['Polygon', 'N'],
+      ['Stamps', 'J'],
       ['Select', 'S'],
       ['Text box', 'A'],
+      ['Magnifier', 'M'],
     ],
   },
   {
     title: 'Drawing and selection',
     rows: [
       ['Keep a line or shape straight, square, or round', 'Shift + drag'],
+      ['Finish a curve or polygon', 'Enter or Escape'],
+      ['Close a polygon', 'Click its first point'],
+      ['Zoom in or out (Magnifier)', 'Click or Shift + click'],
       ['Nudge the selection (Shift for bigger steps)', 'Arrow keys'],
       ['Delete the selection', 'Delete'],
       ['Clear the selection', 'Escape'],
@@ -197,6 +205,62 @@ export function notebookDialog({ title = 'Move to notebook', entryName, notebook
   select.addEventListener('keydown', (event) => event.stopPropagation());
   showDialog(dialog);
   select.focus();
+  return dialog;
+}
+
+/**
+ * Asks for the size of the selection as a percent of its current size. Keeping
+ * proportions ties the two fields together. `onSave(kx, ky)` gets the factors,
+ * where 1 means no change.
+ */
+export function resizeDialog({ onSave }) {
+  const width = el('input', { class: 'dialog-input', type: 'number', min: 1, max: 1000, step: 'any', value: 100, 'aria-label': 'Horizontal percent' });
+  const height = el('input', { class: 'dialog-input', type: 'number', min: 1, max: 1000, step: 'any', value: 100, 'aria-label': 'Vertical percent' });
+  const keep = el('input', { type: 'checkbox', checked: true });
+  const error = el('p', { class: 'dialog-error', role: 'alert' });
+  width.addEventListener('input', () => {
+    if (keep.checked) height.value = width.value;
+  });
+  keep.addEventListener('change', () => {
+    if (keep.checked) height.value = width.value;
+  });
+
+  const dialog = el(
+    'dialog',
+    { class: 'dialog' },
+    el(
+      'form',
+      {
+        class: 'dialog-form',
+        onSubmit: (event) => {
+          event.preventDefault();
+          const kx = Number(width.value) / 100;
+          const ky = Number(height.value) / 100;
+          if (!(kx >= 0.01 && kx <= 10 && ky >= 0.01 && ky <= 10)) {
+            error.textContent = 'Use a percent from 1 to 1000.';
+            return;
+          }
+          onSave(kx, ky);
+          dialog.close();
+        },
+      },
+      el('h2', { class: 'dialog-title' }, 'Resize selection'),
+      el('p', { class: 'dialog-text' }, 'Scale the selected ink. 100% keeps its size.'),
+      el('label', { class: 'field' }, 'Horizontal (%)', width),
+      el('label', { class: 'field' }, 'Vertical (%)', height),
+      el('label', { class: 'dialog-check' }, keep, ' Keep proportions'),
+      error,
+      el(
+        'div',
+        { class: 'dialog-actions' },
+        el('button', { class: 'btn', type: 'button', onClick: () => dialog.close() }, 'Cancel'),
+        el('button', { class: 'btn btn-primary', type: 'submit' }, 'Resize'),
+      ),
+    ),
+  );
+  showDialog(dialog);
+  width.focus();
+  width.select();
   return dialog;
 }
 

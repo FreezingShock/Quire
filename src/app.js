@@ -31,9 +31,12 @@ import {
   InkStack,
   MAX_LAYERS,
   NORM_WIDTH,
+  STAMP_KINDS,
+  STAMP_SIZES,
   TEXT_FONTS,
   TEXT_SIZES,
   applyOp,
+  bendCurve,
   hasInkOn,
   hitOp,
   inkExtent,
@@ -47,6 +50,8 @@ import {
   replayInk,
   resolveOps,
   sampleColor,
+  selectionMatrix,
+  straightCurve,
   strokeWidth,
   visibleLayerIds,
 } from './drawing.js';
@@ -77,7 +82,7 @@ import {
 } from './export.js';
 import { createMenuBar } from './menubar.js';
 import { attachKeyboardPen } from './keypen.js';
-import { confirmDialog, entriesDialog, notebookDialog, showAbout, showShortcuts } from './dialogs.js';
+import { confirmDialog, entriesDialog, notebookDialog, resizeDialog, showAbout, showShortcuts } from './dialogs.js';
 import { installState, promptInstall, showInstallHelp, startPwa, startReminders, REMINDER_DEFAULTS } from './pwa.js';
 import { HomeView } from './home.js';
 import { sampleEntry } from './onboarding.js';
@@ -95,6 +100,19 @@ import {
 import { $, contentKey, fillSelect, formatTime, isTextTarget, penPressure, prevent } from './controller/helpers.js';
 import { HOME_ROUTE, entryRoute, routeEntryId } from './controller/routes.js';
 import { chromeMethods } from './controller/chrome.js';
+
+const STAMP_LABELS = { star: 'Star', heart: 'Heart', smile: 'Smiley', arrow: 'Arrow', bolt: 'Lightning', cloud: 'Cloud' };
+/** Magnifier zoom steps: the sheet at 100%, 200% and 400%. */
+const ZOOM_STEPS = [1, 2, 4];
+/** How often a spray can keeps spraying while the pointer is still. */
+const SPRAY_TICK_MS = 60;
+/** Spray dots are laid down every this many normalized units while the pointer moves. */
+const SPRAY_STEP = 2;
+/** A press this close to a polygon's first point, in screen pixels, closes the shape. */
+const CLOSE_REACH_PX = 10;
+/** A press that moves less than this, in normalized units, counts as a click. */
+const MOVE_SLOP = 2;
+
 
 export class QuireApp {
   constructor() {
@@ -153,6 +171,12 @@ export class QuireApp {
     this.activeLayer = BASE_LAYER;
     this.selection = new Set();
     this.selDrag = null; // { mode: 'marquee' | 'move', start, end } while a select drag runs
+    this.draft = null; // a curve being bent, or a polygon still getting sides; see commitDraft()
+    this.gesture = null; // { kind: 'bend' | 'polygon', ... } while the pointer works on the draft
+    this.sprayTimer = 0;
+    this.stampKind = 'star';
+    this.zoom = 1; // magnifier level from ZOOM_STEPS; a view setting, not saved with the entry
+    this.xformReady = null; // whether the selection row's buttons are enabled
     this.lifted = null; // { ids, ops, dx, dy }: ops left off the base canvas while they are moved or edited
     this.textDraft = null; // { node, id, a, b, c, f, s, text } for the text box being typed
     this.index = null; // resolved ops and their bounds, rebuilt when the drawing changes
@@ -237,6 +261,7 @@ export class QuireApp {
   /** Saves the open entry, drops it if it is blank, and shows the entries list. */
   async showHome({ history: mode = 'push' } = {}) {
     this.commitTextDraft();
+    this.commitDraft();
     await this.persist('leave');
     if (this.entry && isBlankEntry(this.snapshot())) {
       await this.store.remove(this.entry.id);
@@ -347,8 +372,10 @@ export class QuireApp {
         ),
       ),
     );
+    this.dom.stampRow = this.buildStampRow();
+    this.dom.xformRow = this.buildXformRow();
     this.dom.layers = el('div', { class: 'layer-panel', 'aria-label': 'Layers' });
-    this.dom.toolbox.replaceChildren(tools, sizes, format, this.dom.layers);
+    this.dom.toolbox.replaceChildren(tools, sizes, this.dom.stampRow, this.dom.xformRow, format, this.dom.layers);
     this.renderLayers();
   }
 
@@ -442,6 +469,13 @@ export class QuireApp {
           },
           'sep',
           { label: 'Delete selection', shortcut: 'Del', disabled: !this.selection.size, action: () => this.deleteSelection() },
+          'sep',
+          { label: 'Flip selection horizontally', disabled: !this.selection.size, action: () => this.transformSelection('flip-h') },
+          { label: 'Flip selection vertically', disabled: !this.selection.size, action: () => this.transformSelection('flip-v') },
+          { label: 'Rotate selection clockwise', disabled: !this.selection.size, action: () => this.transformSelection('rotate-cw') },
+          { label: 'Rotate selection counterclockwise', disabled: !this.selection.size, action: () => this.transformSelection('rotate-ccw') },
+          { label: 'Resize selection…', disabled: !this.selection.size, action: () => this.resizeSelection() },
+          'sep',
           { label: 'Clear current layer', disabled: !this.entry || !hasInkOn(this.drawing.ops, this.activeLayer), action: () => this.clearInk(this.activeLayer) },
           { label: 'Clear all layers', disabled: this.drawing.isEmpty, action: () => this.clearInk() },
         ],
@@ -479,6 +513,8 @@ export class QuireApp {
       {
         label: 'View',
         items: () => [
+          { label: 'Actual size', disabled: this.zoom === 1, action: () => this.setZoom(1) },
+          'sep',
           { label: 'Source mode', check: true, checked: Boolean(this.prefs.source), action: () => this.setPref({ source: !this.prefs.source }) },
           'sep',
           { label: 'Show grid', check: true, checked: Boolean(this.prefs.showGrid), action: () => this.setPref({ showGrid: !this.prefs.showGrid }) },
@@ -618,6 +654,8 @@ export class QuireApp {
 
   setTool(id) {
     this.commitTextDraft();
+    this.commitDraft();
+    this.stopSpray();
     this.tool = id;
     this.dom.ink.dataset.tool = id;
     for (const button of this.dom.toolbox.querySelectorAll('[data-tool-id]')) {
@@ -626,6 +664,8 @@ export class QuireApp {
     this.keyPen?.refresh();
     const tool = TOOLS.find((item) => item.id === id);
     this.dom.hint.textContent = tool?.hint ?? '';
+    if (this.dom.stampRow) this.dom.stampRow.hidden = id !== 'stamp';
+    if (this.dom.xformRow) this.dom.xformRow.hidden = id !== 'select';
     if (id !== 'select' && this.selection.size) {
       this.selection = new Set();
       this.requestRedraw();
@@ -657,23 +697,26 @@ export class QuireApp {
     this.dom.toolbox.querySelector(`[data-size="${next}"]`)?.focus();
   }
 
-  /** The size row means stroke width for drawing tools and font size for the text box tool. */
+  /** The size row means stroke width for drawing tools, font size for the text box, and size for stamps. */
   renderSizeRow() {
-    const textMode = this.tool === 'text';
+    const mode = this.tool === 'text' ? 'text' : this.tool === 'stamp' ? 'stamp' : '';
     const row = this.dom.toolbox.querySelector('.size-row');
     if (!row) return;
-    row.classList.toggle('is-text', textMode);
+    row.classList.toggle('is-text', mode !== '');
     for (const button of row.querySelectorAll('[data-size]')) {
       const size = Number(button.dataset.size);
-      button.setAttribute('aria-label', textMode ? `Text size ${size}` : `Stroke ${size}`);
-      button.title = textMode ? 'Text size' : 'Stroke width';
       const bar = button.querySelector('span');
-      if (textMode) {
+      if (mode) {
+        const name = mode === 'text' ? 'Text' : 'Stamp';
+        button.setAttribute('aria-label', `${name} size ${size}`);
+        button.title = `${name} size`;
         bar.className = 'size-letter';
         bar.style.height = '';
         bar.style.fontSize = `${SIZE_LETTER_PX[size] ?? 14}px`;
-        bar.textContent = 'A';
+        bar.textContent = mode === 'text' ? 'A' : '★';
       } else {
+        button.setAttribute('aria-label', `Stroke ${size}`);
+        button.title = 'Stroke width';
         bar.className = '';
         bar.style.height = `${size}px`;
         bar.style.fontSize = '';
@@ -916,11 +959,14 @@ export class QuireApp {
       const { dx, dy } = this.lifted;
       for (const op of this.lifted.ops) applyOp(ctx, moveOp(op, dx, dy), this.scale);
     }
+    const draft = this.draftOp();
+    if (draft) applyOp(ctx, draft, this.scale);
     if (this.live) {
       if (this.live.t === 'textbox') this.dashedBox(ctx, this.live.a, this.live.b);
       else applyOp(ctx, this.live, this.scale);
     }
     this.drawSelectionFrame(ctx);
+    this.syncXformRow();
   }
 
   requestRedraw() {
@@ -1002,6 +1048,7 @@ export class QuireApp {
   /** Undo follows the surface you touched last: ink or text. */
   undo() {
     this.commitTextDraft();
+    this.commitDraft();
     if (this.lastSurface === 'ink' && this.drawing.canUndo) {
       this.undoInk();
       return;
@@ -1011,6 +1058,7 @@ export class QuireApp {
 
   redo() {
     this.commitTextDraft();
+    this.commitDraft();
     if (this.lastSurface === 'ink' && this.drawing.canRedo) {
       this.redoInk();
       return;
@@ -1059,9 +1107,41 @@ export class QuireApp {
       this.beginText(p);
       return;
     }
+    if (this.tool === 'magnifier') {
+      this.zoomAt(event, event.shiftKey);
+      return;
+    }
     this.ensureActiveVisible();
     if (this.tool === 'fill') {
       this.commit({ t: 'fill', l: this.activeLayer, c: this.fg, at: [p.x, p.y] });
+      return;
+    }
+    if (this.tool === 'stamp') {
+      const size = STAMP_SIZES[this.size] ?? STAMP_SIZES[3];
+      this.commit({
+        t: 'stamp',
+        k: this.stampKind,
+        l: this.activeLayer,
+        c: this.fg,
+        a: this.snapPoint(p),
+        s: size,
+        w: Math.round(size * 0.05 * 100) / 100,
+      });
+      return;
+    }
+    if (this.tool === 'polygon') {
+      // A double-click ends the shape where it stands.
+      if (event.detail >= 2 && this.draft?.tool === 'polygon') {
+        this.commitDraft();
+        return;
+      }
+      this.capturePointer(event);
+      this.beginPolygonPress(p);
+      return;
+    }
+    if (this.tool === 'curve' && this.draft?.tool === 'curve') {
+      this.capturePointer(event);
+      this.beginBend(p);
       return;
     }
     this.capturePointer(event);
@@ -1069,13 +1149,22 @@ export class QuireApp {
     this.rawEnd = [p.x, p.y];
     const w = Math.round(strokeWidth(this.tool, this.size) * 100) / 100;
     // With snap to grid on, a drag starts on the nearest grid node.
-    const start = this.prefs.snapGrid ? snapToGrid([p.x, p.y]) : [p.x, p.y];
-    // Only pen input records pressure, and the highlighter ignores it, so mouse and touch strokes stay as they were.
-    this.livePen = event.pointerType === 'pen' && this.tool !== 'marker';
-    this.live = SHAPE_TOOLS.has(this.tool)
-      ? { t: this.tool, l: this.activeLayer, c: this.fg, w, a: start, b: start }
-      : { t: 'stroke', l: this.activeLayer, tool: this.tool, c: this.fg, w, p: [this.livePen ? [...start, penPressure(event)] : start] };
+    const start = this.snapPoint(p);
+    // Only pen input records pressure. The highlighter and spray ignore it, so their strokes stay even.
+    this.livePen = event.pointerType === 'pen' && this.tool !== 'marker' && this.tool !== 'spray';
+    if (this.tool === 'curve') {
+      this.live = { t: 'curve', l: this.activeLayer, c: this.fg, w, a: start, b: start, ...straightCurve(start, start) };
+    } else if (SHAPE_TOOLS.has(this.tool)) {
+      this.live = { t: this.tool, l: this.activeLayer, c: this.fg, w, a: start, b: start };
+    } else {
+      this.live = { t: 'stroke', l: this.activeLayer, tool: this.tool, c: this.fg, w, p: [this.livePen ? [...start, penPressure(event)] : start] };
+    }
+    if (this.tool === 'spray') this.startSpray();
     this.requestRedraw();
+  }
+
+  snapPoint(p) {
+    return this.prefs.snapGrid ? snapToGrid([p.x, p.y]) : [p.x, p.y];
   }
 
   constraints() {
@@ -1086,6 +1175,7 @@ export class QuireApp {
   updateShapeEnd() {
     if (!this.live || !SHAPE_TOOLS.has(this.live.t) || !this.rawEnd) return;
     this.live.b = shapeEnd(this.live.t, this.live.a, this.rawEnd, this.constraints());
+    if (this.live.t === 'curve') Object.assign(this.live, straightCurve(this.live.a, this.live.b));
   }
 
   onPointerMove(event) {
@@ -1096,14 +1186,20 @@ export class QuireApp {
       this.requestRedraw();
       return;
     }
+    if (this.gesture) {
+      this.updateGesture(this.pointFromEvent(event));
+      this.requestRedraw();
+      return;
+    }
     if (!this.live) return;
     if (this.live.t === 'stroke') {
       const pts = this.live.p;
+      const step = this.live.tool === 'spray' ? SPRAY_STEP : 0.5;
       const coalesced = event.getCoalescedEvents?.() ?? [];
       for (const sample of coalesced.length ? coalesced : [event]) {
         const p = this.pointFromEvent(sample);
         const last = pts[pts.length - 1];
-        if (Math.hypot(p.x - last[0], p.y - last[1]) >= 0.5) {
+        if (Math.hypot(p.x - last[0], p.y - last[1]) >= step) {
           pts.push(this.livePen ? [p.x, p.y, penPressure(sample)] : [p.x, p.y]);
         }
       }
@@ -1122,6 +1218,7 @@ export class QuireApp {
     if (this.pointerId === null || event.pointerId !== this.pointerId) return;
     this.shiftHeld = event.shiftKey;
     this.pointerId = null;
+    this.stopSpray();
     try {
       if (this.dom.ink.hasPointerCapture(event.pointerId)) this.dom.ink.releasePointerCapture(event.pointerId);
     } catch {
@@ -1129,6 +1226,10 @@ export class QuireApp {
     }
     if (this.selDrag) {
       this.finishSelectDrag();
+      return;
+    }
+    if (this.gesture) {
+      this.finishGesture(event);
       return;
     }
     if (!this.live) return;
@@ -1144,11 +1245,272 @@ export class QuireApp {
     const op = this.live;
     this.live = null;
     this.rawEnd = null;
+    if (op.t === 'curve') {
+      this.startCurveDraft(op);
+      return;
+    }
     if (op.t !== 'stroke' && op.a[0] === op.b[0] && op.a[1] === op.b[1]) {
       this.redraw();
       return;
     }
     this.commit(op);
+  }
+
+  // ---------- spray, curves and polygons ----------
+
+  startSpray() {
+    this.stopSpray();
+    // Holding still keeps spraying: each tick adds a sample where the pointer rests.
+    this.sprayTimer = setInterval(() => {
+      if (!this.live || this.live.t !== 'stroke') return;
+      const last = this.live.p[this.live.p.length - 1];
+      this.live.p.push([...last]);
+      this.requestRedraw();
+    }, SPRAY_TICK_MS);
+  }
+
+  stopSpray() {
+    if (this.sprayTimer) clearInterval(this.sprayTimer);
+    this.sprayTimer = 0;
+  }
+
+  /** A curve's chord is drawn; the curve is then bent by drags until it is finished. */
+  startCurveDraft(op) {
+    if (op.a[0] === op.b[0] && op.a[1] === op.b[1]) {
+      this.redraw();
+      return;
+    }
+    this.draft = { tool: 'curve', op: { ...op }, bends: 0 };
+    this.requestRedraw();
+  }
+
+  /** Begins one bend of the pending curve. The first bend lifts the middle to the pointer; the second reshapes the far half. */
+  beginBend(p) {
+    const { op, bends } = this.draft;
+    this.gesture = {
+      kind: 'bend',
+      start: p,
+      moved: false,
+      snap: { a: op.a, b: op.b, c1: op.c1, c2: op.c2 },
+      t: bends === 0 ? 0.5 : 0.75,
+      which: bends === 0 ? 'both' : 'end',
+    };
+  }
+
+  /** A press on the polygon adds a side from its last point when released. A press on the first point closes it. */
+  beginPolygonPress(p) {
+    if (!this.draft) {
+      this.draft = {
+        tool: 'polygon',
+        pts: [this.snapPoint(p)],
+        rubber: null,
+        l: this.activeLayer,
+        c: this.fg,
+        w: Math.round(strokeWidth('polygon', this.size) * 100) / 100,
+      };
+      this.gesture = { kind: 'polygon', start: p, moved: false, closing: false };
+      return;
+    }
+    const first = this.draft.pts[0];
+    const reach = CLOSE_REACH_PX / this.inkCssScale();
+    const closing = this.draft.pts.length >= 3 && Math.hypot(p.x - first[0], p.y - first[1]) <= reach;
+    this.gesture = { kind: 'polygon', start: p, moved: false, closing };
+    this.requestRedraw();
+  }
+
+  updateGesture(p) {
+    const g = this.gesture;
+    if (Math.hypot(p.x - g.start.x, p.y - g.start.y) > MOVE_SLOP) g.moved = true;
+    if (g.kind === 'bend') {
+      Object.assign(this.draft.op, bendCurve(g.snap, g.t, [p.x, p.y], g.which));
+      return;
+    }
+    // A side follows the pointer from the last point, and takes Shift and the snaps like a line.
+    const last = this.draft.pts[this.draft.pts.length - 1];
+    this.draft.rubber = shapeEnd('line', last, [p.x, p.y], this.constraints());
+  }
+
+  finishGesture(event) {
+    const g = this.gesture;
+    this.gesture = null;
+    const d = this.draft;
+    const p = this.pointFromEvent(event);
+    if (g.kind === 'bend') {
+      // A click without a drag finishes the curve as it stands.
+      if (!g.moved) {
+        this.commitDraft();
+        return;
+      }
+      d.bends += 1;
+      if (d.bends >= 2) this.commitDraft();
+      else this.requestRedraw();
+      return;
+    }
+    if (g.closing) {
+      this.commitDraft(true);
+      return;
+    }
+    const last = d.pts[d.pts.length - 1];
+    const end = shapeEnd('line', last, [p.x, p.y], this.constraints());
+    d.rubber = null;
+    if (end[0] !== last[0] || end[1] !== last[1]) d.pts.push(end);
+    this.requestRedraw();
+  }
+
+  /** The shape still being built, drawn the way it will print. */
+  draftOp() {
+    const d = this.draft;
+    if (!d) return null;
+    if (d.tool === 'curve') return d.op;
+    const pts = d.rubber ? [...d.pts, d.rubber] : d.pts;
+    return { t: 'poly', c: d.c, w: d.w, pts, closed: false };
+  }
+
+  /** Writes the pending curve or polygon into the drawing. A polygon needs two different points. */
+  commitDraft(closed = false) {
+    const d = this.draft;
+    this.draft = null;
+    this.gesture = null;
+    if (!d) return;
+    if (d.tool === 'curve') {
+      this.commit({ ...d.op });
+      return;
+    }
+    const distinct = d.pts.some((q) => q[0] !== d.pts[0][0] || q[1] !== d.pts[0][1]);
+    if (d.pts.length < 2 || !distinct) {
+      this.requestRedraw();
+      return;
+    }
+    this.commit({ t: 'poly', l: d.l, c: d.c, w: d.w, pts: d.pts, closed });
+  }
+
+  // ---------- magnifier ----------
+
+  /** Steps the sheet to the next zoom level, or back with Shift, keeping the spot under the pointer in place. */
+  zoomAt(event, out) {
+    const at = ZOOM_STEPS.indexOf(this.zoom);
+    const next = ZOOM_STEPS[Math.min(ZOOM_STEPS.length - 1, Math.max(0, at + (out ? -1 : 1)))];
+    if (next !== this.zoom) this.setZoom(next, event.clientX, event.clientY);
+  }
+
+  /**
+   * Zooms the sheet with CSS zoom, so text, margins and ink all grow together.
+   * The ink canvas keeps its pixel size and is stretched, so memory stays flat.
+   */
+  setZoom(level, clientX, clientY) {
+    const { sheet } = this.dom;
+    const desk = sheet.parentElement;
+    const deskBox = desk.getBoundingClientRect();
+    const ax = clientX ?? deskBox.left + desk.clientWidth / 2;
+    const ay = clientY ?? deskBox.top + desk.clientHeight / 2;
+    const before = sheet.getBoundingClientRect();
+    const fx = before.width ? (ax - before.left) / before.width : 0;
+    const fy = before.height ? (ay - before.top) / before.height : 0;
+    this.zoom = level;
+    sheet.style.zoom = level === 1 ? '' : String(level);
+    const after = sheet.getBoundingClientRect();
+    desk.scrollLeft += after.left + fx * after.width - ax;
+    desk.scrollTop += after.top + fy * after.height - ay;
+    if (this.tool === 'magnifier') {
+      this.dom.hint.textContent = `Zoom ${Math.round(level * 100)}%. Click to zoom in, Shift-click to zoom out.`;
+    }
+    this.requestSync();
+  }
+
+  // ---------- flip, rotate and resize ----------
+
+  /** Applies a flip, a 90° turn, or a resize to the selection, about the middle of its box. */
+  transformSelection(kind, kx = 1, ky = 1) {
+    if (!this.selection.size || !this.entry) return;
+    const { bounds } = this.inkIndex();
+    let x0 = Infinity;
+    let y0 = Infinity;
+    let x1 = -Infinity;
+    let y1 = -Infinity;
+    for (const id of this.selection) {
+      const box = bounds.get(id);
+      if (!box) continue;
+      x0 = Math.min(x0, box[0]);
+      y0 = Math.min(y0, box[1]);
+      x1 = Math.max(x1, box[2]);
+      y1 = Math.max(y1, box[3]);
+    }
+    if (!Number.isFinite(x0)) return;
+    const m = selectionMatrix(kind, (x0 + x1) / 2, (y0 + y1) / 2, kx, ky);
+    this.commit({ t: 'xform', ids: [...this.selection], m });
+  }
+
+  resizeSelection() {
+    if (!this.selection.size || !this.entry) return;
+    resizeDialog({ onSave: (kx, ky) => this.transformSelection('resize', kx, ky) });
+  }
+
+  // ---------- toolbox rows for stamps and the selection ----------
+
+  buildStampRow() {
+    return el(
+      'div',
+      { class: 'stamp-row', role: 'radiogroup', 'aria-label': 'Stamp shape', hidden: this.tool !== 'stamp' },
+      STAMP_KINDS.map((kind) => {
+        const button = el('button', {
+          class: 'stamp-btn',
+          type: 'button',
+          role: 'radio',
+          title: STAMP_LABELS[kind],
+          'aria-label': STAMP_LABELS[kind],
+          'aria-checked': String(kind === this.stampKind),
+          'data-stamp': kind,
+          onMousedown: prevent,
+          onClick: () => this.setStampKind(kind),
+        });
+        button.innerHTML = icon(kind);
+        return button;
+      }),
+    );
+  }
+
+  setStampKind(kind) {
+    this.stampKind = kind;
+    for (const button of this.dom.stampRow.querySelectorAll('[data-stamp]')) {
+      button.setAttribute('aria-checked', String(button.dataset.stamp === kind));
+    }
+  }
+
+  buildXformRow() {
+    const actions = [
+      { icon: 'flipH', label: 'Flip horizontally', run: () => this.transformSelection('flip-h') },
+      { icon: 'flipV', label: 'Flip vertically', run: () => this.transformSelection('flip-v') },
+      { icon: 'rotate', label: 'Rotate 90° clockwise', run: () => this.transformSelection('rotate-cw') },
+      { icon: 'resize', label: 'Resize selection', run: () => this.resizeSelection() },
+    ];
+    const hasSelection = this.selection.size > 0;
+    this.xformReady = hasSelection;
+    return el(
+      'div',
+      { class: 'xform-row', role: 'group', 'aria-label': 'Selection', hidden: this.tool !== 'select' },
+      actions.map((action) => {
+        const button = el('button', {
+          class: 'xform-btn',
+          type: 'button',
+          title: action.label,
+          'aria-label': action.label,
+          disabled: !hasSelection,
+          onMousedown: prevent,
+          onClick: action.run,
+        });
+        button.innerHTML = icon(action.icon);
+        return button;
+      }),
+    );
+  }
+
+  /** Enables the selection row's buttons only while something is selected. */
+  syncXformRow() {
+    const row = this.dom.xformRow;
+    const has = this.selection.size > 0;
+    if (!row || this.xformReady === has) return;
+    this.xformReady = has;
+    for (const button of row.querySelectorAll('button')) button.disabled = !has;
   }
 
   // ---------- select and move ----------
@@ -1499,6 +1861,7 @@ export class QuireApp {
   async openEntry(id, { history: mode = 'push' } = {}) {
     if (this.entry?.id === id && this.view === 'editor') return;
     this.commitTextDraft();
+    this.commitDraft();
     await this.persist('leave');
     if (this.entry && isBlankEntry(this.snapshot())) {
       await this.store.remove(this.entry.id);
@@ -1823,6 +2186,11 @@ export class QuireApp {
       return;
     }
     if (typing || event.altKey || this.view === 'home') return;
+    if (this.draft && (event.key === 'Enter' || event.key === 'Escape')) {
+      event.preventDefault();
+      this.commitDraft();
+      return;
+    }
     if (this.selection.size) {
       if (event.key === 'Delete' || event.key === 'Backspace') {
         event.preventDefault();
