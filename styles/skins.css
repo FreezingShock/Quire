@@ -161,6 +161,11 @@ html[data-skin="luna"].has-wallpaper { background: #3a6fd6; }
   background: linear-gradient(to bottom, #6fa1f5, #2b62d0 60%, #2452b8);
   border-color: #003c74;
 }
+/* The danger button takes white text, so it gets a red face instead of Luna's pale one. */
+[data-skin="luna"] .btn-danger {
+  background: linear-gradient(to bottom, #f0917a, #c4472f 60%, #a83a25);
+  border-color: #7a2516;
+}
 [data-skin="luna"] .splash {
   background: radial-gradient(ellipse at 50% 120%, #5aa6ff 0%, #1c5fd6 45%, #0a2f8a 100%);
 }
