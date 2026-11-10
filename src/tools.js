@@ -7,13 +7,15 @@ export const TOOLS = [
   { id: 'pencil', label: 'Pencil', key: 'P', icon: 'pencil', hint: 'Pencil: drag to draw a thin line in the ink color.' },
   { id: 'brush', label: 'Brush', key: 'B', icon: 'brush', hint: 'Brush: drag to paint. Choose a width under the tools.' },
   { id: 'marker', label: 'Highlighter', key: 'H', icon: 'marker', hint: 'Highlighter: drag for a see-through stroke. Overlaps stay translucent.' },
-  { id: 'eraser', label: 'Eraser', key: 'E', icon: 'eraser', hint: 'Eraser: drag to rub out ink. Typed text is not affected.' },
+  { id: 'eraser', label: 'Eraser', key: 'E', icon: 'eraser', hint: 'Eraser: drag to rub out ink on the current layer. Markdown text is not affected.' },
   { id: 'line', label: 'Line', key: 'L', icon: 'line', hint: 'Line: drag to draw a straight line. Hold Shift for 45° steps.' },
   { id: 'rect', label: 'Rectangle', key: 'R', icon: 'rect', hint: 'Rectangle: drag from one corner to the other. Hold Shift for a square.' },
   { id: 'ellipse', label: 'Ellipse', key: 'O', icon: 'ellipse', hint: 'Ellipse: drag to set the size of the oval. Hold Shift for a circle.' },
+  { id: 'select', label: 'Select', key: 'S', icon: 'select', hint: 'Select: drag a box around ink or text, or press on one piece to move it. Delete removes it. Arrow keys nudge it.' },
+  { id: 'text', label: 'Text box', key: 'A', icon: 'textbox', hint: 'Text box: drag to set the width, then type. Click existing text to edit it. Escape finishes.' },
 ];
 
-export const POINTER_TOOLS = new Set(['pick', 'fill', 'pencil', 'brush', 'marker', 'eraser', 'line', 'rect', 'ellipse']);
+export const POINTER_TOOLS = new Set(['pick', 'fill', 'pencil', 'brush', 'marker', 'eraser', 'line', 'rect', 'ellipse', 'select', 'text']);
 export const SHAPE_TOOLS = new Set(['line', 'rect', 'ellipse']);
 export const TOOL_BY_KEY = Object.fromEntries(TOOLS.map((tool) => [tool.key.toLowerCase(), tool.id]));
 export const STROKE_SIZES = [1, 3, 6];

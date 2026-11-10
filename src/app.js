@@ -19,7 +19,33 @@ import {
 } from './model.js';
 import { wordCount } from './markdown.js';
 import { LiveEditor } from './livetext.js';
-import { Drawing, NORM_WIDTH, applyOp, inkExtent, paintGrid, paintOps, sampleColor, strokeWidth } from './drawing.js';
+import {
+  BASE_LAYER,
+  DEFAULT_TEXT_WIDTH,
+  Drawing,
+  InkStack,
+  MAX_LAYERS,
+  NORM_WIDTH,
+  TEXT_FONTS,
+  TEXT_SIZES,
+  applyOp,
+  hasInkOn,
+  hitOp,
+  inkExtent,
+  layerOf,
+  moveOp,
+  newLayerId,
+  normalizeLayers,
+  opBounds,
+  opsInRect,
+  paintGrid,
+  replayInk,
+  resolveOps,
+  sampleColor,
+  strokeWidth,
+  visibleLayerIds,
+} from './drawing.js';
+import { renderLayerPanel } from './layers.js';
 import { shapeEnd, snapToGrid } from './snap.js';
 import { FORMAT_BUTTONS, PALETTE, POINTER_TOOLS, SHAPE_TOOLS, STROKE_SIZES, TOOLS, TOOL_BY_KEY } from './tools.js';
 import {
@@ -47,11 +73,13 @@ import { confirmDialog, entriesDialog, showAbout, showShortcuts } from './dialog
 import { HomeView } from './home.js';
 
 const SAVE_DELAY_MS = 400;
-const FONT_STACKS = {
-  serif: '"Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif',
-  sans: 'system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
-  mono: 'ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace',
-};
+const FONT_STACKS = TEXT_FONTS;
+const NUDGE = 5;
+/** Letter size on the size row while the text box tool is active. */
+const SIZE_LETTER_PX = { 1: 11, 3: 15, 6: 19 };
+const NUDGE_FAST = 25;
+/** Ops that can be added to the canvas one at a time without a full replay. */
+const INCREMENTAL_OPS = new Set(['stroke', 'line', 'rect', 'ellipse', 'fill', 'text', 'clear']);
 const FONT_LABELS = { serif: 'Serif', sans: 'Sans', mono: 'Monospace' };
 
 const $ = (selector) => document.querySelector(selector);
@@ -99,6 +127,7 @@ export class QuireApp {
       ink: $('#ink'),
       grid: $('#grid'),
       toolbox: $('#toolbox'),
+      layers: null,
       swatches: $('#swatches'),
       inkChip: $('#ink-chip'),
       hint: $('#hint'),
@@ -129,6 +158,14 @@ export class QuireApp {
     this.live = null;
     this.livePen = false;
     this.pointerId = null;
+    this.stack = null; // per-layer canvases, rebuilt when the sheet size changes
+    this.layers = [];
+    this.activeLayer = BASE_LAYER;
+    this.selection = new Set();
+    this.selDrag = null; // { mode: 'marquee' | 'move', start, end } while a select drag runs
+    this.lifted = null; // { ids, ops, dx, dy }: ops left off the base canvas while they are moved or edited
+    this.textDraft = null; // { node, id, a, b, c, f, s, text } for the text box being typed
+    this.index = null; // resolved ops and their bounds, rebuilt when the drawing changes
     this.lastSurface = 'text';
     this.saveTimer = 0;
     this.saveChain = Promise.resolve();
@@ -219,11 +256,16 @@ export class QuireApp {
 
   /** Saves the open entry, drops it if it is blank, and shows the entries list. */
   async showHome({ history: mode = 'push' } = {}) {
+    this.commitTextDraft();
     await this.persist();
     if (this.entry && isBlankEntry(this.snapshot())) {
       await this.store.remove(this.entry.id);
     }
     this.entry = null;
+    this.layers = [];
+    this.selection = new Set();
+    this.lifted = null;
+    this.renderLayers();
     this.lastSurface = 'text';
     // Load the list before the view appears, so a stale list never flashes.
     const entries = await this.store.list();
@@ -289,26 +331,22 @@ export class QuireApp {
 
   buildToolbox() {
     const tools = el('div', { class: 'tool-grid', role: 'group', 'aria-label': 'Tools' }, TOOLS.map((tool) => this.toolButton(tool)));
-    const sizes = el(
-      'div',
-      { class: 'size-row', role: 'radiogroup', 'aria-label': 'Stroke width' },
-      STROKE_SIZES.map((size) =>
-        el(
-          'button',
-          {
-            class: 'size-btn',
-            type: 'button',
-            role: 'radio',
-            'aria-label': `Stroke ${size}`,
-            'aria-checked': String(size === this.size),
-            'data-size': size,
-            onMousedown: prevent,
-            onClick: () => this.setSize(size),
-          },
-          el('span', { style: `height: ${size}px` }),
-        ),
+    const sizes = el('div', { class: 'size-row', role: 'radiogroup', 'aria-label': 'Stroke width' }, STROKE_SIZES.map((size) =>
+      el(
+        'button',
+        {
+          class: 'size-btn',
+          type: 'button',
+          role: 'radio',
+          'aria-label': `Stroke ${size}`,
+          'aria-checked': String(size === this.size),
+          'data-size': size,
+          onMousedown: prevent,
+          onClick: () => this.setSize(size),
+        },
+        el('span', { style: `height: ${size}px` }),
       ),
-    );
+    ));
     const format = el(
       'div',
       { class: 'format-grid', role: 'group', 'aria-label': 'Text formatting' },
@@ -340,7 +378,26 @@ export class QuireApp {
       },
       'Source',
     );
-    this.dom.toolbox.replaceChildren(tools, sizes, format, source);
+    this.dom.layers = el('div', { class: 'layer-panel', 'aria-label': 'Layers' });
+    this.dom.toolbox.replaceChildren(tools, sizes, format, source, this.dom.layers);
+    this.renderLayers();
+  }
+
+  /** Mirrors the layer list into the toolbox panel. */
+  renderLayers() {
+    if (!this.dom.layers) return;
+    renderLayerPanel(
+      this.dom.layers,
+      { layers: this.layers, activeId: this.activeLayer, enabled: Boolean(this.entry) },
+      {
+        onSelect: (id) => this.selectLayer(id),
+        onToggle: (id) => this.toggleLayer(id),
+        onRename: (id, name) => this.renameLayer(id, name),
+        onMove: (id, dir) => this.moveLayer(id, dir),
+        onAdd: () => this.addLayer(),
+        onDelete: (id) => this.deleteLayer(id),
+      },
+    );
   }
 
   buildSwatches() {
@@ -397,7 +454,10 @@ export class QuireApp {
               this.dom.editor.select();
             },
           },
-          { label: 'Clear drawing', disabled: this.drawing.isEmpty, action: () => this.clearInk() },
+          'sep',
+          { label: 'Delete selection', shortcut: 'Del', disabled: !this.selection.size, action: () => this.deleteSelection() },
+          { label: 'Clear current layer', disabled: !this.entry || !hasInkOn(this.drawing.ops, this.activeLayer), action: () => this.clearInk(this.activeLayer) },
+          { label: 'Clear all layers', disabled: this.drawing.isEmpty, action: () => this.clearInk() },
         ],
       },
       {
@@ -541,6 +601,7 @@ export class QuireApp {
   // ---------- tools and modes ----------
 
   setTool(id) {
+    this.commitTextDraft();
     this.tool = id;
     this.dom.ink.dataset.tool = id;
     for (const button of this.dom.toolbox.querySelectorAll('[data-tool-id]')) {
@@ -548,6 +609,11 @@ export class QuireApp {
     }
     const tool = TOOLS.find((item) => item.id === id);
     this.dom.hint.textContent = tool?.hint ?? '';
+    if (id !== 'select' && this.selection.size) {
+      this.selection = new Set();
+      this.requestRedraw();
+    }
+    this.renderSizeRow();
     // Picking a drawing tool takes focus out of any text field, so tool keys work and letters are not typed.
     if (id === 'write') this.dom.editor.focus({ preventScroll: true });
     else if (isTextTarget(document.activeElement)) document.activeElement.blur();
@@ -557,6 +623,31 @@ export class QuireApp {
     this.size = size;
     for (const button of this.dom.toolbox.querySelectorAll('[data-size]')) {
       button.setAttribute('aria-checked', String(Number(button.dataset.size) === size));
+    }
+  }
+
+  /** The size row means stroke width for drawing tools and font size for the text box tool. */
+  renderSizeRow() {
+    const textMode = this.tool === 'text';
+    const row = this.dom.toolbox.querySelector('.size-row');
+    if (!row) return;
+    row.classList.toggle('is-text', textMode);
+    for (const button of row.querySelectorAll('[data-size]')) {
+      const size = Number(button.dataset.size);
+      button.setAttribute('aria-label', textMode ? `Text size ${size}` : `Stroke ${size}`);
+      button.title = textMode ? 'Text size' : 'Stroke width';
+      const bar = button.querySelector('span');
+      if (textMode) {
+        bar.className = 'size-letter';
+        bar.style.height = '';
+        bar.style.fontSize = `${SIZE_LETTER_PX[size] ?? 14}px`;
+        bar.textContent = 'A';
+      } else {
+        bar.className = '';
+        bar.style.height = `${size}px`;
+        bar.style.fontSize = '';
+        bar.textContent = '';
+      }
     }
   }
 
@@ -677,7 +768,7 @@ export class QuireApp {
     });
   }
 
-  /** Resize both canvases to the sheet. A size change rebuilds the base from the ops. */
+  /** Resize the canvases to the sheet. A size change makes new layer canvases and replays the ops. */
   syncCanvas() {
     const { sheet, ink } = this.dom;
     const cssW = sheet.clientWidth;
@@ -694,18 +785,63 @@ export class QuireApp {
       ink.height = h;
       this.dom.grid.width = w;
       this.dom.grid.height = h;
+      this.stack = new InkStack(w, h);
     }
     this.scale = w / NORM_WIDTH;
-    if (resized) paintOps(this.baseCtx, this.drawing.ops, this.scale);
+    if (resized) this.rebuildInk();
     if (this.prefs.showGrid) paintGrid(this.gridCtx, this.scale);
+    this.positionTextDraft();
     this.redraw();
+  }
+
+  /** Replays every op into the layer stack, then composites the visible layers onto the base canvas. */
+  rebuildInk() {
+    if (!this.stack) return;
+    this.stack.setLayers(this.layers.map((layer) => layer.id));
+    this.stack.reset();
+    replayInk(this.stack, this.drawing.ops, this.scale, this.lifted?.ids ?? null);
+    this.stack.composite(this.baseCtx, visibleLayerIds(this.layers));
+    this.redraw();
+  }
+
+  /** Resolved ops with their bounds. Cached until the drawing changes. */
+  inkIndex() {
+    if (this.index?.drawing === this.drawing && this.index.version === this.drawing.version) return this.index;
+    const ops = resolveOps(this.drawing.ops);
+    const bounds = new Map();
+    for (const op of ops) {
+      const box = opBounds(op);
+      if (box) bounds.set(op.id, box);
+    }
+    this.index = { drawing: this.drawing, version: this.drawing.version, ops, bounds };
+    return this.index;
+  }
+
+  /** Ops on visible layers only. Selection and hit tests use these. */
+  visibleOps() {
+    const visible = new Set(visibleLayerIds(this.layers));
+    return this.inkIndex().ops.filter((op) => visible.has(layerOf(op)));
+  }
+
+  /** Device-pixel scale of the drawing layer on screen, for placing the text field. */
+  inkCssScale() {
+    const width = this.dom.ink.getBoundingClientRect().width;
+    return width ? width / NORM_WIDTH : 1;
   }
 
   redraw() {
     const ctx = this.inkCtx;
     ctx.clearRect(0, 0, this.dom.ink.width, this.dom.ink.height);
     ctx.drawImage(this.base, 0, 0);
-    if (this.live) applyOp(ctx, this.live, this.scale);
+    if (this.lifted?.ops.length) {
+      const { dx, dy } = this.lifted;
+      for (const op of this.lifted.ops) applyOp(ctx, moveOp(op, dx, dy), this.scale);
+    }
+    if (this.live) {
+      if (this.live.t === 'textbox') this.dashedBox(ctx, this.live.a, this.live.b);
+      else applyOp(ctx, this.live, this.scale);
+    }
+    this.drawSelectionFrame(ctx);
   }
 
   requestRedraw() {
@@ -716,40 +852,77 @@ export class QuireApp {
     });
   }
 
+  /** Dashed Paint-style box between two points in normalized units. */
+  dashedBox(ctx, a, b) {
+    const s = this.scale;
+    const dpr = window.devicePixelRatio || 1;
+    const x0 = Math.min(a[0], b[0]) * s;
+    const y0 = Math.min(a[1], b[1]) * s;
+    const x1 = Math.max(a[0], b[0]) * s;
+    const y1 = Math.max(a[1], b[1]) * s;
+    ctx.save();
+    ctx.strokeStyle = '#2b5797';
+    ctx.lineWidth = Math.max(1, dpr);
+    ctx.setLineDash([4 * dpr, 3 * dpr]);
+    ctx.strokeRect(x0 + 0.5, y0 + 0.5, x1 - x0, y1 - y0);
+    ctx.restore();
+  }
+
+  /** Dashed boxes around the selected ops, and the marquee while it is dragged. */
+  drawSelectionFrame(ctx) {
+    const marquee = this.selDrag?.mode === 'marquee';
+    if (!this.selection.size && !marquee) return;
+    const s = this.scale;
+    const { bounds } = this.inkIndex();
+    const dx = this.lifted?.dx ?? 0;
+    const dy = this.lifted?.dy ?? 0;
+    for (const id of this.selection) {
+      const box = bounds.get(id);
+      if (!box) continue;
+      const moved = this.lifted?.ids.has(id);
+      const ox = moved ? dx : 0;
+      const oy = moved ? dy : 0;
+      this.dashedBox(ctx, [box[0] + ox - 3, box[1] + oy - 3], [box[2] + ox + 3, box[3] + oy + 3]);
+    }
+    if (marquee) this.dashedBox(ctx, [this.selDrag.start.x, this.selDrag.start.y], [this.selDrag.end.x, this.selDrag.end.y]);
+  }
+
+  /** Records an op on the drawing and brings the canvas up to date. Drawing ops are added in place; the rest replay. */
   commit(op) {
     this.drawing.commit(op);
     this.lastSurface = 'ink';
-    applyOp(this.baseCtx, op, this.scale);
-    this.redraw();
+    if (INCREMENTAL_OPS.has(op.t) && this.stack && !this.lifted) {
+      this.stack.apply(op, this.scale);
+      this.stack.composite(this.baseCtx, visibleLayerIds(this.layers));
+      this.redraw();
+    } else {
+      this.rebuildInk();
+    }
     this.scheduleSave();
+    return op;
   }
 
   undoInk() {
     if (!this.drawing.undo()) return;
-    paintOps(this.baseCtx, this.drawing.ops, this.scale);
-    this.redraw();
+    this.rebuildInk();
     this.scheduleSave();
   }
 
   redoInk() {
-    const op = this.drawing.redo();
-    if (!op) return;
-    applyOp(this.baseCtx, op, this.scale);
-    this.redraw();
+    if (!this.drawing.redo()) return;
+    this.rebuildInk();
     this.scheduleSave();
   }
 
-  clearInk() {
-    if (this.drawing.clear()) {
-      this.lastSurface = 'ink';
-      paintOps(this.baseCtx, this.drawing.ops, this.scale);
-      this.redraw();
-      this.scheduleSave();
-    }
+  /** Clears one layer when `layer` is given, otherwise every layer. Undoable. */
+  clearInk(layer) {
+    if (this.drawing.isEmpty) return;
+    this.commit(layer === undefined ? { t: 'clear' } : { t: 'clear', l: layer });
   }
 
   /** Undo follows the surface you touched last: ink or text. */
   undo() {
+    this.commitTextDraft();
     if (this.lastSurface === 'ink' && this.drawing.canUndo) {
       this.undoInk();
       return;
@@ -758,6 +931,7 @@ export class QuireApp {
   }
 
   redo() {
+    this.commitTextDraft();
     if (this.lastSurface === 'ink' && this.drawing.canRedo) {
       this.redoInk();
       return;
@@ -774,24 +948,44 @@ export class QuireApp {
     };
   }
 
-  onPointerDown(event) {
-    if (event.button !== 0 || !POINTER_TOOLS.has(this.tool)) return;
-    const p = this.pointFromEvent(event);
-    if (this.tool === 'pick') {
-      const hex = sampleColor(this.baseCtx, p.x * this.scale, p.y * this.scale) ?? this.entry?.pageColor ?? DEFAULT_PAGE_COLOR;
-      this.setInk(hex);
-      return;
-    }
-    if (this.tool === 'fill') {
-      this.commit({ t: 'fill', c: this.fg, at: [p.x, p.y] });
-      return;
-    }
+  capturePointer(event) {
     try {
       this.dom.ink.setPointerCapture(event.pointerId);
     } catch {
       // Capture is a nicety; drawing still works without it.
     }
     this.pointerId = event.pointerId;
+  }
+
+  onPointerDown(event) {
+    if (event.button !== 0 || !POINTER_TOOLS.has(this.tool) || !this.entry) return;
+    const p = this.pointFromEvent(event);
+    if (this.tool === 'pick') {
+      const hex = sampleColor(this.baseCtx, p.x * this.scale, p.y * this.scale) ?? this.entry?.pageColor ?? DEFAULT_PAGE_COLOR;
+      this.setInk(hex);
+      return;
+    }
+    if (this.tool === 'select') {
+      event.preventDefault(); // keeps the editor from taking focus or selecting text under the sheet
+      this.shiftHeld = event.shiftKey;
+      this.capturePointer(event);
+      this.beginSelect(event, p);
+      return;
+    }
+    if (this.tool === 'text') {
+      // Without this, the mousedown focus change blurs the text field as soon as it opens.
+      event.preventDefault();
+      this.commitTextDraft();
+      this.capturePointer(event);
+      this.beginText(p);
+      return;
+    }
+    this.ensureActiveVisible();
+    if (this.tool === 'fill') {
+      this.commit({ t: 'fill', l: this.activeLayer, c: this.fg, at: [p.x, p.y] });
+      return;
+    }
+    this.capturePointer(event);
     this.shiftHeld = event.shiftKey;
     this.rawEnd = [p.x, p.y];
     const w = Math.round(strokeWidth(this.tool, this.size) * 100) / 100;
@@ -800,8 +994,8 @@ export class QuireApp {
     // Only pen input records pressure, and the highlighter ignores it, so mouse and touch strokes stay as they were.
     this.livePen = event.pointerType === 'pen' && this.tool !== 'marker';
     this.live = SHAPE_TOOLS.has(this.tool)
-      ? { t: this.tool, c: this.fg, w, a: start, b: start }
-      : { t: 'stroke', tool: this.tool, c: this.fg, w, p: [this.livePen ? [...start, penPressure(event)] : start] };
+      ? { t: this.tool, l: this.activeLayer, c: this.fg, w, a: start, b: start }
+      : { t: 'stroke', l: this.activeLayer, tool: this.tool, c: this.fg, w, p: [this.livePen ? [...start, penPressure(event)] : start] };
     this.requestRedraw();
   }
 
@@ -816,8 +1010,14 @@ export class QuireApp {
   }
 
   onPointerMove(event) {
-    if (!this.live || event.pointerId !== this.pointerId) return;
+    if (this.pointerId === null || event.pointerId !== this.pointerId) return;
     this.shiftHeld = event.shiftKey;
+    if (this.selDrag) {
+      this.updateSelectDrag(this.pointFromEvent(event));
+      this.requestRedraw();
+      return;
+    }
+    if (!this.live) return;
     if (this.live.t === 'stroke') {
       const pts = this.live.p;
       const coalesced = event.getCoalescedEvents?.() ?? [];
@@ -828,6 +1028,9 @@ export class QuireApp {
           pts.push(this.livePen ? [p.x, p.y, penPressure(sample)] : [p.x, p.y]);
         }
       }
+    } else if (this.live.t === 'textbox') {
+      const p = this.pointFromEvent(event);
+      this.live.b = this.prefs.snapGrid ? snapToGrid([p.x, p.y]) : [p.x, p.y];
     } else {
       const p = this.pointFromEvent(event);
       this.rawEnd = [p.x, p.y];
@@ -837,8 +1040,23 @@ export class QuireApp {
   }
 
   onPointerUp(event) {
-    if (!this.live || event.pointerId !== this.pointerId) return;
+    if (this.pointerId === null || event.pointerId !== this.pointerId) return;
     this.shiftHeld = event.shiftKey;
+    this.pointerId = null;
+    try {
+      if (this.dom.ink.hasPointerCapture(event.pointerId)) this.dom.ink.releasePointerCapture(event.pointerId);
+    } catch {
+      // Ignore: the pointer was already released.
+    }
+    if (this.selDrag) {
+      this.finishSelectDrag();
+      return;
+    }
+    if (!this.live) return;
+    if (this.live.t === 'textbox') {
+      this.finishTextBox();
+      return;
+    }
     if (SHAPE_TOOLS.has(this.live.t)) {
       const p = this.pointFromEvent(event);
       this.rawEnd = [p.x, p.y];
@@ -847,17 +1065,280 @@ export class QuireApp {
     const op = this.live;
     this.live = null;
     this.rawEnd = null;
-    this.pointerId = null;
-    try {
-      if (this.dom.ink.hasPointerCapture(event.pointerId)) this.dom.ink.releasePointerCapture(event.pointerId);
-    } catch {
-      // Ignore: the pointer was already released.
-    }
     if (op.t !== 'stroke' && op.a[0] === op.b[0] && op.a[1] === op.b[1]) {
       this.redraw();
       return;
     }
     this.commit(op);
+  }
+
+  // ---------- select and move ----------
+
+  /** A press on an op selects it and starts a move. A press on empty page starts a marquee. */
+  beginSelect(event, p) {
+    const hit = hitOp(this.visibleOps(), [p.x, p.y]);
+    if (hit) {
+      if (!this.selection.has(hit.id)) {
+        if (!event.shiftKey) this.selection = new Set();
+        this.selection.add(hit.id);
+      }
+      this.startMove(p);
+    } else {
+      if (!event.shiftKey) this.selection = new Set();
+      this.selDrag = { mode: 'marquee', start: p, end: p, base: new Set(this.selection) };
+    }
+    this.requestRedraw();
+  }
+
+  /** Lifts the selected ops off the base canvas so the drag can show them moving. */
+  startMove(p) {
+    const ids = new Set(this.selection);
+    const ops = this.visibleOps().filter((op) => ids.has(op.id));
+    this.lifted = { ids, ops, dx: 0, dy: 0 };
+    this.selDrag = { mode: 'move', start: p, end: p };
+    this.rebuildInk();
+  }
+
+  updateSelectDrag(p) {
+    const drag = this.selDrag;
+    drag.end = p;
+    if (drag.mode === 'move') {
+      this.lifted.dx = p.x - drag.start.x;
+      this.lifted.dy = p.y - drag.start.y;
+      return;
+    }
+    const rect = [
+      Math.min(drag.start.x, p.x),
+      Math.min(drag.start.y, p.y),
+      Math.max(drag.start.x, p.x),
+      Math.max(drag.start.y, p.y),
+    ];
+    this.selection = new Set([...drag.base, ...opsInRect(this.visibleOps(), rect)]);
+  }
+
+  finishSelectDrag() {
+    const drag = this.selDrag;
+    this.selDrag = null;
+    if (drag.mode === 'marquee') {
+      this.requestRedraw();
+      return;
+    }
+    const { ids, dx, dy } = this.lifted;
+    this.lifted = null;
+    if (dx || dy) this.commit({ t: 'move', ids: [...ids], dx, dy });
+    else this.rebuildInk();
+  }
+
+  deleteSelection() {
+    if (!this.selection.size || !this.entry) return;
+    const ids = [...this.selection];
+    this.selection = new Set();
+    this.commit({ t: 'delete', ids });
+  }
+
+  nudgeSelection(dx, dy) {
+    if (!this.selection.size || !this.entry) return;
+    this.commit({ t: 'move', ids: [...this.selection], dx, dy });
+  }
+
+  // ---------- text boxes ----------
+
+  /** Pressing empty page starts a box. Pressing existing text edits it. */
+  beginText(p) {
+    this.ensureActiveVisible();
+    const hit = hitOp(this.visibleOps().filter((op) => op.t === 'text'), [p.x, p.y]);
+    if (hit) {
+      this.startTextEdit(hit);
+      return;
+    }
+    const start = this.prefs.snapGrid ? snapToGrid([p.x, p.y]) : [p.x, p.y];
+    this.live = { t: 'textbox', a: start, b: start };
+    this.requestRedraw();
+  }
+
+  finishTextBox() {
+    const { a, b } = this.live;
+    this.live = null;
+    const x0 = Math.min(a[0], b[0]);
+    const x1 = Math.max(a[0], b[0]);
+    const width = x1 - x0 < 40 ? DEFAULT_TEXT_WIDTH : x1 - x0;
+    const font = TEXT_FONTS[this.prefs.font] ? this.prefs.font : 'serif';
+    this.openTextDraft({
+      id: null,
+      a: [x0, a[1]],
+      b: [x0 + width, a[1]],
+      c: this.fg,
+      f: font,
+      s: TEXT_SIZES[this.size] ?? TEXT_SIZES[3],
+      text: '',
+    });
+    this.requestRedraw();
+  }
+
+  startTextEdit(op) {
+    this.lifted = { ids: new Set([op.id]), ops: [], dx: 0, dy: 0 };
+    this.openTextDraft({ id: op.id, a: op.a, b: op.b, c: op.c, f: op.f ?? 'serif', s: op.s, text: op.text ?? '' });
+    this.rebuildInk();
+  }
+
+  openTextDraft(draft) {
+    const node = el('textarea', {
+      class: 'text-draft',
+      rows: 1,
+      spellcheck: 'false',
+      autocomplete: 'off',
+      'aria-label': 'Text box',
+      onKeydown: (event) => this.onTextDraftKeydown(event),
+      onInput: () => this.sizeTextDraft(),
+      onBlur: () => this.commitTextDraft(),
+    });
+    node.value = draft.text;
+    this.dom.sheet.append(node);
+    this.textDraft = { ...draft, node };
+    this.positionTextDraft();
+    node.focus();
+    node.setSelectionRange(node.value.length, node.value.length);
+  }
+
+  /** Puts the text field over its box, at the same size and font the canvas uses. */
+  positionTextDraft() {
+    const draft = this.textDraft;
+    if (!draft) return;
+    const f = this.inkCssScale();
+    const { node } = draft;
+    node.style.left = `${draft.a[0] * f}px`;
+    node.style.top = `${draft.a[1] * f}px`;
+    node.style.width = `${Math.max(60, Math.abs(draft.b[0] - draft.a[0])) * f}px`;
+    node.style.fontSize = `${draft.s * f}px`;
+    node.style.fontFamily = TEXT_FONTS[draft.f] ?? TEXT_FONTS.serif;
+    node.style.color = draft.c;
+    this.sizeTextDraft();
+  }
+
+  sizeTextDraft() {
+    const node = this.textDraft?.node;
+    if (!node) return;
+    node.style.height = 'auto';
+    node.style.height = `${node.scrollHeight}px`;
+  }
+
+  onTextDraftKeydown(event) {
+    // The field keeps every key, including Ctrl+Z, so typing never reaches the shortcuts.
+    event.stopPropagation();
+    if (event.key === 'Escape' || ((event.ctrlKey || event.metaKey) && event.key === 'Enter')) {
+      event.preventDefault();
+      this.commitTextDraft();
+    }
+  }
+
+  /** Writes the typed text to the drawing, or removes an emptied box. Safe to call when nothing is open. */
+  commitTextDraft() {
+    const draft = this.textDraft;
+    if (!draft) return;
+    this.textDraft = null;
+    draft.node.remove();
+    this.lifted = null;
+    const text = draft.node.value.replace(/\s+$/u, '');
+    if (draft.id) {
+      if (!text.trim()) this.commit({ t: 'delete', ids: [draft.id] });
+      else if (text !== draft.text) this.commit({ t: 'edit', id: draft.id, text });
+      else this.rebuildInk();
+    } else if (text.trim()) {
+      this.commit({ t: 'text', l: this.activeLayer, c: draft.c, f: draft.f, s: draft.s, a: draft.a, b: draft.b, text });
+    } else {
+      this.rebuildInk();
+    }
+  }
+
+  // ---------- layers ----------
+
+  /** Drawing on a hidden layer shows it first, so the stroke is not lost. */
+  ensureActiveVisible() {
+    const layer = this.layers.find((item) => item.id === this.activeLayer);
+    if (layer && !layer.visible) {
+      layer.visible = true;
+      this.changeLayers();
+    }
+  }
+
+  /** Layer structure changed: refresh the panel, replay the ops, and save. */
+  changeLayers() {
+    this.renderLayers();
+    this.rebuildInk();
+    this.scheduleSave();
+  }
+
+  selectLayer(id) {
+    if (id === this.activeLayer) return;
+    this.commitTextDraft(); // the open text box belongs to the layer it was started on // a re-render here would detach a row that is being double-clicked
+    this.activeLayer = id;
+    this.renderLayers();
+  }
+
+  toggleLayer(id) {
+    const layer = this.layers.find((item) => item.id === id);
+    if (!layer) return;
+    this.commitTextDraft();
+    layer.visible = !layer.visible;
+    this.changeLayers();
+  }
+
+  renameLayer(id, name) {
+    const layer = this.layers.find((item) => item.id === id);
+    if (!layer) return;
+    layer.name = name.slice(0, 40);
+    this.renderLayers();
+    this.scheduleSave();
+  }
+
+  moveLayer(id, dir) {
+    const index = this.layers.findIndex((item) => item.id === id);
+    const target = index + dir;
+    if (index < 0 || target < 0 || target >= this.layers.length) return;
+    this.commitTextDraft();
+    [this.layers[index], this.layers[target]] = [this.layers[target], this.layers[index]];
+    this.changeLayers();
+  }
+
+  addLayer() {
+    if (!this.entry) return;
+    if (this.layers.length >= MAX_LAYERS) {
+      this.showStatus(`A page holds up to ${MAX_LAYERS} layers`, true);
+      return;
+    }
+    this.commitTextDraft();
+    let n = this.layers.length + 1;
+    while (this.layers.some((layer) => layer.name === `Layer ${n}`)) n += 1;
+    const index = this.layers.findIndex((layer) => layer.id === this.activeLayer);
+    const layer = { id: newLayerId(), name: `Layer ${n}`, visible: true };
+    this.layers.splice(index + 1, 0, layer);
+    this.activeLayer = layer.id;
+    this.changeLayers();
+  }
+
+  async deleteLayer(id) {
+    const index = this.layers.findIndex((item) => item.id === id);
+    if (!this.entry || index < 0) return;
+    if (this.layers.length < 2) {
+      this.showStatus('A page needs at least one layer', true);
+      return;
+    }
+    const layer = this.layers[index];
+    if (hasInkOn(this.drawing.ops, id)) {
+      const ok = await confirmDialog({
+        title: 'Delete this layer?',
+        message: `“${layer.name}” and everything drawn on it will be removed. This cannot be undone.`,
+        confirmLabel: 'Delete',
+        danger: true,
+      });
+      if (!ok) return;
+    }
+    this.commitTextDraft();
+    this.drawing.purgeLayer(id);
+    this.layers.splice(index, 1);
+    if (this.activeLayer === id) this.activeLayer = this.layers[Math.max(0, index - 1)].id;
+    this.selection = new Set();
+    this.changeLayers();
   }
 
   // ---------- saving ----------
@@ -870,7 +1351,7 @@ export class QuireApp {
     return structuredClone({
       ...this.entry,
       body: this.dom.editor.value,
-      ink: { ops: this.drawing.ops, h },
+      ink: { ops: this.drawing.ops, h, layers: this.layers },
     });
   }
 
@@ -903,6 +1384,7 @@ export class QuireApp {
 
   async openEntry(id, { history: mode = 'push' } = {}) {
     if (this.entry?.id === id && this.view === 'editor') return;
+    this.commitTextDraft();
     await this.persist();
     if (this.entry && isBlankEntry(this.snapshot())) {
       await this.store.remove(this.entry.id);
@@ -920,11 +1402,18 @@ export class QuireApp {
     this.dom.kind.value = next.kind;
     this.dom.tags.value = next.tags.join(', ');
     this.drawing = new Drawing(next.ink.ops);
+    this.layers = normalizeLayers(next.ink.layers);
+    this.activeLayer = this.layers[this.layers.length - 1].id;
+    this.selection = new Set();
+    this.lifted = null;
+    this.index = null;
     this.dom.sheet.style.backgroundColor = next.pageColor;
     this.lastSurface = 'text';
     this.setView('editor');
     this.writeRoute(entryRoute(id), mode);
+    this.renderLayers();
     this.syncCanvas();
+    this.rebuildInk();
     this.renderInkChip();
     this.updateChrome();
     this.setPref({ lastEntryId: id });
@@ -954,6 +1443,7 @@ export class QuireApp {
   }
 
   async deleteEntry(id) {
+    this.commitTextDraft();
     const target = await this.store.get(id);
     if (!target) return;
     const ok = await confirmDialog({
@@ -1087,6 +1577,25 @@ export class QuireApp {
       return;
     }
     if (typing || event.altKey || this.view === 'home') return;
+    if (this.selection.size) {
+      if (event.key === 'Delete' || event.key === 'Backspace') {
+        event.preventDefault();
+        this.deleteSelection();
+        return;
+      }
+      const step = event.shiftKey ? NUDGE_FAST : NUDGE;
+      const nudge = { ArrowLeft: [-step, 0], ArrowRight: [step, 0], ArrowUp: [0, -step], ArrowDown: [0, step] }[event.key];
+      if (nudge) {
+        event.preventDefault();
+        this.nudgeSelection(...nudge);
+        return;
+      }
+    }
+    if (event.key === 'Escape' && this.selection.size) {
+      this.selection = new Set();
+      this.requestRedraw();
+      return;
+    }
     const toolId = TOOL_BY_KEY[key];
     if (toolId) {
       event.preventDefault();
