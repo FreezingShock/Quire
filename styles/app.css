@@ -60,6 +60,17 @@
   --ui-font: "Segoe UI", "Segoe UI Variable", system-ui, -apple-system, Roboto, "Helvetica Neue", Arial, sans-serif;
   --page-font: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
   --shadow: 0 1px 2px rgba(20, 40, 70, 0.25), 0 10px 26px rgba(20, 40, 70, 0.22);
+
+  /* scrollbars (see the scrollbar block below) */
+  --scroll-track-a: #eef4fb;
+  --scroll-track-b: #dce7f4;
+  --scroll-thumb-a: #f4f9ff;
+  --scroll-thumb-b: #b9d3ef;
+  --scroll-thumb-c: #8fb4de;
+  --scroll-hover-a: #ffffff;
+  --scroll-hover-b: #a9ccf2;
+  --scroll-hover-c: #6fa3da;
+  --scroll-ring: rgba(47, 111, 191, 0.45);
   color-scheme: light;
 }
 
@@ -108,6 +119,15 @@
   --status-hi: #2b3b53;
   --status-lo: #1f2b40;
   --shadow: 0 1px 2px rgba(0, 0, 0, 0.5), 0 12px 28px rgba(0, 0, 0, 0.5);
+  --scroll-track-a: #1d2a40;
+  --scroll-track-b: #17223a;
+  --scroll-thumb-a: #5d7698;
+  --scroll-thumb-b: #3f5576;
+  --scroll-thumb-c: #2f4262;
+  --scroll-hover-a: #7b93b5;
+  --scroll-hover-b: #4d6688;
+  --scroll-hover-c: #3a5070;
+  --scroll-ring: rgba(150, 190, 240, 0.35);
   color-scheme: dark;
 }
 
@@ -1221,7 +1241,7 @@ kbd {
 ::-webkit-scrollbar { width: 14px; height: 14px; }
 
 ::-webkit-scrollbar-track {
-  background: linear-gradient(to right, #eef4fb, #dce7f4);
+  background: linear-gradient(to right, var(--scroll-track-a), var(--scroll-track-b));
   border-left: 1px solid var(--panel-edge);
 }
 
@@ -1229,13 +1249,13 @@ kbd {
   min-height: 32px;
   border: 3px solid transparent;
   border-radius: 8px;
-  background: linear-gradient(to right, #f4f9ff, #b9d3ef 55%, #8fb4de);
+  background: linear-gradient(to right, var(--scroll-thumb-a), var(--scroll-thumb-b) 55%, var(--scroll-thumb-c));
   background-clip: padding-box;
-  box-shadow: inset 0 0 0 1px rgba(47, 111, 191, 0.45);
+  box-shadow: inset 0 0 0 1px var(--scroll-ring);
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: linear-gradient(to right, #ffffff, #a9ccf2 55%, #6fa3da);
+  background: linear-gradient(to right, var(--scroll-hover-a), var(--scroll-hover-b) 55%, var(--scroll-hover-c));
   background-clip: padding-box;
 }
 

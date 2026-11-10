@@ -6,7 +6,6 @@
 
 export const SKINS = Object.freeze([
   { id: 'aero', label: 'Aero' },
-  { id: 'aero-dark', label: 'Aero dark' },
   { id: 'basic', label: 'Aero Basic' },
   { id: 'luna', label: 'XP Luna' },
   { id: 'classic', label: 'Classic 98' },
@@ -15,12 +14,24 @@ export const SKINS = Object.freeze([
 const SKIN_IDS = new Set(SKINS.map((skin) => skin.id));
 
 /**
- * The skin to draw. Prefs saved before skins existed used `dark` for the dark
- * chrome, so that still maps to Aero dark when no skin has been picked.
+ * The skin and whether its dark variant is on. Every skin has a dark variant,
+ * so `dark` is a separate switch. Prefs saved before that used the skin id
+ * `aero-dark` for Aero in the dark, and the old `dark` flag alone (with no skin
+ * picked) meant the same thing, so both map to Aero with `dark` on.
  */
+export function themeOf(prefs = {}) {
+  if (prefs.skin === 'aero-dark') return { skin: 'aero', dark: true };
+  const skin = SKIN_IDS.has(prefs.skin) ? prefs.skin : 'aero';
+  return { skin, dark: Boolean(prefs.dark) };
+}
+
+/** The skin to draw, without the dark switch. */
 export function skinOf(prefs = {}) {
-  if (SKIN_IDS.has(prefs.skin)) return prefs.skin;
-  return prefs.dark ? 'aero-dark' : 'aero';
+  return themeOf(prefs).skin;
+}
+
+export function isDark(prefs = {}) {
+  return themeOf(prefs).dark;
 }
 
 export function skinLabel(id) {

@@ -525,12 +525,12 @@
 [data-skin="classic"] .dash-sidebar,
 [data-skin="classic"] .gadget {
   border-radius: 0;
-  border-color: #808080;
-  box-shadow: inset 1px 1px #ffffff, inset -1px -1px #404040;
+  border-color: var(--c-shade);
+  box-shadow: inset 1px 1px var(--c-hi), inset -1px -1px var(--c-deep);
 }
 
 [data-skin="classic"] .gadget-head {
-  background: linear-gradient(to right, #000080, #1084d0);
+  background: linear-gradient(to right, var(--c-navy), var(--c-navy-hi));
   border-bottom: 0;
   color: #ffffff;
   font-family: inherit;
@@ -538,10 +538,10 @@
 
 [data-skin="classic"] .gadget-close {
   border-radius: 0;
-  border-color: #000000;
-  background: #c0c0c0;
-  box-shadow: inset 1px 1px #ffffff, inset -1px -1px #404040;
-  color: #000000;
+  border-color: var(--c-edge);
+  background: var(--c-face);
+  box-shadow: inset 1px 1px var(--c-hi), inset -1px -1px var(--c-deep);
+  color: var(--c-ink);
   opacity: 1;
 }
 
@@ -549,7 +549,7 @@
 
 [data-skin="classic"] .streak-cell { border-radius: 0; }
 
-[data-skin="classic"] .streak-cell.is-filled { background: #000080; border-color: #000000; }
+[data-skin="classic"] .streak-cell.is-filled { background: var(--c-navy); border-color: var(--c-edge); }
 
 [data-skin="classic"] .gadget-note-text { border-radius: 0; }
 

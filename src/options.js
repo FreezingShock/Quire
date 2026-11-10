@@ -7,7 +7,7 @@
 
 import { el } from './dom.js';
 import { showDialog } from './dialogs.js';
-import { SKINS, normalizeAccent, skinOf } from './skins.js';
+import { SKINS, isDark, normalizeAccent, skinOf } from './skins.js';
 import { playSound } from './sound.js';
 import { reminderRow } from './pwa.js';
 import { AMBIENT_SOUNDS, MAX_WORD_GOAL, normalizeAmbient, normalizeGoal } from './focus.js';
@@ -229,6 +229,12 @@ export function showOptions({ get, set, pickAccent, onPreview }) {
         options: SKINS,
         read: (prefs) => skinOf(prefs),
         write: (id) => ({ skin: id }),
+      }),
+      toggle({
+        label: 'Dark',
+        note: 'The dark version of the chosen skin. Each skin has one.',
+        read: (prefs) => isDark(prefs),
+        write: (on) => ({ dark: on }),
       }),
       accentRow(),
       toggle({

@@ -160,41 +160,41 @@
 /* ---------- Classic 98: bevelled tabs, a bevelled page, square corners ---------- */
 
 [data-skin="classic"] .options-tab {
-  background: #c0c0c0;
+  background: var(--c-face);
   border: 2px solid;
-  border-color: #ffffff #000000 transparent #ffffff;
+  border-color: var(--c-hi) var(--c-edge) transparent var(--c-hi);
   border-bottom: 0;
-  color: #000000;
+  color: var(--c-ink);
   box-shadow: none;
 }
 
 [data-skin="classic"] .options-tab.is-selected {
-  border-color: #ffffff #000000 transparent #ffffff;
-  background: #c0c0c0;
+  border-color: var(--c-hi) var(--c-edge) transparent var(--c-hi);
+  background: var(--c-face);
   font-weight: 700;
   margin-bottom: -2px;
   height: 29px;
 }
 
 [data-skin="classic"] .options-page {
-  background: #c0c0c0;
+  background: var(--c-face);
   border: 2px solid;
-  border-color: #ffffff #000000 #000000 #ffffff;
+  border-color: var(--c-hi) var(--c-edge) var(--c-edge) var(--c-hi);
   border-radius: 0;
-  color: #000000;
+  color: var(--c-ink);
 }
 
-[data-skin="classic"] .options-legend { color: #000080; }
-[data-skin="classic"] .options-note { color: #303030; }
+[data-skin="classic"] .options-legend { color: var(--c-navy-text); }
+[data-skin="classic"] .options-note { color: var(--c-muted); }
 [data-skin="classic"] .options-item + .options-item,
 [data-skin="classic"] .options-group + .options-group,
 [data-skin="classic"] .options-group + .options-item,
 [data-skin="classic"] .options-item + .options-group {
-  border-top-color: #808080;
+  border-top-color: var(--c-shade);
 }
-[data-skin="classic"] .accent-swatch { border-color: #000000; box-shadow: none; }
+[data-skin="classic"] .accent-swatch { border-color: var(--c-edge); box-shadow: none; }
 [data-skin="classic"] .options-check input,
-[data-skin="classic"] .options-radio input { accent-color: #000080; }
+[data-skin="classic"] .options-radio input { accent-color: var(--c-navy); }
 
 /* ---------- XP Luna: blue-capped tabs over a cream page ---------- */
 
