@@ -5,10 +5,9 @@ import { el } from '../dom.js';
 import { icon } from '../icons.js';
 import { readingMinutes, wordCount } from '../markdown.js';
 import { displayTitle, formatLongDate } from '../model.js';
-import { showOptions } from '../options.js';
 import { openCustomEditor } from '../screensaver-editor.js';
 import { CUSTOM_LIMIT, customKind, normalizeCustoms } from '../screensaver-custom.js';
-import { savePrefs } from '../prefs.js';
+import { forgetPrefs, savePrefs } from '../prefs.js';
 import {
   ACCENT_PROPERTIES,
   accentTokens,
@@ -66,6 +65,26 @@ export const chromeMethods = {
     this.store?.setHabits(state).catch(() => this.showStatus('The habit tracker could not be saved.', true));
   },
 
+  saveSavedSearches(list) {
+    this.store?.setSavedSearches(list).catch(() => this.showStatus('The saved searches could not be saved.', true));
+  },
+
+  /**
+   * Saved searches used to live in plain browser prefs, where the passcode lock
+   * could not reach them. The first start after that change moves them into the
+   * sealed store. The old copy is removed only after the store has taken it.
+   */
+  async loadSavedSearches() {
+    const legacy = Array.isArray(this.prefs.savedSearches) ? this.prefs.savedSearches : null;
+    let list = await this.store.getSavedSearches();
+    if (legacy?.length && !list?.length) {
+      list = legacy;
+      await this.store.setSavedSearches(list);
+    }
+    if (legacy) this.prefs = forgetPrefs(['savedSearches']);
+    return list ?? [];
+  },
+
   saveSidebarNote(text) {
     clearTimeout(this.noteTimer);
     this.noteTimer = setTimeout(() => {
@@ -79,7 +98,8 @@ export const chromeMethods = {
     this.requestSync();
   },
 
-  openOptions() {
+  async openOptions() {
+    const { showOptions } = await import('../options.js');
     showOptions({
       get: () => this.prefs,
       set: (patch) => this.setPref(patch),

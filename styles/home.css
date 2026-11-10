@@ -429,11 +429,12 @@
 .home-table thead .num .th-btn { justify-content: flex-end; }
 
 .home-table tbody tr { cursor: default; }
-.home-table tbody tr:nth-child(even) { background: rgba(79, 151, 224, 0.06); }
+/* Stripes follow the entry's place in the list, not its place among the built rows, so they hold while the list scrolls. */
+.home-table tbody tr.row-alt { background: rgba(79, 151, 224, 0.06); }
 .home-table tbody tr:hover { background: rgba(79, 151, 224, 0.16); }
 
 .home-table tbody tr.is-selected,
-.home-table tbody tr.is-selected:nth-child(even) {
+.home-table tbody tr.is-selected.row-alt {
   background: linear-gradient(to bottom, var(--accent-hi), var(--accent-lo));
   color: var(--accent-ink);
 }
@@ -768,6 +769,9 @@ mark.hit {
   border: 1px solid transparent;
   border-radius: 4px;
   cursor: default;
+  /* Tiles far from the screen skip layout and paint. "auto" keeps the size of the last render. */
+  content-visibility: auto;
+  contain-intrinsic-size: auto 300px;
 }
 
 .tile:hover { border-color: var(--hover-edge); background: rgba(79, 151, 224, 0.08); }

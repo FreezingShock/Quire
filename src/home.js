@@ -10,7 +10,7 @@ import { el } from './dom.js';
 import { KINDS, MOODS, WEATHERS, displayTitle, formatLongDate, formatShortDate, labelFor, localISODate } from './model.js';
 import { wordCount } from './markdown.js';
 import { NORM_WIDTH, paintInk } from './drawing.js';
-import { icon } from './icons.js';
+import { icon, iconElement } from './icons.js';
 import { normalizeNavSections, sectionForFilter, toggleNavSection } from './nav-sections.js';
 import { downloadBlob } from './export.js';
 import { pixelState, posterBlob, yearGrid } from './yearpixels.js';
@@ -61,6 +61,7 @@ import { addGadget, normalizeGadgetList, removeGadget } from './gadgets.js';
 import { addHabit, habitProblem, normalizeHabits, removeHabit, toggleHabit } from './habits.js';
 import { buildSidebar } from './gadget-views.js';
 import { TIPS } from './onboarding.js';
+import { ROW_ESTIMATE_PX, visibleRange } from './virtual-rows.js';
 
 const PAGE_RATIO = 1.25; // sheet height relative to its width, as on the writing page
 const THUMB_PX = 352; // 2x the tile page width, so ink stays sharp on high-DPI screens
@@ -94,21 +95,46 @@ const WEEKDAYS = Array.from({ length: 7 }, (_, i) =>
 const DAY_STEPS = { ArrowLeft: -1, ArrowRight: 1, ArrowUp: -7, ArrowDown: 7 };
 
 function iconNode(name, cls = '') {
-  const span = el('span', { class: `icon ${cls}`.trim(), 'aria-hidden': 'true' });
-  span.innerHTML = icon(name);
-  return span;
+  return el('span', { class: `icon ${cls}`.trim(), 'aria-hidden': 'true' }, iconElement(name));
 }
 
-/** Ink only, painted the same way the writing page paints it, over the page color. */
+/**
+ * Ink only, painted the same way the writing page paints it, over the page color.
+ * The canvas is left blank here: a tile paints its ink when it scrolls near the
+ * screen (see tileGrid), so a library of drawings does not paint all at once.
+ */
 function inkThumbnail(entry) {
-  const canvas = el('canvas', {
+  return el('canvas', {
     class: 'tile-ink',
     width: THUMB_PX,
     height: Math.round(THUMB_PX * PAGE_RATIO),
     'aria-hidden': 'true',
+    'data-ink': entry.id,
   });
-  paintInk(canvas.getContext('2d'), entry.ink.ops, entry.ink.layers, THUMB_PX / NORM_WIDTH);
-  return canvas;
+}
+
+/** Word counts are the same for an entry until its body changes, and a search re-renders the list on every key. */
+const WORD_COUNTS = new WeakMap();
+function wordCountOf(entry) {
+  let count = WORD_COUNTS.get(entry);
+  if (count === undefined) {
+    count = wordCount(entry.body);
+    WORD_COUNTS.set(entry, count);
+  }
+  return count;
+}
+
+/**
+ * A blank row that holds the height of rows scrolled past, so the list keeps its
+ * full length. It has one empty cell per column, not one cell spanning them all:
+ * a spanning cell changes how a fixed-layout table shares out its width.
+ */
+function spacerRow(height) {
+  return el(
+    'tr',
+    { class: 'row-gap', 'aria-hidden': 'true', style: `height: ${height}px` },
+    COLUMNS.map((column) => el('td', { class: column.cls, style: 'padding: 0; border: 0;' })),
+  );
 }
 
 /** Text with search hits wrapped in <mark>. Plain text when there is no query. */
@@ -130,10 +156,12 @@ function setLabel(button, text) {
   button.querySelector('.cmd-label').textContent = text;
 }
 
+const MODIFIED_LABEL = new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+
 function modifiedLabel(iso) {
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return '';
-  return date.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+  return MODIFIED_LABEL.format(date);
 }
 
 /** "Good · Rain", or an empty string when neither is set. */
@@ -235,6 +263,9 @@ export class HomeView {
     this.stripOptions = { showPrompts, showOnThisDay, showTips, showGadgets, gadgets: normalizeGadgetList(gadgets) };
     this.note = ''; // the sticky note's text, kept here so a re-render does not clear it
     this.focusGadget = null; // a gadget whose title bar gets focus after a keyboard move
+    this.currentMatches = []; // the entries on screen, in order, for keyboard moves
+    this.rowSet = null; // the details list while it is on screen; see table() and paintRows()
+    this.scrollFrame = 0;
     const today = localISODate();
     this.state = {
       filter: { type: 'all', value: null },
@@ -288,6 +319,12 @@ export class HomeView {
   /** The habit tracker's saved state, once the store has opened. */
   setHabits(state) {
     this.habits = normalizeHabits(state);
+    this.render();
+  }
+
+  /** The saved searches, once the store has opened (they are sealed with the lock). */
+  setSavedSearches(list) {
+    this.savedSearches = normalizeSavedSearches(list);
     this.render();
   }
 
@@ -374,6 +411,9 @@ export class HomeView {
     this.main = el('div', { class: 'home-main' });
     // Right-clicking a row or tile opens its menu. The app's own menus skip the home view.
     this.main.addEventListener('contextmenu', (event) => this.onContextMenu(event));
+    // The details list builds rows as they scroll into view, and a resize changes how many fit.
+    this.main.addEventListener('scroll', () => this.onMainScroll(), { passive: true });
+    window.addEventListener('resize', () => this.onMainScroll());
 
     this.root.replaceChildren(
       el(
@@ -685,6 +725,9 @@ export class HomeView {
   renderMain(matches) {
     const { view } = this.state;
     this.main.dataset.view = view;
+    this.currentMatches = matches;
+    this.rowSet = null;
+    this.inkObserver?.disconnect();
     let content;
     if (view === 'calendar') content = this.calendar(matches);
     else if (view === 'moods') content = this.moodView();
@@ -698,6 +741,7 @@ export class HomeView {
     // The strip is for the whole journal, so it hides while a filter or search narrows the list. The dashboard has its own cards.
     const strip = view !== 'calendar' && view !== 'dashboard' && view !== 'year' && this.isUnfiltered() ? this.stripSection() : null;
     this.main.replaceChildren(...[strip, content].filter(Boolean));
+    this.paintRows();
     this.drawMoodChart();
     this.markSelection();
   }
@@ -726,7 +770,7 @@ export class HomeView {
   markSelection({ focus = false } = {}) {
     const { selectedId } = this.state;
     const rows = [...this.main.querySelectorAll('[data-id]')];
-    const anchor = selectedId ?? rows[0]?.dataset.id ?? null;
+    const anchor = selectedId ?? this.currentMatches[0]?.id ?? null;
     let target = null;
     for (const row of rows) {
       const selected = row.dataset.id === selectedId;
@@ -1114,6 +1158,11 @@ export class HomeView {
 
   // ---------- details list ----------
 
+  /**
+   * The details list. Only the rows near the viewport are built (see paintRows);
+   * the table itself holds the header, and the body is filled in after it is on
+   * the page, because the rows need the scroll position to know where to start.
+   */
   table(matches) {
     const { sort } = this.state;
     const head = el(
@@ -1138,63 +1187,165 @@ export class HomeView {
       }),
     );
 
-    const today = localISODate();
-    const rows = matches.map((entry) => {
-      const closed = isHidden(entry, today);
-      return el(
-        'tr',
-        {
-          class: closed ? 'is-capsule' : null,
-          'data-id': entry.id,
-          'aria-selected': 'false',
-          onClick: () => this.select(entry.id),
-          onDblclick: () => this.open(entry.id),
-          onKeydown: (event) => this.onKeydown(event),
-        },
-        el(
-          'td',
-          { class: 'col-title' },
-          el(
-            'span',
-            { class: 'cell-title' },
-            closed ? envelopeIcon() : iconNode('page'),
-            el('span', { class: 'cell-name' }, marked(displayTitle(entry), this.terms)),
-            flagIcons(entry),
-          ),
-          closed
-            ? el('span', { class: 'cell-snippet' }, countdownText(entry, today))
-            : this.terms.length ? el('span', { class: 'cell-snippet' }, marked(snippetOf(entry, this.terms), this.terms)) : null,
-        ),
-        el('td', { class: 'col-date' }, formatShortDate(entry.date)),
-        el('td', { class: 'col-kind' }, kindLabel(entry.kind)),
-        el('td', { class: 'col-notebook' }, entry.notebook ?? ''),
-        el('td', { class: 'col-tags' }, entry.tags.join(', ')),
-        el('td', { class: 'col-feel' }, closed ? '' : feelText(entry)),
-        el('td', { class: 'col-words num' }, closed ? '—' : String(wordCount(entry.body))),
-        el('td', { class: 'col-modified' }, modifiedLabel(entry.updatedAt)),
-      );
-    });
-
+    const body = el('tbody');
+    const position = new Map(matches.map((entry, index) => [entry.id, index]));
+    this.rowSet = { matches, position, body, today: localISODate(), start: -1, end: -1, selected: undefined, rowHeight: ROW_ESTIMATE_PX };
     return el(
       'div',
       { class: 'home-table-wrap' },
       el(
         'table',
-        { class: 'home-table', role: 'grid', 'aria-label': 'Entries' },
+        { class: 'home-table', role: 'grid', 'aria-label': 'Entries', 'aria-rowcount': String(matches.length + 1) },
         el('thead', {}, head),
-        el('tbody', {}, rows),
+        body,
       ),
     );
+  }
+
+  /** One row of the details list. `index` is its place in the sorted list. */
+  tableRow(set, entry, index) {
+    const { selectedId } = this.state;
+    const closed = isHidden(entry, set.today);
+    const selected = entry.id === selectedId;
+    const anchor = selectedId ?? set.matches[0]?.id;
+    return el(
+      'tr',
+      {
+        class: [closed && 'is-capsule', index % 2 === 1 && 'row-alt', selected && 'is-selected'].filter(Boolean).join(' ') || null,
+        'data-id': entry.id,
+        'aria-selected': String(selected),
+        'aria-rowindex': String(index + 2),
+        tabindex: entry.id === anchor ? '0' : '-1',
+        onClick: () => this.select(entry.id),
+        onDblclick: () => this.open(entry.id),
+        onKeydown: (event) => this.onKeydown(event),
+      },
+      el(
+        'td',
+        { class: 'col-title' },
+        el(
+          'span',
+          { class: 'cell-title' },
+          closed ? envelopeIcon() : iconNode('page'),
+          el('span', { class: 'cell-name' }, marked(displayTitle(entry), this.terms)),
+          flagIcons(entry),
+        ),
+        closed
+          ? el('span', { class: 'cell-snippet' }, countdownText(entry, set.today))
+          : this.terms.length ? el('span', { class: 'cell-snippet' }, marked(snippetOf(entry, this.terms), this.terms)) : null,
+      ),
+      el('td', { class: 'col-date' }, formatShortDate(entry.date)),
+      el('td', { class: 'col-kind' }, kindLabel(entry.kind)),
+      el('td', { class: 'col-notebook' }, entry.notebook ?? ''),
+      el('td', { class: 'col-tags' }, entry.tags.join(', ')),
+      el('td', { class: 'col-feel' }, closed ? '' : feelText(entry)),
+      el('td', { class: 'col-words num' }, closed ? '—' : String(wordCountOf(entry))),
+      el('td', { class: 'col-modified' }, modifiedLabel(entry.updatedAt)),
+    );
+  }
+
+  /** Where the table body starts, measured from the top of the scrolling list. */
+  bodyTop(set) {
+    return set.body.getBoundingClientRect().top - this.main.getBoundingClientRect().top + this.main.scrollTop;
+  }
+
+  /**
+   * Builds the rows that are on or near the screen and replaces the rest with
+   * two spacer rows of the right height. Runs on every scroll frame, so it only
+   * touches the DOM when the window of rows changes.
+   */
+  paintRows() {
+    const set = this.rowSet;
+    if (!set || !set.body.isConnected) return;
+    const { matches, body } = set;
+    const focused = document.activeElement?.closest?.('tr[data-id]');
+    const focusedId = focused && body.contains(focused) ? focused.dataset.id : null;
+    for (let pass = 0; pass < 2; pass++) {
+      const { start, end } = visibleRange({
+        count: matches.length,
+        rowHeight: set.rowHeight,
+        offset: this.main.scrollTop - this.bodyTop(set),
+        viewport: this.main.clientHeight,
+      });
+      // The selected row is always built, even when it is scrolled off screen, so keyboard focus is never lost.
+      const selected = set.position.get(this.state.selectedId);
+      const ranges = [[start, end]];
+      if (selected !== undefined && (selected < start || selected >= end)) ranges.push([selected, selected + 1]);
+      ranges.sort((a, b) => a[0] - b[0]);
+      if (start === set.start && end === set.end && selected === set.selected && pass === 0) return;
+      set.start = start;
+      set.end = end;
+      set.selected = selected;
+      const rows = [];
+      let cursor = 0;
+      for (const [from, to] of ranges) {
+        if (from > cursor) rows.push(spacerRow((from - cursor) * set.rowHeight));
+        for (let i = from; i < to; i++) rows.push(this.tableRow(set, matches[i], i));
+        cursor = Math.max(cursor, to);
+      }
+      if (cursor < matches.length) rows.push(spacerRow((matches.length - cursor) * set.rowHeight));
+      body.replaceChildren(...rows);
+      // The first real row gives the true height, so the spacers add up to the right scroll length. Measure again if it differs.
+      const sample = body.querySelector('tr[data-id]');
+      const measured = sample ? sample.getBoundingClientRect().height : 0;
+      if (!(measured > 0) || Math.abs(measured - set.rowHeight) < 0.5) break;
+      set.rowHeight = measured;
+      set.start = -1;
+    }
+    if (focusedId) body.querySelector(`tr[data-id="${CSS.escape(focusedId)}"]`)?.focus({ preventScroll: true });
+  }
+
+  onMainScroll() {
+    if (!this.rowSet || this.scrollFrame) return;
+    this.scrollFrame = requestAnimationFrame(() => {
+      this.scrollFrame = 0;
+      this.paintRows();
+    });
+  }
+
+  /** Scrolls the list just far enough to show a row, then builds it, so keyboard moves can reach any row. */
+  revealRow(id) {
+    const set = this.rowSet;
+    if (!set) return;
+    const index = set.matches.findIndex((entry) => entry.id === id);
+    if (index < 0) return;
+    const top = this.bodyTop(set) + index * set.rowHeight;
+    const bottom = top + set.rowHeight;
+    const headHeight = set.body.parentElement.tHead?.getBoundingClientRect().height ?? 0;
+    const view = this.main.scrollTop;
+    if (top < view + headHeight) this.main.scrollTop = top - headHeight;
+    else if (bottom > view + this.main.clientHeight) this.main.scrollTop = bottom - this.main.clientHeight;
+    this.paintRows();
   }
 
   // ---------- tiles ----------
 
   tileGrid(matches) {
-    return el(
+    this.inkObserver?.disconnect();
+    const byId = new Map();
+    const grid = el(
       'div',
       { class: 'home-tiles', role: 'listbox', 'aria-label': 'Entries' },
-      matches.map((entry) => this.tile(entry)),
+      matches.map((entry) => {
+        if (entry.ink.ops.length) byId.set(entry.id, entry);
+        return this.tile(entry);
+      }),
     );
+    // Ink is painted for the tiles near the screen, and again when they scroll into view.
+    this.inkObserver = new IntersectionObserver(
+      (changes) => {
+        for (const change of changes) {
+          if (!change.isIntersecting) continue;
+          const canvas = change.target;
+          const entry = byId.get(canvas.dataset.ink);
+          this.inkObserver.unobserve(canvas);
+          if (entry) paintInk(canvas.getContext('2d'), entry.ink.ops, entry.ink.layers, THUMB_PX / NORM_WIDTH);
+        }
+      },
+      { root: this.main, rootMargin: '400px 0px' },
+    );
+    for (const canvas of grid.querySelectorAll('canvas[data-ink]')) this.inkObserver.observe(canvas);
+    return grid;
   }
 
   tile(entry) {
@@ -1818,6 +1969,7 @@ export class HomeView {
 
   select(id) {
     this.state.selectedId = id;
+    this.revealRow(id);
     this.markSelection({ focus: true });
   }
 
@@ -1909,7 +2061,7 @@ export class HomeView {
   }
 
   onKeydown(event) {
-    const ids = [...this.main.querySelectorAll('[data-id]')].map((node) => node.dataset.id);
+    const ids = this.currentMatches.map((entry) => entry.id);
     if (!ids.length) return;
     const index = ids.indexOf(this.state.selectedId);
     const moveTo = (next) => {

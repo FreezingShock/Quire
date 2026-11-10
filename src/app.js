@@ -49,6 +49,7 @@ import { navigationMethods } from './controller/navigation.js';
 import { capsuleActionMethods } from './controller/capsule-actions.js';
 import { mixtapeMethods } from './controller/mixtape.js';
 import { MixtapeView } from './mixtape-view.js';
+import { mark } from './perf.js';
 
 
 
@@ -165,8 +166,9 @@ export class QuireApp {
       showTips: !this.prefs.tipsDismissed,
       showGadgets: this.prefs.showGadgets !== false,
       gadgets: this.prefs.gadgets,
-      savedSearches: this.prefs.savedSearches,
-      onSavedSearchesChange: (savedSearches) => this.setPref({ savedSearches }),
+      // Saved searches come from the sealed store once it opens (see loadSavedSearches).
+      savedSearches: [],
+      onSavedSearchesChange: (savedSearches) => this.saveSavedSearches(savedSearches),
       onHabitsChange: (habits) => this.saveHabits(habits),
       onGadgetsChange: (gadgets) => this.setPref({ gadgets }),
       navSections: this.prefs.navSections,
@@ -189,13 +191,16 @@ export class QuireApp {
     this.bindFocusEvents();
     this.setTool('write');
     this.store = await createLocalStore();
+    mark('quire:store-open');
     if (this.store.kind === 'memory') {
       this.showStatus('Browser storage is unavailable. Entries will not survive a reload.', true);
     }
     // Nothing is read until the passcode, if there is one, is typed.
     this.passcodeOn = await unlockStore(this.store);
+    mark('quire:unlocked');
     this.home.setNote((await this.store.getNote()) ?? '');
     this.home.setHabits(await this.store.getHabits());
+    this.home.setSavedSearches(await this.loadSavedSearches());
     startPwa({ onReady: () => this.showStatus('Quire is ready to work offline', false, 'saved') });
     startReminders({
       getReminder: () => this.prefs.reminder ?? REMINDER_DEFAULTS,
@@ -210,27 +215,31 @@ export class QuireApp {
       // A locked Quire wakes to the passcode. Saving first keeps the open entry.
       onWake: () => lockNow(() => this.persist()),
     });
-    await this.seedSampleEntry();
+    // One read of the library serves the first-run check, the route, and the first list. Reading it again costs a full pass over every entry.
+    let entries = await this.store.list();
+    if (await this.seedSampleEntry(entries)) entries = await this.store.list();
     // The site opens on the dashboard. A reload on an entry keeps that entry.
     const routed = routeEntryId(location.hash);
-    const entries = await this.store.list();
     if (routed && entries.some((entry) => entry.id === routed)) {
       await this.openEntry(routed, { history: 'replace' });
     } else {
-      await this.showHome({ history: 'replace' });
+      await this.showHome({ history: 'replace', entries });
     }
+    mark('quire:ready');
   }
 
   /**
    * First run: a library with no entries gets one sample entry, once. The flag
    * is set on the first start whatever happens, so a deleted sample stays
-   * deleted and a library that already has entries never gets one.
+   * deleted and a library that already has entries never gets one. Resolves
+   * true when a sample was written.
    */
-  async seedSampleEntry() {
-    if (this.prefs.sampleSeeded) return;
+  async seedSampleEntry(entries) {
+    if (this.prefs.sampleSeeded) return false;
     this.prefs = savePrefs({ sampleSeeded: true });
-    if ((await this.store.list()).length) return;
+    if (entries.length) return false;
     await this.store.save(createEntry(sampleEntry(localISODate())));
+    return true;
   }
 
 }
