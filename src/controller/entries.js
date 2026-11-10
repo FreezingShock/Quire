@@ -1,6 +1,6 @@
 /** Entry actions for the Quire controller: opening, creating, patching, moving, and deleting entries. Mixed into QuireApp. */
 
-import { contentKey } from './helpers.js';
+import { contentKey, paintSheet } from './helpers.js';
 import { entryRoute } from './routes.js';
 import { confirmDialog, entriesDialog, notebookDialog } from '../dialogs.js';
 import { Drawing, normalizeLayers } from '../drawing.js';
@@ -63,7 +63,7 @@ export const entryMethods = {
     this.selection = new Set();
     this.lifted = null;
     this.index = null;
-    this.dom.sheet.style.backgroundColor = next.pageColor;
+    paintSheet(this.dom.sheet, next.pageColor);
     this.lastSurface = 'text';
     this.setView('editor');
     this.writeRoute(entryRoute(id), mode);

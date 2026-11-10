@@ -1,4 +1,5 @@
 /** Small DOM and entry helpers used across the Quire controller. */
+import { DEFAULT_PAGE_COLOR } from '../model.js';
 
 import { el } from '../dom.js';
 import { normalizeLayers } from '../drawing.js';
@@ -63,4 +64,14 @@ export function scopeItems(items, view) {
   }
   while (out.length && out[out.length - 1] === 'sep') out.pop();
   return out;
+}
+
+/**
+ * Paints the sheet's page color. The stored default cream follows the theme through the
+ * `--page-default` token, so it turns dark in dark skins. A custom color is used as is.
+ */
+export function paintSheet(sheet, hex) {
+  const isDefault = hex === DEFAULT_PAGE_COLOR;
+  sheet.style.backgroundColor = isDefault ? 'var(--page-default)' : hex;
+  sheet.dataset.page = isDefault ? 'default' : 'custom';
 }
