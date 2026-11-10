@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 1000" preserveAspectRatio="xMidYMid slice">
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#2a6fe0"/>
+      <stop offset="0.55" stop-color="#8cc1f7"/>
+      <stop offset="1" stop-color="#e2f2ff"/>
+    </linearGradient>
+    <linearGradient id="far" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#8fd060"/>
+      <stop offset="1" stop-color="#4c9e2e"/>
+    </linearGradient>
+    <linearGradient id="near" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#6cc24a"/>
+      <stop offset="1" stop-color="#2d7a1b"/>
+    </linearGradient>
+    <radialGradient id="sun" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#fffdf0"/>
+      <stop offset="0.45" stop-color="#fff7c4" stop-opacity="0.85"/>
+      <stop offset="1" stop-color="#fff7c4" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="1600" height="1000" fill="url(#sky)"/>
+  <circle cx="1240" cy="250" r="230" fill="url(#sun)"/>
+  <circle cx="1240" cy="250" r="54" fill="#fffbe6"/>
+  <path d="M0 620 C 220 500, 440 490, 650 590 S 1080 700, 1290 570 S 1520 500, 1600 540 L1600 1000 L0 1000 Z" fill="url(#far)"/>
+  <path d="M0 760 C 260 640, 520 630, 800 735 S 1280 870, 1600 705 L1600 1000 L0 1000 Z" fill="url(#near)"/>
+  <path d="M0 880 C 300 820, 700 830, 1000 880 S 1450 930, 1600 890 L1600 1000 L0 1000 Z" fill="#23661a" opacity="0.9"/>
+</svg>

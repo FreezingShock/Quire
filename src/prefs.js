@@ -18,6 +18,12 @@ const DEFAULTS = Object.freeze({
   sound: false,
   showPrompts: true,
   showOnThisDay: true,
+  // Skin id (see skins.js); null means the old `dark` flag decides.
+  skin: null,
+  // Custom accent as #rrggbb, or null for the skin's own blue, red, or navy.
+  accent: null,
+  // Window animations. Only `false` turns them off.
+  motion: true,
 });
 
 export function loadPrefs() {

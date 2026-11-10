@@ -29,7 +29,7 @@ You can also open `index.html` through any static server.
 - **Export:** Markdown with front matter (a .zip with the drawing PNG when the entry has ink), drawing as PNG, print or save as PDF, and JSON backup and restore. Backups include version history.
 - **Version history:** Quire keeps a version every five minutes while you edit, when you leave an entry, and before a restore. Open File > Version history to preview a version's text and drawing, restore it, or delete it. Save version now keeps one by hand. The newest 30 versions are kept per entry.
 - **Save status:** the dot in the title bar shows whether changes are pending, saving, saved, or failed to save.
-- **Look:** serif, sans, or monospace writing font, plus a dark chrome option.
+- **Look:** serif, sans, or monospace writing font. The Skin menu picks Aero (the default), Aero dark, Aero Basic, XP Luna, or Classic 98. Custom accent color recolors the selection and the title bar, and Window animations turns off the motion.
 
 ## Design decisions
 
@@ -63,7 +63,8 @@ src/storage.js      IndexedDB and memory stores behind one interface (entries an
 src/export.js       Markdown, ZIP, PNG, print, backup
 src/versions.js     version rules: when a copy is kept and what it holds (no DOM)
 src/history.js      version history dialog
-styles/             app chrome, live editor, and rendered-text styles
+src/skins.js        skin list, skin choice from saved prefs, and accent colors (no DOM)
+styles/             app chrome, live editor, rendered-text styles, Vista extras, and skins
 tests/              node:test unit tests
 scripts/serve.js    dependency-free static server
 ```

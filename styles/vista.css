@@ -74,7 +74,7 @@
     position: fixed;
     inset: 0;
     z-index: -1;
-    background: url("../assets/aero-wallpaper.svg") center / cover no-repeat;
+    background: var(--wallpaper) center / cover no-repeat;
   }
 
   html.has-wallpaper[data-theme="dark"] body::after {
@@ -103,7 +103,7 @@
   place-items: center;
   background:
     linear-gradient(rgba(4, 22, 48, 0.25), rgba(4, 22, 48, 0.55)),
-    url("../assets/aero-wallpaper.svg") center / cover no-repeat,
+    var(--wallpaper) center / cover no-repeat,
     #1d5a98;
   color: #ffffff;
   transition: opacity 0.6s ease, visibility 0s linear 0.6s;
@@ -179,4 +179,86 @@
   .splash.is-leaving {
     transition: none;
   }
+}
+
+/* ---------- Aero motion: the window settles in, the title glass gets a sheen ---------- */
+
+:root[data-skin^="aero"][data-motion="on"] .app {
+  animation: window-settle 0.36s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+:root[data-skin^="aero"][data-motion="on"] .titlebar::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -40%;
+  width: 28%;
+  background: linear-gradient(100deg, rgba(255, 255, 255, 0), rgba(255, 255, 255, 0.5) 50%, rgba(255, 255, 255, 0));
+  transform: skewX(-18deg);
+  pointer-events: none;
+  animation: title-sheen 1.5s ease-out 0.35s 1 both;
+}
+
+:root[data-skin^="aero"][data-motion="on"] .dialog[open] {
+  animation: dialog-settle 0.2s ease-out both;
+}
+
+@keyframes window-settle {
+  from { opacity: 0; transform: scale(0.975); }
+  to { opacity: 1; transform: none; }
+}
+
+@keyframes title-sheen {
+  from { left: -40%; }
+  to { left: 120%; }
+}
+
+@keyframes dialog-settle {
+  from { opacity: 0; transform: translateY(6px) scale(0.98); }
+  to { opacity: 1; transform: none; }
+}
+
+/* ---------- Aero faded patterns: a fine dot grid under blank space, and a glare across menus and dialogs ---------- */
+
+:root[data-skin^="aero"] .home-main {
+  background-color: var(--field);
+  background-image: var(--pattern);
+  background-size: var(--pattern-size) var(--pattern-size);
+}
+
+:root[data-skin^="aero"] .menu-panel {
+  isolation: isolate;
+}
+
+:root[data-skin^="aero"] .menu-panel::before,
+:root[data-skin^="aero"] .dialog::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  background: var(--glare);
+  pointer-events: none;
+}
+
+:root[data-skin^="aero"] .dialog {
+  isolation: isolate;
+}
+
+/* ---------- Aero button styling for entries-list column headers (were bare text) ---------- */
+
+:root[data-skin^="aero"] .th-btn:hover {
+  background: linear-gradient(to bottom, var(--glow-hi), var(--glow-lo));
+  box-shadow: inset 0 0 0 1px var(--hover-edge);
+}
+
+:root[data-skin^="aero"] .th-btn:active {
+  background: linear-gradient(to bottom, var(--press-hi), var(--press-lo));
+}
+
+/* Column headers and the status-bar readouts share one raised-glass look in every skin. */
+.th-btn:focus-visible {
+  outline: 2px solid var(--accent-lo);
+  outline-offset: -2px;
 }
