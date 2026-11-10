@@ -222,15 +222,14 @@ function dateFromISO(iso) {
   return new Date(y, m - 1, d);
 }
 
+// Formatters are built once. Calling toLocaleDateString with options builds a new formatter on every call, and the entries list formats one date per row.
+const LONG_DATE = new Intl.DateTimeFormat(undefined, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+const SHORT_DATE = new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+
 export function formatLongDate(iso) {
-  return dateFromISO(iso).toLocaleDateString(undefined, {
-    weekday: 'long',
-    month: 'long',
-    day: 'numeric',
-    year: 'numeric',
-  });
+  return LONG_DATE.format(dateFromISO(iso));
 }
 
 export function formatShortDate(iso) {
-  return dateFromISO(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+  return SHORT_DATE.format(dateFromISO(iso));
 }

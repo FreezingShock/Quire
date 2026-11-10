@@ -1,8 +1,10 @@
 /**
  * Quire service worker. It caches the app shell so Quire opens with no
- * connection, and it keeps the cache fresh: every successful network answer
- * replaces the cached copy, so a normal online load always runs the newest files.
- * Entries never pass through here. They live in IndexedDB on the device.
+ * connection, and it keeps the cache fresh. A cached file answers at once, and
+ * the network fetches its newer copy in the background, which replaces the
+ * cached one. So a repeat visit starts without waiting for the network, and the
+ * visit after an update runs the new files. Entries never pass through here.
+ * They live in IndexedDB on the device.
  */
 
 const CACHE = 'quire-shell-v2';
@@ -74,15 +76,15 @@ const SHELL = [
   './src/controller/version-actions.js',
   './src/dashboard.js',
   './src/dialogs.js',
-  './src/dropdown.js',
   './src/dom.js',
   './src/drawing.js',
+  './src/dropdown.js',
   './src/export.js',
   './src/focus.js',
   './src/gadget-views.js',
   './src/gadgets.js',
-  './src/habits.js',
   './src/gestures.js',
+  './src/habits.js',
   './src/history.js',
   './src/home.js',
   './src/icon-pixels.js',
@@ -102,12 +104,13 @@ const SHELL = [
   './src/menubar.js',
   './src/mixtape-view.js',
   './src/mixtape.js',
-  './src/nav-sections.js',
   './src/model.js',
+  './src/nav-sections.js',
   './src/onboarding.js',
   './src/options.js',
   './src/palette-search.js',
   './src/palette.js',
+  './src/perf.js',
   './src/postcard.js',
   './src/prefs.js',
   './src/print-docs.js',
@@ -132,6 +135,7 @@ const SHELL = [
   './src/touch.js',
   './src/vault.js',
   './src/versions.js',
+  './src/virtual-rows.js',
   './src/wikilinks.js',
   './src/yearpixels.js',
   './src/zip.js',
@@ -159,18 +163,24 @@ self.addEventListener('fetch', (event) => {
   const { request } = event;
   if (request.method !== 'GET') return;
   if (new URL(request.url).origin !== self.location.origin) return;
-  event.respondWith(networkFirst(request));
+  event.respondWith(staleWhileRevalidate(event, request));
 });
 
-async function networkFirst(request) {
+async function staleWhileRevalidate(event, request) {
   const cache = await caches.open(CACHE);
-  try {
-    const response = await fetch(request);
+  const cached = await cache.match(request, { ignoreSearch: true });
+  const refresh = fetch(request).then((response) => {
     if (response.ok && response.type === 'basic') cache.put(request, response.clone());
     return response;
+  });
+  if (cached) {
+    // Keep the worker alive until the newer copy is stored. A failed refresh leaves the cached copy in place.
+    event.waitUntil(refresh.catch(() => {}));
+    return cached;
+  }
+  try {
+    return await refresh;
   } catch {
-    const cached = await cache.match(request, { ignoreSearch: true });
-    if (cached) return cached;
     // An unknown page while offline falls back to the app itself, which then routes by hash.
     if (request.mode === 'navigate') {
       const shell = await cache.match('./index.html');

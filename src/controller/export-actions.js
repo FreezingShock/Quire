@@ -9,12 +9,10 @@ import {
   makeBackup,
   parseBackup,
 } from '../export.js';
-import { openPrintDialog } from '../printing.js';
 import { openPasscodeSettings } from '../lock.js';
 import { localISODate } from '../model.js';
 import { installState, promptInstall, showInstallHelp } from '../pwa.js';
 import { playSound } from '../sound.js';
-import { postcardDialog } from '../postcard.js';
 import { MAX_VERSIONS } from '../versions.js';
 import { parseImportFile } from '../import.js';
 
@@ -42,6 +40,7 @@ export const exportMethods = {
   /** Opens the postcard dialog for the open entry. Saving or sharing happens inside it. */
   async postcard() {
     if (!this.entry) return;
+    const { postcardDialog } = await import('../postcard.js');
     await postcardDialog(this.snapshot(), { onStatus: (text) => this.showStatus(text) });
   },
 
@@ -51,6 +50,7 @@ export const exportMethods = {
     const current = this.entry ? this.snapshot() : null;
     const saved = await this.store.listFull();
     const entries = current ? saved.map((entry) => (entry.id === current.id ? current : entry)) : saved;
+    const { openPrintDialog } = await import('../printing.js');
     openPrintDialog({
       entries,
       current,

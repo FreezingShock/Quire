@@ -5,7 +5,6 @@ import { el } from '../dom.js';
 import { icon } from '../icons.js';
 import { readingMinutes, wordCount } from '../markdown.js';
 import { displayTitle, formatLongDate } from '../model.js';
-import { showOptions } from '../options.js';
 import { openCustomEditor } from '../screensaver-editor.js';
 import { CUSTOM_LIMIT, customKind, normalizeCustoms } from '../screensaver-custom.js';
 import { forgetPrefs, savePrefs } from '../prefs.js';
@@ -99,7 +98,8 @@ export const chromeMethods = {
     this.requestSync();
   },
 
-  openOptions() {
+  async openOptions() {
+    const { showOptions } = await import('../options.js');
     showOptions({
       get: () => this.prefs,
       set: (patch) => this.setPref(patch),

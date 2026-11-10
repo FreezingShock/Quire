@@ -11,7 +11,6 @@
 import { el } from './dom.js';
 import { isBlankEntry, localISODate } from './model.js';
 import { onThisDay } from './journal.js';
-import { createScene } from './screensaver-scenes.js';
 import {
   customIdOf,
   customKind,
@@ -228,6 +227,9 @@ export function startScreensaver({ getPrefs, getEntries, isLocked, onWake, now =
         entries = [];
       }
     }
+    if (mine !== session || !showing) return;
+    // The scenes load on first use. Waking during that load ends the session, so check again before drawing.
+    const { createScene } = await import('./screensaver-scenes.js');
     if (mine !== session || !showing) return;
 
     let list = [];
