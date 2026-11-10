@@ -4,6 +4,7 @@ import { escapeHtml, renderMarkdown } from './markdown.js';
 import { createZip } from './zip.js';
 import { KINDS, displayTitle, fileStem, formatLongDate, localISODate, normalizeEntry } from './model.js';
 import { NORM_WIDTH, inkExtent, renderInkCanvas } from './drawing.js';
+import { normalizeVersion } from './versions.js';
 
 const encoder = new TextEncoder();
 /** Sheet width in CSS px. Ink coordinates are scaled against it when printed. */
@@ -132,8 +133,16 @@ body { color: #25221d; font-family: var(--page-font); }
   document.body.append(frame);
 }
 
-export function makeBackup(entries) {
-  const payload = { app: 'quire', format: 1, exportedAt: new Date().toISOString(), date: localISODate(), entries };
+/** Format 1. `versions` is optional, so backups from before version history still restore. */
+export function makeBackup(entries, versions = []) {
+  const payload = {
+    app: 'quire',
+    format: 1,
+    exportedAt: new Date().toISOString(),
+    date: localISODate(),
+    entries,
+    versions,
+  };
   return new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
 }
 
@@ -142,5 +151,6 @@ export function parseBackup(text) {
   if (!data || data.app !== 'quire' || !Array.isArray(data.entries)) {
     throw new Error('This file is not a Quire backup.');
   }
-  return data.entries.map((entry) => normalizeEntry(entry));
+  const versions = Array.isArray(data.versions) ? data.versions.map(normalizeVersion).filter(Boolean) : [];
+  return { entries: data.entries.map((entry) => normalizeEntry(entry)), versions };
 }
