@@ -620,6 +620,8 @@ textarea {
   touch-action: none;
 }
 
+.grid { pointer-events: none; }
+
 .ink[data-tool="write"] { pointer-events: none; }
 .ink[data-tool="pick"] { cursor: copy; }
 .ink[data-tool="fill"],

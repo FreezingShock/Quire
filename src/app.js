@@ -19,7 +19,8 @@ import {
 } from './model.js';
 import { wordCount } from './markdown.js';
 import { LiveEditor } from './livetext.js';
-import { Drawing, NORM_WIDTH, applyOp, inkExtent, paintOps, sampleColor, strokeWidth } from './drawing.js';
+import { Drawing, NORM_WIDTH, applyOp, inkExtent, paintGrid, paintOps, sampleColor, strokeWidth } from './drawing.js';
+import { shapeEnd, snapToGrid } from './snap.js';
 import { FORMAT_BUTTONS, PALETTE, POINTER_TOOLS, SHAPE_TOOLS, STROKE_SIZES, TOOLS, TOOL_BY_KEY } from './tools.js';
 import {
   colorEdit,
@@ -76,6 +77,7 @@ export class QuireApp {
       sheet: $('#sheet'),
       editorEl: $('#editor'),
       ink: $('#ink'),
+      grid: $('#grid'),
       toolbox: $('#toolbox'),
       swatches: $('#swatches'),
       inkChip: $('#ink-chip'),
@@ -95,6 +97,9 @@ export class QuireApp {
     this.base = document.createElement('canvas');
     this.baseCtx = this.base.getContext('2d');
     this.inkCtx = this.dom.ink.getContext('2d');
+    this.gridCtx = this.dom.grid.getContext('2d');
+    this.shiftHeld = false;
+    this.rawEnd = null;
     this.scale = 1;
     this.tool = 'write';
     this.size = 3;
@@ -134,6 +139,7 @@ export class QuireApp {
     root.style.setProperty('--page-font', FONT_STACKS[this.prefs.font] ?? FONT_STACKS.serif);
     const source = Boolean(this.prefs.source);
     this.dom.editorEl.classList.toggle('is-source', source);
+    this.dom.grid.hidden = !this.prefs.showGrid;
     this.dom.mode.textContent = source ? 'Source' : 'Live preview';
     for (const button of document.querySelectorAll('[data-source]')) {
       button.setAttribute('aria-pressed', String(source));
@@ -327,6 +333,10 @@ export class QuireApp {
           })),
           'sep',
           { label: 'Dark chrome', check: true, checked: this.prefs.dark, action: () => this.setPref({ dark: !this.prefs.dark }) },
+          'sep',
+          { label: 'Show grid', check: true, checked: Boolean(this.prefs.showGrid), action: () => this.setPref({ showGrid: !this.prefs.showGrid }) },
+          { label: 'Snap to grid', check: true, checked: Boolean(this.prefs.snapGrid), action: () => this.setPref({ snapGrid: !this.prefs.snapGrid }) },
+          { label: 'Snap lines to 15° angles', check: true, checked: Boolean(this.prefs.snapAngles), action: () => this.setPref({ snapAngles: !this.prefs.snapAngles }) },
         ],
       },
       {
@@ -390,6 +400,17 @@ export class QuireApp {
 
     new ResizeObserver(() => this.requestSync()).observe(sheet);
     document.addEventListener('keydown', (event) => this.onGlobalKeydown(event));
+    // Shift can be pressed or released mid-drag, so a shape follows it live.
+    const trackShift = (event) => {
+      if (this.shiftHeld === event.shiftKey) return;
+      this.shiftHeld = event.shiftKey;
+      if (this.live && SHAPE_TOOLS.has(this.live.t)) {
+        this.updateShapeEnd();
+        this.requestRedraw();
+      }
+    };
+    document.addEventListener('keydown', trackShift);
+    document.addEventListener('keyup', trackShift);
     document.addEventListener('visibilitychange', () => {
       if (document.hidden) this.persist();
     });
@@ -410,7 +431,9 @@ export class QuireApp {
     }
     const tool = TOOLS.find((item) => item.id === id);
     this.dom.hint.textContent = tool?.hint ?? '';
+    // Picking a drawing tool takes focus out of any text field, so tool keys work and letters are not typed.
     if (id === 'write') this.dom.editor.focus({ preventScroll: true });
+    else if (isTextTarget(document.activeElement)) document.activeElement.blur();
   }
 
   setSize(size) {
@@ -552,9 +575,12 @@ export class QuireApp {
       this.base.height = h;
       ink.width = w;
       ink.height = h;
+      this.dom.grid.width = w;
+      this.dom.grid.height = h;
     }
     this.scale = w / NORM_WIDTH;
     if (resized) paintOps(this.baseCtx, this.drawing.ops, this.scale);
+    if (this.prefs.showGrid) paintGrid(this.gridCtx, this.scale);
     this.redraw();
   }
 
@@ -649,15 +675,30 @@ export class QuireApp {
       // Capture is a nicety; drawing still works without it.
     }
     this.pointerId = event.pointerId;
+    this.shiftHeld = event.shiftKey;
+    this.rawEnd = [p.x, p.y];
     const w = Math.round(strokeWidth(this.tool, this.size) * 100) / 100;
+    // With snap to grid on, a drag starts on the nearest grid node.
+    const start = this.prefs.snapGrid ? snapToGrid([p.x, p.y]) : [p.x, p.y];
     this.live = SHAPE_TOOLS.has(this.tool)
-      ? { t: this.tool, c: this.fg, w, a: [p.x, p.y], b: [p.x, p.y] }
-      : { t: 'stroke', tool: this.tool, c: this.fg, w, p: [[p.x, p.y]] };
+      ? { t: this.tool, c: this.fg, w, a: start, b: start }
+      : { t: 'stroke', tool: this.tool, c: this.fg, w, p: [start] };
     this.requestRedraw();
+  }
+
+  constraints() {
+    return { shift: this.shiftHeld, grid: Boolean(this.prefs.snapGrid), angles: Boolean(this.prefs.snapAngles) };
+  }
+
+  /** Recomputes a shape's end from the raw pointer, so Shift and snapping apply at every move. */
+  updateShapeEnd() {
+    if (!this.live || !SHAPE_TOOLS.has(this.live.t) || !this.rawEnd) return;
+    this.live.b = shapeEnd(this.live.t, this.live.a, this.rawEnd, this.constraints());
   }
 
   onPointerMove(event) {
     if (!this.live || event.pointerId !== this.pointerId) return;
+    this.shiftHeld = event.shiftKey;
     if (this.live.t === 'stroke') {
       const pts = this.live.p;
       for (const sample of event.getCoalescedEvents?.() ?? [event]) {
@@ -667,15 +708,23 @@ export class QuireApp {
       }
     } else {
       const p = this.pointFromEvent(event);
-      this.live.b = [p.x, p.y];
+      this.rawEnd = [p.x, p.y];
+      this.updateShapeEnd();
     }
     this.requestRedraw();
   }
 
   onPointerUp(event) {
     if (!this.live || event.pointerId !== this.pointerId) return;
+    this.shiftHeld = event.shiftKey;
+    if (SHAPE_TOOLS.has(this.live.t)) {
+      const p = this.pointFromEvent(event);
+      this.rawEnd = [p.x, p.y];
+      this.updateShapeEnd();
+    }
     const op = this.live;
     this.live = null;
+    this.rawEnd = null;
     this.pointerId = null;
     try {
       if (this.dom.ink.hasPointerCapture(event.pointerId)) this.dom.ink.releasePointerCapture(event.pointerId);
