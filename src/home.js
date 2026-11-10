@@ -14,7 +14,7 @@ import { icon, iconElement } from './icons.js';
 import { normalizeNavSections, sectionForFilter, toggleNavSection } from './nav-sections.js';
 import { downloadBlob } from './export.js';
 import { pixelState, posterBlob, yearGrid } from './yearpixels.js';
-import { notebookDialog, saveSearchDialog } from './dialogs.js';
+import { notebookDialog, placeDialog, saveSearchDialog } from './dialogs.js';
 import {
   addSavedSearch,
   normalizeSavedSearches,
@@ -27,6 +27,7 @@ import {
   countByKind,
   countByMood,
   countByNotebook,
+  countByPlace,
   countByTag,
   countByWeather,
   countFlags,
@@ -296,13 +297,13 @@ export class HomeView {
   }
 
   /**
-   * A notebook, tag, mood, or weather filter whose last entry has been moved or
+   * A notebook, place, tag, mood, or weather filter whose last entry has been moved or
    * deleted would leave an empty list with no sidebar row to explain it. Show
    * everything instead. Kind, pinned and favorite filters always stay.
    */
   dropEmptyFilter() {
     const { filter } = this.state;
-    if (!['notebook', 'tag', 'mood', 'weather'].includes(filter.type)) return;
+    if (!['notebook', 'place', 'tag', 'mood', 'weather'].includes(filter.type)) return;
     if (filterEntries(this.entries, { filter }).length) return;
     this.state.filter = { type: 'all', value: null };
   }
@@ -318,6 +319,12 @@ export class HomeView {
   /** The habit tracker's saved state, once the store has opened. */
   setHabits(state) {
     this.habits = normalizeHabits(state);
+    this.render();
+  }
+
+  /** The saved searches, once the store has opened (they are sealed with the lock). */
+  setSavedSearches(list) {
+    this.savedSearches = normalizeSavedSearches(list);
     this.render();
   }
 
@@ -471,6 +478,7 @@ export class HomeView {
     const kinds = countByKind(this.entries);
     const flags = countFlags(this.entries);
     const notebooks = countByNotebook(this.entries);
+    const places = countByPlace(this.entries);
     const tags = countByTag(this.entries);
     const moods = countByMood(this.entries);
     const weathers = countByWeather(this.entries);
@@ -558,6 +566,22 @@ export class HomeView {
               }),
             )
           : [el('p', { class: 'nav-empty' }, 'Move an entry into a notebook to start one.')],
+      ),
+      ...section(
+        'places',
+        'Places',
+        places.length,
+        places.length
+          ? places.map(({ name, count }) =>
+              navItem({
+                label: name,
+                count,
+                icon: 'tag',
+                active: filter.type === 'place' && filter.value === name,
+                onSelect: () => this.setFilter({ type: 'place', value: name }),
+              }),
+            )
+          : [el('p', { class: 'nav-empty' }, 'Set a place on an entry to list it here.')],
       ),
       ...section(
         'tags',
@@ -685,6 +709,7 @@ export class HomeView {
     else if (filter.type === 'mood') this.crumb.textContent = labelFor(MOODS, filter.value);
     else if (filter.type === 'weather') this.crumb.textContent = labelFor(WEATHERS, filter.value);
     else if (filter.type === 'notebook') this.crumb.textContent = filter.value;
+    else if (filter.type === 'place') this.crumb.textContent = filter.value;
     else if (filter.type === 'pinned') this.crumb.textContent = 'Pinned';
     else if (filter.type === 'favorite') this.crumb.textContent = 'Favorites';
     else this.crumb.textContent = 'All entries';
@@ -1983,6 +2008,17 @@ export class HomeView {
     });
   }
 
+  placeEntry(entry) {
+    placeDialog({
+      entryName: displayTitle(entry),
+      places: countByPlace(this.entries).map((place) => place.name),
+      current: entry.place,
+      onSave: (place) => {
+        if (place !== entry.place) this.patch(entry.id, { place });
+      },
+    });
+  }
+
   /** Right-click on an entry: it becomes the selection, and its menu opens where the pointer is. */
   onContextMenu(event) {
     if (event.shiftKey) return;
@@ -2006,6 +2042,7 @@ export class HomeView {
       { label: entry.pinned ? 'Unpin from top' : 'Pin to top', action: () => this.patch(entry.id, { pinned: !entry.pinned }) },
       { label: entry.favorite ? 'Remove from favorites' : 'Add to favorites', action: () => this.patch(entry.id, { favorite: !entry.favorite }) },
       { label: 'Move to notebook…', action: () => this.moveEntry(entry) },
+      { label: entry.place ? 'Change place…' : 'Set place…', action: () => this.placeEntry(entry) },
       'sep',
       { label: 'Delete…', shortcut: 'Delete', action: () => this.callbacks.onDelete?.(entry.id) },
     ];

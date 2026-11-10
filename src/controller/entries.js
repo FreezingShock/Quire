@@ -4,10 +4,10 @@ import { el } from '../dom.js';
 import { contentKey, paintSheet } from './helpers.js';
 import { entryRoute } from './routes.js';
 import { mark } from '../perf.js';
-import { confirmDialog, entriesDialog, infoDialog, notebookDialog, recapList } from '../dialogs.js';
+import { confirmDialog, entriesDialog, infoDialog, notebookDialog, placeDialog, recapList } from '../dialogs.js';
 import { Drawing, normalizeLayers } from '../drawing.js';
 import { todaysJournal } from '../journal.js';
-import { countByNotebook, sortEntries } from '../library.js';
+import { countByNotebook, countByPlace, sortEntries } from '../library.js';
 import { neighbourId } from '../gestures.js';
 import {
   createEntry,
@@ -200,7 +200,7 @@ export const entryMethods = {
   },
 
   /**
-   * Changes pin, favorite, or notebook on a stored entry. Any unsaved text of
+   * Changes pin, favorite, notebook, or place on a stored entry. Any unsaved text of
    * the open entry is written first, so this never drops an edit. The open
    * entry's copy is updated to match.
    */
@@ -210,7 +210,13 @@ export const entryMethods = {
     if (!current) return;
     const saved = await this.store.save({ ...current, ...fields });
     if (this.entry?.id === id) {
-      this.entry = { ...this.entry, notebook: saved.notebook, pinned: saved.pinned, favorite: saved.favorite };
+      this.entry = {
+        ...this.entry,
+        notebook: saved.notebook,
+        place: saved.place,
+        pinned: saved.pinned,
+        favorite: saved.favorite,
+      };
       this.renderEntryPath();
     }
     await this.refreshHome();
@@ -227,6 +233,21 @@ export const entryMethods = {
       current: current.notebook,
       onSave: (notebook) => {
         if (notebook !== current.notebook) this.patchEntry(id, { notebook });
+      },
+    });
+  },
+
+  async setEntryPlace(id) {
+    await this.persist();
+    const entries = await this.store.list();
+    const current = entries.find((entry) => entry.id === id);
+    if (!current) return;
+    placeDialog({
+      entryName: displayTitle(current),
+      places: countByPlace(entries).map((place) => place.name),
+      current: current.place,
+      onSave: (place) => {
+        if (place !== current.place) this.patchEntry(id, { place });
       },
     });
   },

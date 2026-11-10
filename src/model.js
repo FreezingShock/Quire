@@ -91,6 +91,15 @@ export function normalizeNotebook(value) {
   return name || null;
 }
 
+export const PLACE_MAX = 60;
+
+/** "  Lisbon  " -> "Lisbon". Blank or non-string places become null (no place). Typed by hand, never from GPS. */
+export function normalizePlace(value) {
+  if (typeof value !== 'string') return null;
+  const place = value.trim().replace(/\s+/g, ' ').slice(0, PLACE_MAX).trim();
+  return place || null;
+}
+
 /** How far ahead a time capsule can be sealed. */
 export const CAPSULE_MAX_YEARS = 50;
 
@@ -129,6 +138,8 @@ export function normalizeEntry(raw = {}) {
     weather: WEATHER_IDS.has(raw.weather) ? raw.weather : null,
     // A notebook is a name. Entries with no notebook, and older entries, read back as null.
     notebook: normalizeNotebook(raw.notebook),
+    // Where the entry was written, as a name you type. Older entries have none, so they read back as null.
+    place: normalizePlace(raw.place),
     pinned: raw.pinned === true,
     favorite: raw.favorite === true,
     // The first-run sample entry is marked so streaks can skip it. Entries written by hand never set this.
