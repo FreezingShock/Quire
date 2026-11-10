@@ -14,6 +14,7 @@ import { openPasscodeSettings } from '../lock.js';
 import { localISODate } from '../model.js';
 import { installState, promptInstall, showInstallHelp } from '../pwa.js';
 import { playSound } from '../sound.js';
+import { postcardDialog } from '../postcard.js';
 import { MAX_VERSIONS } from '../versions.js';
 
 export const exportMethods = {
@@ -35,6 +36,12 @@ export const exportMethods = {
     await exportDrawingPng(this.snapshot());
     this.showStatus('Exported drawing');
     playSound('export');
+  },
+
+  /** Opens the postcard dialog for the open entry. Saving or sharing happens inside it. */
+  async postcard() {
+    if (!this.entry) return;
+    await postcardDialog(this.snapshot(), { onStatus: (text) => this.showStatus(text) });
   },
 
   printPdf() {
