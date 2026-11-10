@@ -20,7 +20,7 @@ You can also open `index.html` through any static server.
 ## What it does
 
 - **Entries:** title, date, kind (journal, poem, blog post, note), mood, weather, and tags. Open entries from the list with search and filters for kind, tag, mood, and weather.
-- **Prompts and reflection:** the top of the entries list shows a writing prompt for today. Write to it, or click Another for the next one. Its text starts a new journal as a quote. The On this day card lists entries from this date in earlier years. Both can be hidden from the View menu.
+- **Prompts and reflection:** the top of the entries list shows a writing prompt for today. Write to it, or click Another for the next one. Its text starts a new journal as a quote. The On this day card lists entries from this date in earlier years. Both can be hidden in Options, on the Home tab.
 - **Mood chart:** the chart button in the view bar plots each day's mood for 30 days, 90 days, a year, or all time (weekly averages for the longer ranges), with the average and how often each mood came up.
 - **Calendar and streaks:** a month view shows how many entries each day has and its mood. The toolbar counts days in a row with at least one entry. Today's entry (Alt+T) opens today's journal, or starts one.
 - **Writing:** a live preview. Headings, quotes, lists, checklists, rules, code, bold, italics, links, and colors render as you type, and the Markdown markup shows only on the line you are editing. Enter continues lists. Select text and click a color to color it.
@@ -33,7 +33,7 @@ You can also open `index.html` through any static server.
 - **Export:** Markdown with front matter (a .zip with the drawing PNG when the entry has ink), drawing as PNG, print or save as PDF, and JSON backup and restore. Backups include version history.
 - **Version history:** Quire keeps a version every five minutes while you edit, when you leave an entry, and before a restore. Open File > Version history to preview a version's text and drawing, restore it, or delete it. Save version now keeps one by hand. The newest 30 versions are kept per entry.
 - **Save status:** the dot in the title bar shows whether changes are pending, saving, saved, or failed to save.
-- **Look:** serif, sans, or monospace writing font. The Skin menu picks Aero (the default), Aero dark, Aero Basic, XP Luna, or Classic 98, plus the Aero wallpaper, custom accent color (which recolors the selection and the title bar), and Window animations (which turns off the motion). Format holds the color swap and resets. Keyboard shortcuts (F1) lists every key.
+- **Look:** the Skin menu picks Aero (the default), Aero dark, Aero Basic, XP Luna, or Classic 98. View > Options (Ctrl+,) holds the rest in one tabbed dialog: the writing font, a custom accent color (which recolors the selection and the title bar), Window animations, the Aero wallpaper, grid and snap, sound effects, the startup splash, and the Home cards. Format holds the color swap and resets. Keyboard shortcuts (F1) lists every key.
 
 ## Design decisions
 
@@ -72,6 +72,7 @@ src/export.js       Markdown, ZIP, PNG, print, backup
 src/versions.js     version rules: when a copy is kept and what it holds (no DOM)
 src/history.js      version history dialog
 src/skins.js        skin list, skin choice from saved prefs, and accent colors (no DOM)
+src/options.js      Options dialog: the tabbed settings that the View and Skin menus used to hold
 styles/             app chrome, live editor, rendered-text styles, Vista extras, and skins
 tests/              node:test unit tests
 scripts/serve.js    dependency-free static server
