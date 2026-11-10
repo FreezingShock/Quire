@@ -57,6 +57,7 @@ import { capsuleStatus, countdownText, isHidden, redactSealed, upcomingCapsules 
 import { capsuleTileArt, envelopeIcon } from './capsule-ui.js';
 import { greetingFor, isFirstRun, lastDays, monthSummary, recentEntries } from './dashboard.js';
 import { addGadget, normalizeGadgetList, removeGadget } from './gadgets.js';
+import { addHabit, habitProblem, normalizeHabits, removeHabit, toggleHabit } from './habits.js';
 import { buildSidebar } from './gadget-views.js';
 import { TIPS } from './onboarding.js';
 
@@ -191,7 +192,7 @@ export class HomeView {
    * sidebar. Callbacks: onOpen(id), onNew(options), onToday(),
    * onWritePrompt(prompt), onHidePrompts(), onDismissTips(), onDelete(id),
    * onViewChange(view), onPatch(id, fields), onGadgetsChange(list),
-   * onSaveNote(text), onSavedSearchesChange(list), onNavSectionsChange(sections).
+   * onSaveNote(text), onSavedSearchesChange(list), onHabitsChange(state), onNavSectionsChange(sections).
    * `navSections` says which sidebar sections are open (see nav-sections.js).
    */
   constructor(
@@ -204,6 +205,7 @@ export class HomeView {
       showGadgets = true,
       gadgets,
       savedSearches,
+      habits,
       onOpen,
       onNew,
       onToday,
@@ -218,12 +220,15 @@ export class HomeView {
       onNavSectionsChange,
       navSections,
       onSavedSearchesChange,
+      onHabitsChange,
     } = {},
   ) {
     this.root = root;
-    this.callbacks = { onOpen, onNew, onToday, onWritePrompt, onHidePrompts, onDismissTips, onDelete, onViewChange, onPatch, onGadgetsChange, onSaveNote, onNavSectionsChange, onSavedSearchesChange };
+    this.callbacks = { onOpen, onNew, onToday, onWritePrompt, onHidePrompts, onDismissTips, onDelete, onViewChange, onPatch, onGadgetsChange, onSaveNote, onNavSectionsChange, onSavedSearchesChange, onHabitsChange };
     this.navOpen = normalizeNavSections(navSections); // which sidebar sections are open
     this.savedSearches = normalizeSavedSearches(savedSearches);
+    this.habits = normalizeHabits(habits); // the habit tracker's list and checks (see habits.js)
+    this.habitError = ''; // why the last habit could not be added, shown in the gadget
     this.entries = [];
     this.terms = []; // search terms for the current query, used for highlighting
     this.stripOptions = { showPrompts, showOnThisDay, showTips, showGadgets, gadgets: normalizeGadgetList(gadgets) };
@@ -276,6 +281,12 @@ export class HomeView {
     const next = { ...this.stripOptions, ...options };
     if ('gadgets' in options) next.gadgets = normalizeGadgetList(options.gadgets);
     this.stripOptions = next;
+    this.render();
+  }
+
+  /** The habit tracker's saved state, once the store has opened. */
+  setHabits(state) {
+    this.habits = normalizeHabits(state);
     this.render();
   }
 
@@ -851,7 +862,12 @@ export class HomeView {
       today,
       streak: dayStreaks(this.entries, today),
       note: this.note,
+      habits: this.habits,
+      habitError: this.habitError,
       on: {
+        onHabitToggle: (id) => this.changeHabits(toggleHabit(this.habits, id, today)),
+        onHabitAdd: (name) => this.addHabitFromForm(name, today),
+        onHabitRemove: (id) => this.changeHabits(removeHabit(this.habits, id)),
         onRemove: (id) => this.changeGadgets(removeGadget(gadgets, id)),
         onAdd: (id) => this.changeGadgets(addGadget(gadgets, id)),
         onReorder: (order, focusId) => this.changeGadgets(order, focusId),
@@ -864,6 +880,26 @@ export class HomeView {
         },
       },
     });
+  }
+
+  addHabitFromForm(name, today) {
+    const problem = habitProblem(this.habits, name);
+    this.habitError = problem ?? '';
+    if (problem) {
+      this.focusGadget = 'habits';
+      this.render();
+      return;
+    }
+    this.changeHabits(addHabit(this.habits, name, today), 'habits');
+  }
+
+  /** Saves a habit change. The gadget re-renders, and focus moves to it when `focusId` is given. */
+  changeHabits(next, focusId = null) {
+    this.habits = next;
+    this.habitError = '';
+    this.focusGadget = focusId;
+    this.callbacks.onHabitsChange?.(next);
+    this.render();
   }
 
   changeGadgets(list, focusId = null) {

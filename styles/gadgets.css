@@ -554,3 +554,92 @@
 [data-skin="classic"] .gadget-note-text { border-radius: 0; }
 
 [data-skin="classic"] .gadget-slide-open { border-radius: 0; }
+
+/* Habit tracker: a small form, then one row per habit with a check box, the streak, seven dots and a remove button. */
+.gadget-habits { display: grid; gap: 8px; }
+
+.gadget-habit-form { margin: 0; }
+
+.gadget-habit-input {
+  box-sizing: border-box;
+  width: 100%;
+  height: 26px;
+  padding: 0 8px;
+  border: 1px solid var(--panel-edge);
+  border-radius: 3px;
+  background: var(--panel-hi);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 13px;
+}
+
+.gadget-habit-input:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+.gadget-habit-error { margin: 0; font-size: 12px; color: #a33a1e; }
+
+.gadget-habit-list {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.gadget-habit {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr) auto auto 19px;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+}
+
+.gadget-habit-check {
+  display: inline-grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: 1px solid var(--panel-edge);
+  border-radius: 3px;
+  background: var(--panel-hi);
+  color: var(--accent);
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.gadget-habit-check:hover { border-color: var(--hover-edge); }
+.gadget-habit-check:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+.gadget-habit-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.gadget-habit.is-done .gadget-habit-name { color: var(--muted); text-decoration: line-through; }
+
+.gadget-habit-streak {
+  min-width: 22px;
+  text-align: right;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: var(--accent);
+}
+
+.gadget-habit-week { display: inline-flex; gap: 2px; }
+
+.gadget-habit-dot {
+  width: 6px;
+  height: 6px;
+  border: 1px solid var(--accent);
+  border-radius: 50%;
+}
+
+.gadget-habit-dot.is-on { background: var(--accent); }
+
+.gadget-habit-remove { opacity: 0.5; }
+.gadget-habit:hover .gadget-habit-remove,
+.gadget-habit-remove:focus-visible { opacity: 1; }

@@ -167,6 +167,7 @@ export class QuireApp {
       gadgets: this.prefs.gadgets,
       savedSearches: this.prefs.savedSearches,
       onSavedSearchesChange: (savedSearches) => this.setPref({ savedSearches }),
+      onHabitsChange: (habits) => this.saveHabits(habits),
       onGadgetsChange: (gadgets) => this.setPref({ gadgets }),
       navSections: this.prefs.navSections,
       // Saved quietly: the sidebar is already drawn, so the whole window does not need a refresh.
@@ -194,6 +195,7 @@ export class QuireApp {
     // Nothing is read until the passcode, if there is one, is typed.
     this.passcodeOn = await unlockStore(this.store);
     this.home.setNote((await this.store.getNote()) ?? '');
+    this.home.setHabits(await this.store.getHabits());
     startPwa({ onReady: () => this.showStatus('Quire is ready to work offline', false, 'saved') });
     startReminders({
       getReminder: () => this.prefs.reminder ?? REMINDER_DEFAULTS,

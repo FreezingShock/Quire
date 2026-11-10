@@ -9,6 +9,7 @@ import { el } from './dom.js';
 import { icon } from './icons.js';
 import { displayTitle, formatLongDate, labelFor, MOODS } from './model.js';
 import { monthGrid, monthOf, summarizeDays } from './journal.js';
+import { habitStreak, isDone, recentDays } from './habits.js';
 import { NORM_WIDTH, paintInk } from './drawing.js';
 import {
   GADGETS,
@@ -247,6 +248,55 @@ function noteBody(note, onChange) {
   return el('div', { class: 'gadget-note' }, area);
 }
 
+// ---------- habit tracker ----------
+
+/**
+ * Habits to check off today. A check box flips today, the number is the streak,
+ * and the dots show the last seven days. Enter in the box adds a habit.
+ */
+function habitsBody(ctx) {
+  const { habits, today, habitError, on } = ctx;
+  const input = el('input', { class: 'gadget-habit-input', type: 'text', maxlength: 40, placeholder: 'Add a habit', 'aria-label': 'New habit name', autocomplete: 'off' });
+  const form = el(
+    'form',
+    {
+      class: 'gadget-habit-form',
+      onSubmit: (event) => {
+        event.preventDefault();
+        on.onHabitAdd(input.value);
+      },
+    },
+    input,
+  );
+  const week = recentDays(today);
+  const rows = habits.habits.map((habit) => {
+    const done = isDone(habits, habit.id, today);
+    const streak = habitStreak(habits, habit.id, today);
+    return el(
+      'li',
+      { class: `gadget-habit${done ? ' is-done' : ''}` },
+      el(
+        'button',
+        { type: 'button', class: 'gadget-habit-check', role: 'checkbox', 'aria-checked': String(done), 'aria-label': `${habit.name}, done today`, onClick: () => on.onHabitToggle(habit.id) },
+        done ? '✓' : '',
+      ),
+      el('span', { class: 'gadget-habit-name' }, habit.name),
+      el('span', { class: 'gadget-habit-streak', title: 'Days in a row' }, streak ? `${streak}d` : ''),
+      el('span', { class: 'gadget-habit-week', 'aria-hidden': 'true' }, week.map((day) => el('span', { class: `gadget-habit-dot${isDone(habits, habit.id, day) ? ' is-on' : ''}` }))),
+      el('button', { type: 'button', class: 'gadget-close gadget-habit-remove', title: `Remove ${habit.name}`, 'aria-label': `Remove ${habit.name}`, onClick: () => on.onHabitRemove(habit.id) }, '×'),
+    );
+  });
+  return el(
+    'div',
+    { class: 'gadget-habits' },
+    form,
+    habitError ? el('p', { class: 'gadget-habit-error', role: 'alert' }, habitError) : null,
+    habits.habits.length
+      ? el('ul', { class: 'gadget-habit-list' }, rows)
+      : el('p', { class: 'gadget-caption' }, 'Add a habit you want to keep, like Water or A walk.'),
+  );
+}
+
 // ---------- drawing slideshow ----------
 
 /** Ink from recent entries, one at a time. Advances every few seconds, pauses under the pointer, and opens the entry on click. */
@@ -335,6 +385,8 @@ function gadgetBody(id, ctx) {
       return noteBody(note, on.onNoteChange);
     case 'slides':
       return slidesBody(entries, on.onOpen);
+    case 'habits':
+      return habitsBody(ctx);
     default:
       return el('p', { class: 'gadget-caption' }, 'Unknown gadget');
   }

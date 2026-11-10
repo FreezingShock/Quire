@@ -81,6 +81,7 @@ const SHELL = [
   './src/focus.js',
   './src/gadget-views.js',
   './src/gadgets.js',
+  './src/habits.js',
   './src/gestures.js',
   './src/history.js',
   './src/home.js',
