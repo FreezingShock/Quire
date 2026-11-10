@@ -1,0 +1,20 @@
+/*
+ * Install and reminder pieces: the time row for the daily reminder on the
+ * Options dialog's Home tab. The rest of the Options look comes from options.css.
+ */
+
+.reminder-item .options-time {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 2px 0 4px 26px;
+}
+
+.reminder-item .options-time input {
+  font: inherit;
+  padding: 2px 6px;
+}
+
+.reminder-item .options-time input:disabled {
+  opacity: 0.55;
+}

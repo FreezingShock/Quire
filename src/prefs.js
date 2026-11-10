@@ -24,6 +24,8 @@ const DEFAULTS = Object.freeze({
   accent: null,
   // Window animations. Only `false` turns them off.
   motion: true,
+  // Daily reminder: { enabled, time as HH:MM, lastDay as YYYY-MM-DD when it last went out }.
+  reminder: { enabled: false, time: '20:00', lastDay: null },
 });
 
 export function loadPrefs() {

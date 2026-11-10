@@ -79,6 +79,7 @@ import {
 import { createMenuBar } from './menubar.js';
 import { confirmDialog, entriesDialog, notebookDialog, showAbout, showShortcuts } from './dialogs.js';
 import { showOptions } from './options.js';
+import { installState, promptInstall, showInstallHelp, startPwa, startReminders, REMINDER_DEFAULTS } from './pwa.js';
 import { HomeView } from './home.js';
 import { MAX_VERSIONS, makeVersion, shouldKeepVersion } from './versions.js';
 import { formatVersionTime, historyDialog } from './history.js';
@@ -240,6 +241,12 @@ export class QuireApp {
     if (this.store.kind === 'memory') {
       this.showStatus('Browser storage is unavailable. Entries will not survive a reload.', true);
     }
+    startPwa({ onReady: () => this.showStatus('Quire is ready to work offline', false, 'saved') });
+    startReminders({
+      getReminder: () => this.prefs.reminder ?? REMINDER_DEFAULTS,
+      saveReminder: (reminder) => this.setPref({ reminder }),
+      hasEntryOn: async (day) => (await this.store.list()).some((entry) => entry.date === day),
+    });
     // The site opens on the entries list. A reload on an entry keeps that entry.
     const routed = routeEntryId(location.hash);
     const entries = await this.store.list();
@@ -538,6 +545,7 @@ export class QuireApp {
           'sep',
           { label: 'Back up all entries…', action: () => this.backup() },
           { label: 'Restore from backup…', action: () => this.restore() },
+          ...(installState() === 'installed' ? [] : ['sep', { label: 'Install Quire…', action: () => this.installQuire() }]),
         ],
       },
       {
@@ -1788,6 +1796,15 @@ export class QuireApp {
   printPdf() {
     if (!this.entry) return;
     printEntry(this.snapshot(), { fontStack: FONT_STACKS[this.prefs.font] ?? FONT_STACKS.serif });
+  }
+
+  /** Uses the browser's install prompt when it offered one. Otherwise it explains the browser's own steps. */
+  async installQuire() {
+    if (installState() !== 'available') {
+      showInstallHelp();
+      return;
+    }
+    if ((await promptInstall()) === 'accepted') this.showStatus('Quire is installing…', false, 'saved');
   }
 
   async backup() {
