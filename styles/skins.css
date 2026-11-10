@@ -93,9 +93,9 @@
 
 html[data-skin="basic"].has-wallpaper { background: #4a6a8e; }
 [data-skin="basic"] .titlebar { text-shadow: none; box-shadow: none; }
-[data-skin="basic"] .brand-mark { color: #1d2d40; }
 [data-skin="basic"] .titlebar-status { color: #1d2d40; }
 [data-skin="basic"] .splash { background: #3b5b7d; }
+[data-skin="basic"] .splash-bar { background: rgba(255, 255, 255, 0.2); }
 
 /* ---------- XP Luna: blue title bar with rounded top, beige panes, soft orange glow ---------- */
 
@@ -141,7 +141,6 @@ html[data-skin="basic"].has-wallpaper { background: #4a6a8e; }
 html[data-skin="luna"].has-wallpaper { background: #3a6fd6; }
 [data-skin="luna"] .app { border-radius: 8px 8px 3px 3px; overflow: hidden; }
 [data-skin="luna"] .titlebar { border-radius: 7px 7px 0 0; border-bottom-color: #0031b8; text-shadow: 0 1px 1px #0a1f5c; }
-[data-skin="luna"] .brand-mark { color: #3c7fe8; }
 [data-skin="luna"] .home-nav { background: linear-gradient(to bottom, #ffffff, #c6d3f7 75%, #aabfe9); }
 [data-skin="luna"] .menu-panel {
   background: linear-gradient(to right, #ece9d8 0, #ece9d8 27px, #ffffff 27px, #ffffff 100%);
@@ -164,6 +163,17 @@ html[data-skin="luna"].has-wallpaper { background: #3a6fd6; }
 }
 [data-skin="luna"] .splash {
   background: radial-gradient(ellipse at 50% 120%, #5aa6ff 0%, #1c5fd6 45%, #0a2f8a 100%);
+}
+/* XP's green progress blocks on a white track. */
+[data-skin="luna"] .splash-bar {
+  border-color: #ffffff;
+  background: #ffffff;
+  box-shadow: 0 1px 3px rgba(0, 20, 60, 0.45);
+}
+[data-skin="luna"] .splash-bar span {
+  border-radius: 0;
+  background: repeating-linear-gradient(90deg, #35c93a 0 9px, transparent 9px 11px);
+  box-shadow: none;
 }
 
 /* ---------- Classic 98: flat gray faces, bevels, navy title bars, square corners ---------- */
@@ -222,7 +232,6 @@ html[data-skin="classic"].has-wallpaper { background: #008080; }
   background-image: none;
 }
 [data-skin="classic"] .titlebar { border-bottom: 1px solid #000000; }
-[data-skin="classic"] .brand-mark { display: none; }
 [data-skin="classic"] .titlebar-status::before { border-radius: 0; }
 [data-skin="classic"] .titlebar-status[data-state="saving"]::before {
   animation: classic-blink 0.8s steps(2, start) infinite;
@@ -309,35 +318,11 @@ html[data-skin="classic"].has-wallpaper { background: #008080; }
   box-shadow: none;
 }
 
-[data-skin="classic"] .splash {
-  background: #008080;
-  color: #ffffff;
-}
-[data-skin="classic"] .splash-mark { display: none; }
-[data-skin="classic"] .splash-name { font: 700 28px/1 "Courier New", monospace; letter-spacing: 0.02em; }
-[data-skin="classic"] .splash-ring { gap: 4px; }
-[data-skin="classic"] .splash-ring span {
-  width: 12px;
-  height: 12px;
-  border-radius: 0;
-  background: #ffffff;
-  box-shadow: none;
-  opacity: 0.3;
-  animation-name: classic-block;
-  animation-duration: 1.2s;
-  animation-timing-function: steps(2, end);
-  animation-iteration-count: infinite;
-}
-
 @keyframes classic-blink {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.15; }
 }
 
-@keyframes classic-block {
-  0%, 100% { opacity: 0.3; }
-  50% { opacity: 1; }
-}
 
 /* ---------- Motion is per skin: Aero settles and sheens, Luna eases, Classic blinks and never slides ---------- */
 
@@ -402,3 +387,39 @@ html[data-skin="classic"].has-wallpaper { background: #008080; }
   font-weight: 700;
 }
 
+
+/* Classic 98 splash: a teal screen, a sunken bar, and navy blocks that fill it. */
+[data-skin="classic"] .splash {
+  background: #008080;
+  color: #ffffff;
+}
+[data-skin="classic"] .splash-name { font: 700 28px/1 "Courier New", monospace; letter-spacing: 0.02em; }
+[data-skin="classic"] .splash-status { font: 12px/1.2 "Courier New", monospace; }
+[data-skin="classic"] .splash-mark { filter: none; }
+[data-skin="classic"] .splash-bar {
+  width: 200px;
+  height: 16px;
+  margin-top: 12px;
+  padding: 2px;
+  border: 2px solid;
+  border-color: #808080 #ffffff #ffffff #808080;
+  border-radius: 0;
+  background: #c0c0c0;
+  box-shadow: none;
+}
+[data-skin="classic"] .splash-bar span {
+  top: 2px;
+  bottom: 2px;
+  left: 2px;
+  width: 0;
+  border-radius: 0;
+  background: repeating-linear-gradient(90deg, #000080 0 10px, transparent 10px 12px);
+  box-shadow: none;
+  animation: classic-fill 2.4s steps(12, end) infinite;
+}
+@keyframes classic-fill {
+  from { width: 0; }
+  to { width: 100%; }
+}
+
+[data-skin="classic"][data-motion="off"] .splash-bar span { width: 100%; }
