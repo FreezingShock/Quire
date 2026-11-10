@@ -5,7 +5,7 @@
  * Entries never pass through here. They live in IndexedDB on the device.
  */
 
-const CACHE = 'quire-shell-v1';
+const CACHE = 'quire-shell-v2';
 
 // Installed up front so the first offline open works. Keep this in step with the
 // files the app loads: tests/pwa.test.js fails when a file under src/, styles/ or
