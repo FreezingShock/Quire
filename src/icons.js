@@ -11,6 +11,15 @@ const PATHS = {
   line: '<path d="M3 13L13 3"/>',
   rect: '<rect x="2.8" y="4" width="10.4" height="8" rx=".5"/>',
   ellipse: '<ellipse cx="8" cy="8" rx="5.6" ry="4.4"/>',
+  page: '<path d="M4 2.5h5l3.5 3.5v7.5H4z"/><path d="M9 2.5V6h3.5"/><path d="M5.8 9h4.4M5.8 11.2h3"/>',
+  folder: '<path d="M2.5 4.5h3.6l1.2 1.5h6.2v6.5h-11z"/>',
+  tag: '<path d="M2.5 8.2V3.2a.7.7 0 0 1 .7-.7h5l5.3 5.3-5.7 5.7z"/><circle cx="5.6" cy="5.6" r=".8"/>',
+  search: '<circle cx="7" cy="7" r="4"/><path d="M10 10l3.2 3.2"/>',
+  plus: '<path d="M8 3v10M3 8h10"/>',
+  open: '<path d="M6.5 3.5H3v9h9.5V9"/><path d="M8.5 7.5L13 3M9.5 3H13v3.5"/>',
+  trash: '<path d="M3.5 4.5h9M6.5 4.5V3h3v1.5M4.8 4.5l.6 8.5h5.2l.6-8.5"/>',
+  details: '<path d="M2.5 4h2M6.5 4h7M2.5 8h2M6.5 8h7M2.5 12h2M6.5 12h7"/>',
+  tiles: '<rect x="2.5" y="2.5" width="4.5" height="4.5"/><rect x="9" y="2.5" width="4.5" height="4.5"/><rect x="2.5" y="9" width="4.5" height="4.5"/><rect x="9" y="9" width="4.5" height="4.5"/>',
 };
 
 export function icon(name) {

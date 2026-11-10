@@ -5,6 +5,8 @@ import { KINDS, displayTitle, formatShortDate } from './model.js';
 import { wordCount } from './markdown.js';
 
 const SHORTCUTS = [
+  ['All entries (home)', 'Ctrl+Shift+H'],
+  ['Search entries, on home', 'Ctrl+F'],
   ['New entry', 'Ctrl+N'],
   ['Open entry', 'Ctrl+O'],
   ['Save now', 'Ctrl+S'],
