@@ -107,6 +107,14 @@
   text-underline-offset: 2px;
 }
 
+/* [[Entry title]] links. Ctrl+click opens the entry; the marks show only on the line being edited. */
+.lv-wikilink {
+  color: #2f5d7c;
+  border-bottom: 1px dotted currentColor;
+  cursor: text;
+}
+
+
 .lv-num { color: #6b6457; }
 
 /* Markers: dimmed on the active line and in Source mode, hidden everywhere else. */

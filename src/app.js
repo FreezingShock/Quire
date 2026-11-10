@@ -84,11 +84,13 @@ export class QuireApp {
       focusFill: $('#focus-fill'),
       focusSave: $('#focus-save'),
       entryPath: $('#entry-path'),
+      backlinks: $('#backlinks'),
     };
     this.dom.editor = new LiveEditor(this.dom.editorEl, {
       onChange: () => this.onEditorChanged(),
       onHistory: (redo) => (redo ? this.redo() : this.undo()),
       onFiles: (files, range) => this.insertImages(files, range),
+      onWikiLink: (title) => this.followWikiLink(title),
       inkStyle: () => ({ color: this.fg, size: this.size }),
     });
     this.mixtape = new MixtapeView($('#mixtape'), {

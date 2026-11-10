@@ -40,6 +40,8 @@ export function renderInline(text) {
 
   let s = escapeHtml(String(text).replace(/\u0000/g, ''));
   s = s.replace(/`([^`]+)`/g, (_, code) => hold(`<code>${code}</code>`));
+  // [[Entry title]] links to another entry. The title is already escaped, so it is safe as text.
+  s = s.replace(/\[\[([^[\]\n]{1,120})\]\]/g, (_, title) => hold(`<span class="wikilink">${title}</span>`));
   s = s.replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, (match, label, href) => {
     const decoded = href.replace(/&amp;/g, '&');
     return SAFE_HREF.test(decoded) ? hold(`<a href="${href}" rel="noopener noreferrer">${label}</a>`) : match;
