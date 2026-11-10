@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Quire is a local-first journal and drawing page. Write in Markdown, sketch on the page, and export when you are ready.">
+  <meta name="color-scheme" content="light dark">
+  <title>Quire</title>
+  <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="styles/app.css">
+  <link rel="stylesheet" href="styles/reader.css">
+</head>
+<body>
+  <div class="app">
+    <header class="titlebar">
+      <div class="brand">
+        <svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="8" fill="currentColor"/><path d="M9 22c2-7 4-11 9-13l2 2c-2 5-6 9-11 11z" fill="var(--paper-tone, #fffdf8)"/><circle cx="23" cy="9" r="2" fill="#f3d54a"/></svg>
+        <span>Quire</span>
+      </div>
+      <div class="titlebar-entry" id="window-title">Untitled</div>
+      <div class="titlebar-status" id="save-status" role="status" aria-live="polite"></div>
+    </header>
+
+    <nav class="menubar" id="menubar" aria-label="Application menu"></nav>
+
+    <div class="entry-bar">
+      <input id="entry-title" class="entry-title" type="text" placeholder="Untitled" aria-label="Entry title" maxlength="120" autocomplete="off">
+      <label class="field">
+        <span>Date</span>
+        <input id="entry-date" type="date" aria-label="Entry date">
+      </label>
+      <label class="field">
+        <span>Kind</span>
+        <select id="entry-kind" aria-label="Entry kind">
+          <option value="journal">Journal</option>
+          <option value="poem">Poem</option>
+          <option value="blog">Blog post</option>
+          <option value="note">Note</option>
+        </select>
+      </label>
+      <label class="field field-tags">
+        <span>Tags</span>
+        <input id="entry-tags" type="text" placeholder="travel, winter" aria-label="Tags, comma separated" autocomplete="off">
+      </label>
+    </div>
+
+    <main class="workspace">
+      <aside class="toolbox" id="toolbox" aria-label="Tools"></aside>
+      <section class="desk" aria-label="Page">
+        <div class="sheet" id="sheet">
+          <textarea id="editor" class="editor" aria-label="Entry text" spellcheck="true" placeholder="Start writing. Try # for a heading, > for a quote, or - for a list."></textarea>
+          <div id="reader" class="sheet-text reader" hidden></div>
+          <canvas id="ink" class="ink" data-tool="write" aria-label="Drawing layer. Pick a drawing tool to draw on the page."></canvas>
+        </div>
+      </section>
+    </main>
+
+    <footer class="palette">
+      <div class="ink-chip" id="ink-chip" aria-hidden="true"><span class="chip-bg"></span><span class="chip-fg"></span></div>
+      <div class="swatches" id="swatches"></div>
+      <p class="palette-note">Click a color for ink or for selected text. Right-click to set the page color.</p>
+    </footer>
+
+    <div class="statusbar">
+      <span id="hint" class="status-hint"></span>
+      <span id="status-words"></span>
+      <span id="status-mode">Markdown</span>
+      <span id="status-date"></span>
+    </div>
+  </div>
+  <script type="module" src="src/main.js"></script>
+</body>
+</html>

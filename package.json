@@ -1,0 +1,15 @@
+{
+  "name": "quire",
+  "version": "0.1.0",
+  "description": "Quire: a local-first journal and drawing page. Markdown entries, paint-style ink, and export.",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node scripts/serve.js",
+    "test": "node --test tests/*.test.js"
+  },
+  "engines": {
+    "node": ">=18.17"
+  },
+  "license": "UNLICENSED"
+}
