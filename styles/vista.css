@@ -1,0 +1,182 @@
+/*
+ * Vista extras: the startup splash, the Aero wallpaper behind the window, and
+ * the Paint-style ribbon toggle at the end of the menu row. Loaded last, so it
+ * can refine app.css. Colors come from the same tokens, so dark mode follows.
+ */
+
+/* ---------- menu row: menu bar plus the ribbon toggle ---------- */
+
+.menubar-row {
+  display: flex;
+  align-items: stretch;
+  background: linear-gradient(to bottom, var(--menu-hi), var(--menu-lo));
+  border-bottom: 1px solid var(--panel-edge);
+}
+
+/* The menu bar keeps its own geometry, so dropdowns sit where they did before. */
+.menubar-row > .menubar {
+  flex: 1 1 auto;
+  min-width: 0;
+  background: none;
+  border-bottom: 0;
+}
+
+.ribbon-toggle {
+  flex: none;
+  align-self: center;
+  width: 26px;
+  height: 22px;
+  margin: 0 6px 0 4px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  background: transparent;
+  color: var(--tile-ink);
+  cursor: default;
+}
+
+.ribbon-toggle svg {
+  width: 14px;
+  height: 14px;
+}
+
+.ribbon-toggle:hover {
+  background: linear-gradient(to bottom, var(--glow-hi), var(--glow-lo));
+  border-color: var(--hover-edge);
+}
+
+.ribbon-toggle:active {
+  background: linear-gradient(to bottom, var(--press-hi), var(--press-lo));
+}
+
+.app[data-view="home"] .ribbon-toggle { display: none; }
+
+/* Minimized ribbon: only the menu row stays, and the desk takes the full width. */
+.app[data-ribbon="minimized"] .toolbox { display: none; }
+.app[data-ribbon="minimized"] .workspace { grid-template-columns: minmax(0, 1fr); }
+
+/* ---------- Aero wallpaper: the desktop shows around the window ---------- */
+
+@media (min-width: 761px) {
+  html.has-wallpaper {
+    background: #1d5a98;
+  }
+
+  html.has-wallpaper body {
+    padding: 14px 18px;
+    background: transparent;
+  }
+
+  html.has-wallpaper body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    background: url("../assets/aero-wallpaper.svg") center / cover no-repeat;
+  }
+
+  html.has-wallpaper[data-theme="dark"] body::after {
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    background: rgba(4, 14, 30, 0.45);
+  }
+
+  html.has-wallpaper .app {
+    border: 1px solid rgba(10, 30, 60, 0.6);
+    border-radius: 8px;
+    box-shadow: 0 16px 48px rgba(0, 12, 35, 0.55), 0 2px 6px rgba(0, 12, 35, 0.35);
+    overflow: hidden;
+  }
+}
+
+/* ---------- startup splash ---------- */
+
+.splash {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: grid;
+  place-items: center;
+  background:
+    linear-gradient(rgba(4, 22, 48, 0.25), rgba(4, 22, 48, 0.55)),
+    url("../assets/aero-wallpaper.svg") center / cover no-repeat,
+    #1d5a98;
+  color: #ffffff;
+  transition: opacity 0.6s ease, visibility 0s linear 0.6s;
+}
+
+.splash.is-leaving {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.splash-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  animation: splash-rise 0.7s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+.splash-mark {
+  width: 76px;
+  height: 76px;
+  filter: drop-shadow(0 4px 14px rgba(0, 20, 50, 0.5));
+}
+
+.splash-name {
+  font: 600 30px/1 var(--ui-font);
+  letter-spacing: 0.04em;
+  text-shadow: 0 2px 10px rgba(0, 20, 50, 0.6);
+}
+
+/* Five glowing dots pulse in turn, the way the Vista boot ring did. */
+.splash-ring {
+  display: flex;
+  gap: 7px;
+  margin-top: 26px;
+}
+
+.splash-ring span {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #ffffff;
+  box-shadow: 0 0 6px rgba(190, 230, 255, 0.9);
+  opacity: 0.25;
+  animation: splash-dot 1.2s ease-in-out infinite;
+}
+
+.splash-ring span:nth-child(2) { animation-delay: 0.15s; }
+.splash-ring span:nth-child(3) { animation-delay: 0.3s; }
+.splash-ring span:nth-child(4) { animation-delay: 0.45s; }
+.splash-ring span:nth-child(5) { animation-delay: 0.6s; }
+
+@keyframes splash-dot {
+  0%, 100% { opacity: 0.25; transform: scale(0.85); }
+  40% { opacity: 1; transform: scale(1.1); }
+}
+
+@keyframes splash-rise {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .splash-inner,
+  .splash-ring span {
+    animation: none;
+  }
+  .splash-ring span {
+    opacity: 0.7;
+  }
+  .splash,
+  .splash.is-leaving {
+    transition: none;
+  }
+}

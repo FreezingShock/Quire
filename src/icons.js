@@ -11,6 +11,12 @@ const PATHS = {
   line: '<path d="M3 13L13 3"/>',
   rect: '<rect x="2.8" y="4" width="10.4" height="8" rx=".5"/>',
   ellipse: '<ellipse cx="8" cy="8" rx="5.6" ry="4.4"/>',
+  select: '<rect x="2.5" y="2.5" width="11" height="11" stroke-dasharray="2 1.6"/><path d="M7.6 7.6L12.6 12.6"/>',
+  textbox: '<rect x="2.5" y="2.5" width="11" height="11" stroke-dasharray="2 1.6"/><path d="M5.2 11L8 4.8 10.8 11M6.2 9h3.6"/>',
+  eye: '<path d="M1.8 8s2.3-4 6.2-4 6.2 4 6.2 4-2.3 4-6.2 4S1.8 8 1.8 8z"/><circle cx="8" cy="8" r="1.9"/>',
+  eyeOff: '<path d="M1.8 8s2.3-4 6.2-4 6.2 4 6.2 4-2.3 4-6.2 4S1.8 8 1.8 8z"/><circle cx="8" cy="8" r="1.9"/><path d="M2.6 2.6l10.8 10.8"/>',
+  up: '<path d="M8 13V3.5M4 7.2L8 3.2l4 4"/>',
+  down: '<path d="M8 3v9.5M4 8.8l4 4 4-4"/>',
   page: '<path d="M4 2.5h5l3.5 3.5v7.5H4z"/><path d="M9 2.5V6h3.5"/><path d="M5.8 9h4.4M5.8 11.2h3"/>',
   folder: '<path d="M2.5 4.5h3.6l1.2 1.5h6.2v6.5h-11z"/>',
   tag: '<path d="M2.5 8.2V3.2a.7.7 0 0 1 .7-.7h5l5.3 5.3-5.7 5.7z"/><circle cx="5.6" cy="5.6" r=".8"/>',
@@ -20,6 +26,8 @@ const PATHS = {
   trash: '<path d="M3.5 4.5h9M6.5 4.5V3h3v1.5M4.8 4.5l.6 8.5h5.2l.6-8.5"/>',
   details: '<path d="M2.5 4h2M6.5 4h7M2.5 8h2M6.5 8h7M2.5 12h2M6.5 12h7"/>',
   tiles: '<rect x="2.5" y="2.5" width="4.5" height="4.5"/><rect x="9" y="2.5" width="4.5" height="4.5"/><rect x="2.5" y="9" width="4.5" height="4.5"/><rect x="9" y="9" width="4.5" height="4.5"/>',
+  chevronUp: '<path d="M3.5 10.5L8 6l4.5 4.5"/>',
+  chevronDown: '<path d="M3.5 6L8 10.5 12.5 6"/>',
 };
 
 export function icon(name) {

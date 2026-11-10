@@ -421,7 +421,7 @@ textarea {
 
 .workspace {
   display: grid;
-  grid-template-columns: 88px minmax(0, 1fr);
+  grid-template-columns: 112px minmax(0, 1fr);
   min-height: 0;
 }
 
@@ -474,6 +474,8 @@ textarea {
 .tool-btn[data-tool-id="line"] svg { color: #2f6fb3; }
 .tool-btn[data-tool-id="rect"] svg { color: #3a7d3a; }
 .tool-btn[data-tool-id="ellipse"] svg { color: #2d3f8f; }
+.tool-btn[data-tool-id="select"] svg { color: #4a6a8a; }
+.tool-btn[data-tool-id="text"] svg { color: #8a3d8f; }
 
 .tool-btn:hover {
   background: linear-gradient(to bottom, var(--glow-hi), var(--glow-lo));
@@ -527,6 +529,19 @@ textarea {
 
 .size-btn:hover { border-color: var(--hover-edge); }
 
+/* In text mode the size row shows an "A" at each size instead of a stroke bar. */
+.size-row.is-text .size-btn { height: 22px; justify-content: center; padding: 0; }
+.size-btn .size-letter {
+  display: block;
+  width: auto;
+  background: none;
+  border-radius: 0;
+  font-family: Georgia, "Times New Roman", serif;
+  font-weight: 700;
+  line-height: 1;
+  color: inherit;
+}
+
 .size-btn[aria-checked="true"] {
   background: linear-gradient(to bottom, var(--accent-hi), var(--accent-lo));
   border-color: var(--accent);
@@ -538,6 +553,145 @@ textarea {
   grid-template-columns: repeat(3, 1fr);
   gap: 3px;
 }
+
+/* ---------- layers ---------- */
+
+.layer-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 5px;
+  border: 1px solid var(--field-edge);
+  border-radius: 3px;
+  background: var(--field);
+  box-shadow: inset 0 1px 2px rgba(20, 40, 70, 0.12);
+  flex: none;
+}
+
+.layer-head {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
+  padding: 0 2px;
+}
+
+.layer-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 168px;
+  overflow-y: auto;
+}
+
+.layer-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 22px;
+  padding: 1px 2px;
+  border: 1px solid transparent;
+  border-radius: 2px;
+  color: var(--text);
+  font-size: 12px;
+}
+
+.layer-row:hover { border-color: var(--hover-edge); }
+
+.layer-row.is-active {
+  background: linear-gradient(to bottom, var(--accent-hi), var(--accent-lo));
+  border-color: var(--accent);
+  color: var(--accent-ink);
+}
+
+.layer-row.is-hidden .layer-name { opacity: 0.55; text-decoration: line-through; }
+
+.layer-eye,
+.layer-btn {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 22px;
+  height: 22px;
+  box-sizing: border-box;
+  padding: 0;
+  border: 1px solid var(--tile-edge);
+  border-radius: 3px;
+  background: linear-gradient(to bottom, var(--tile-hi), var(--tile-lo));
+  color: var(--tile-ink);
+  cursor: pointer;
+}
+
+.layer-eye svg,
+.layer-btn svg { width: 14px; height: 14px; }
+
+.layer-eye:hover,
+.layer-btn:hover:not(:disabled) {
+  background: linear-gradient(to bottom, var(--glow-hi), var(--glow-lo));
+  border-color: var(--hover-edge);
+}
+
+.layer-btn:disabled,
+.layer-eye:disabled { opacity: 0.4; cursor: default; }
+
+.layer-row.is-active .layer-eye {
+  background: linear-gradient(to bottom, var(--glass-hi), var(--glass-mid));
+  border-color: #1f4f8a;
+  color: #ffffff;
+}
+
+.layer-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: default;
+  padding: 0 2px;
+}
+
+.layer-input {
+  flex: 1;
+  min-width: 0;
+  height: 20px;
+  padding: 0 4px;
+  border: 1px solid var(--accent);
+  border-radius: 2px;
+  font: inherit;
+  font-size: 12px;
+  color: var(--text);
+  background: var(--field);
+  outline: none;
+}
+
+.layer-actions {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 3px;
+}
+
+.layer-actions .layer-btn { width: 100%; }
+
+/* The text box being typed. It sits over its box on the sheet, at the size and font it will print in. */
+.text-draft {
+  position: absolute;
+  z-index: 3;
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  min-height: 1em;
+  border: 1px dashed var(--accent);
+  border-radius: 0;
+  background: transparent;
+  outline: none;
+  resize: none;
+  overflow: hidden;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+  line-height: 1.25;
+  caret-color: currentColor;
+}
+
+.text-draft:focus { box-shadow: 0 0 0 1px rgba(47, 111, 191, 0.25); }
 
 .format-btn {
   height: 28px;
@@ -612,12 +766,15 @@ textarea {
 
 /* The live-preview editor's own styles are in live.css. */
 
+/* Drawing tools take over single-finger and pen drags, but two fingers still pinch-zoom the page.
+   The `none` line is a fallback for browsers that do not know `pinch-zoom`. */
 .ink {
   position: absolute;
   inset: 0;
   width: 100%;
   height: 100%;
   touch-action: none;
+  touch-action: pinch-zoom;
 }
 
 .grid { pointer-events: none; }
@@ -626,7 +783,8 @@ textarea {
 .ink[data-tool="pick"] { cursor: copy; }
 .ink[data-tool="fill"],
 .ink[data-tool="eraser"] { cursor: cell; }
-.ink:not([data-tool="write"]):not([data-tool="pick"]):not([data-tool="fill"]):not([data-tool="eraser"]) { cursor: crosshair; }
+.ink[data-tool="text"] { cursor: text; }
+.ink:not([data-tool="write"]):not([data-tool="pick"]):not([data-tool="fill"]):not([data-tool="eraser"]):not([data-tool="text"]) { cursor: crosshair; }
 
 /* ---------- color box ---------- */
 
@@ -930,6 +1088,13 @@ kbd {
 /* ---------- narrow screens ---------- */
 
 @media (max-width: 760px) {
+  /* dvh tracks the visible area when the mobile browser toolbar slides away. */
+  .app {
+    height: 100vh;
+    height: 100dvh;
+  }
+
+  /* The toolbox wraps into rows instead of scrolling, so every tool, size, and format key stays in reach. */
   .workspace {
     grid-template-columns: minmax(0, 1fr);
     grid-template-rows: auto minmax(0, 1fr);
@@ -937,40 +1102,76 @@ kbd {
 
   .toolbox {
     flex-direction: row;
-    align-items: center;
-    gap: 10px;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    gap: 6px 8px;
     padding: 6px 8px;
-    overflow-x: auto;
-    overflow-y: hidden;
+    overflow: hidden;
     border-right: 0;
     border-bottom: 1px solid var(--panel-edge);
   }
 
-  .tool-grid { grid-template-columns: repeat(10, 32px); }
-  .tool-btn { width: 32px; height: 32px; }
+  .tool-grid { grid-template-columns: repeat(10, 34px); gap: 2px; }
+  .tool-btn { width: 34px; height: 34px; }
   .size-row { flex-direction: row; flex: none; }
-  .format-grid { grid-template-columns: repeat(9, 30px); flex: none; }
-  .format-btn { width: 30px; }
-  .source-btn { flex: none; }
+  .size-btn { height: 26px; }
+  .format-grid { grid-template-columns: repeat(9, 30px); gap: 2px; flex: none; }
+  .format-btn { width: 30px; height: 30px; }
+  .source-btn { flex: none; height: 30px; }
+  .layer-panel { flex: none; width: 200px; }
+  .layer-list { max-height: 72px; flex-direction: row; flex-wrap: wrap; }
+  .layer-row { width: 96px; }
 
-  .sheet { padding: 20px 16px 72px; }
+  .sheet { padding: 16px 16px 72px; }
 
-  .entry-bar { padding: 8px; }
-  .field-tags input { width: 140px; }
-
-  .palette {
-    flex-wrap: wrap;
-    gap: 8px;
+  .entry-bar {
+    gap: 6px 10px;
+    padding: 6px 8px;
   }
 
-  .swatches { grid-template-columns: repeat(14, minmax(0, 1fr)); width: 100%; }
-  .swatch { width: 100%; height: 16px; }
-  .palette-note { flex-basis: 100%; }
+  .field-tags {
+    flex: 1 1 100%;
+  }
+
+  .field-tags input { width: 100%; }
+
+  /* iOS zooms the page when a field under 16px gets focus, so phone inputs stay at 16px. */
+  .field input,
+  .field select,
+  .input,
+  .entry-title { font-size: 16px; }
+
+  /* Color chip and swatches share one row, and the long hint moves out of the way. */
+  .palette {
+    gap: 8px;
+    padding: 5px 8px;
+  }
+
+  .ink-chip { width: 36px; height: 36px; flex: none; }
+
+  .swatches {
+    grid-template-columns: repeat(14, minmax(0, 1fr));
+    flex: 1 1 auto;
+    min-width: 0;
+    width: auto;
+  }
+
+  .swatch { width: 100%; height: 15px; }
+  .palette-note { display: none; }
 
   #status-mode,
   #status-date { display: none; }
 
   .titlebar-status { min-width: 0; }
+}
+
+/* Touch tablets get the same 16px inputs, since Safari zooms in on smaller fields at any width. */
+@media (pointer: coarse) {
+  .field input,
+  .field select,
+  .input,
+  .entry-title,
+  .home-search input { font-size: 16px; }
 }
 
 @media (prefers-reduced-motion: reduce) {

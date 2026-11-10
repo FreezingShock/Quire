@@ -504,6 +504,7 @@
 @media (max-width: 760px) {
   .home-address { padding: 6px 8px; }
   .home-search { flex-basis: 150px; }
+  .home-search input { font-size: 16px; }
 
   .home-body {
     grid-template-columns: minmax(0, 1fr);

@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { Drawing, inkExtent, strokeWidth, visibleOps } from '../src/drawing.js';
+import { Drawing, inkExtent, penFactor, strokeWidth, visibleOps } from '../src/drawing.js';
 
 const stroke = (x) => ({ t: 'stroke', tool: 'pencil', c: '#000000', w: 1.4, p: [[x, 1], [x + 5, 9]] });
 
@@ -58,6 +58,14 @@ test('stroke width grows with size and marker is wider than pencil', () => {
   assert.ok(strokeWidth('marker', 3) > strokeWidth('pencil', 3));
 });
 
+test('pen pressure scales width within a fixed range, with a typical press near the nominal width', () => {
+  assert.ok(Math.abs(penFactor(0.6) - 0.98) < 1e-9);
+  assert.ok(penFactor(0) < penFactor(0.5));
+  assert.ok(penFactor(0.5) < penFactor(1));
+  assert.equal(penFactor(2), penFactor(1), 'values above 1 are clamped');
+  assert.equal(penFactor(undefined), penFactor(0.5), 'a missing reading counts as a typical press');
+});
+
 test('clearing hides the ink, and undo brings it back', () => {
   const d = new Drawing();
   d.commit(stroke(1));
@@ -69,10 +77,18 @@ test('clearing hides the ink, and undo brings it back', () => {
   assert.equal(d.isEmpty, false);
 });
 
-test('visibleOps keeps only the ops after the last clear', () => {
+test('visibleOps keeps only the ops after the last full clear', () => {
   const a = stroke(1);
   const b = stroke(2);
   assert.deepEqual(visibleOps([a, { t: 'clear' }, b]), [b]);
   assert.deepEqual(visibleOps([a, { t: 'clear' }]), []);
   assert.deepEqual(visibleOps([a, b]), [a, b]);
+});
+
+test('a layer clear hides only that layer', () => {
+  const base = { ...stroke(1) };
+  const top = { ...stroke(2), l: 'top' };
+  assert.deepEqual(visibleOps([base, top, { t: 'clear', l: 'top' }]), [base]);
+  assert.deepEqual(visibleOps([base, top, { t: 'clear', l: 'base' }]), [top]);
+  assert.deepEqual(visibleOps([base, top, { t: 'clear' }, top]), [top]);
 });
