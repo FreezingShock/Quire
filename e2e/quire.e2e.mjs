@@ -302,6 +302,15 @@ test('the home view and an open entry fit a phone width without sideways scrolli
     assert.equal(await scrollWidth(), 390, 'home fits the phone width');
     await newEntry(page);
     assert.equal(await scrollWidth(), 390, 'the editor fits the phone width');
+    // The last menu titles sit near the right edge, so their drop-downs must be pulled back on screen.
+    for (const title of ['View', 'Help']) {
+      await page.click(`.menu-title:has-text("${title}")`);
+      await page.waitForSelector('.menu-panel');
+      const right = await page.$eval('.menu-panel', (panel) => panel.getBoundingClientRect().right);
+      assert.ok(right <= 390, `the ${title} menu ends inside the screen (right edge ${right})`);
+      assert.equal(await scrollWidth(), 390, `opening ${title} does not widen the page`);
+      await page.keyboard.press('Escape');
+    }
     expectNoErrors(page);
   } finally {
     await page.close();
