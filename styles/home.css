@@ -9,10 +9,10 @@
 .home { display: none; }
 
 .app[data-view="home"] > .entry-bar,
-.app[data-view="home"] > .workspace,
+.app[data-view="home"] .workspace,
 .app[data-view="home"] > .palette { display: none; }
 
-.app[data-view="home"] > .home {
+.app[data-view="home"] .home {
   display: flex;
   flex-direction: column;
   grid-row: 4;
@@ -220,7 +220,7 @@
   color: var(--muted);
 }
 
-.home-nav h3:first-child { margin-top: 6px; }
+.home-nav h3:first-of-type { margin-top: 6px; }
 
 .nav-item {
   display: flex;

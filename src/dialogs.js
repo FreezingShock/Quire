@@ -221,7 +221,8 @@ export function showShortcuts() {
       'form',
       { method: 'dialog', class: 'dialog-form' },
       el('h2', { id: heading, class: 'dialog-title' }, 'Keyboard shortcuts'),
-      el('div', { class: 'shortcut-groups' }, SHORTCUT_GROUPS.map(shortcutGroup)),
+      // The list scrolls, so it has to be reachable by keyboard.
+      el('div', { class: 'shortcut-groups', tabindex: '0', role: 'region', 'aria-label': 'Keyboard shortcut list' }, SHORTCUT_GROUPS.map(shortcutGroup)),
       el('div', { class: 'dialog-actions' }, el('button', { class: 'btn btn-primary', type: 'submit' }, 'Close')),
     ),
   );

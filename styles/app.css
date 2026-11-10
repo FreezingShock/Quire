@@ -651,6 +651,19 @@ textarea {
   color: #ffffff;
 }
 
+/* The layer name is a button now, so it drops the default button box. */
+button.layer-name {
+  border: 0;
+  background: none;
+  text-align: left;
+  font-size: inherit;
+}
+
+button.layer-name:focus-visible {
+  outline: 1px dotted currentColor;
+  outline-offset: -1px;
+}
+
 .layer-name {
   flex: 1;
   min-width: 0;
@@ -1230,3 +1243,44 @@ kbd {
     transition: none;
   }
 }
+
+/* Screen-reader-only text: stays in the accessibility tree, takes no room on screen. */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* The main landmark wraps the workspace and the home view. It has no box, so the grid layout of .app is unchanged. */
+.app-main { display: contents; }
+
+/* Keyboard pen crosshair (see keypen.js). Fixed to the viewport, so it never takes a click. */
+.kb-pen {
+  position: fixed;
+  left: 0;
+  top: 0;
+  width: 17px;
+  height: 17px;
+  pointer-events: none;
+  z-index: 50;
+}
+
+.kb-pen::before,
+.kb-pen::after {
+  content: "";
+  position: absolute;
+  background: #000;
+  box-shadow: 0 0 0 1px #fff;
+}
+
+.kb-pen::before { left: 8px; top: 0; width: 1px; height: 17px; }
+.kb-pen::after { top: 8px; left: 0; width: 17px; height: 1px; }
+
+.kb-pen.is-down::before,
+.kb-pen.is-down::after { background: #d6262c; }
