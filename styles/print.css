@@ -1,0 +1,127 @@
+/*
+ * Print dialog: a Vista property sheet on the left and a paper preview on the
+ * right. The controls reuse the Options classes (groups, radios, checks), so
+ * the look follows the active skin. The preview frame is a paper-sized sheet
+ * scaled down to fit the pane. Its own layout lives in the HTML from print-docs.js.
+ */
+
+.print-dialog {
+  width: min(980px, calc(100vw - 24px));
+  max-height: calc(100vh - 24px);
+}
+
+.print-form {
+  max-height: calc(100vh - 24px);
+  overflow: hidden;
+}
+
+.print-body {
+  display: grid;
+  grid-template-columns: minmax(260px, 320px) minmax(0, 1fr);
+  gap: 14px;
+  min-height: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+}
+
+.print-controls {
+  overflow: auto;
+  max-height: min(80vh, 780px);
+  padding: 2px 8px 2px 2px;
+  min-width: 0;
+}
+
+.print-controls .options-group { margin: 0 0 12px; }
+.print-controls .options-group:last-child { margin-bottom: 0; }
+
+.print-controls .dialog-select,
+.print-controls .dialog-input {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.print-controls .options-field {
+  display: grid;
+  grid-template-columns: 84px minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  margin: 6px 0;
+}
+
+.print-controls .options-field > span:first-child { font-size: 13px; }
+
+.print-row { display: grid; grid-template-columns: 84px 1fr; align-items: start; gap: 10px; }
+.print-row .options-radio { margin: 1px 0; }
+.print-sub { font-size: 13px; padding-top: 2px; }
+
+.print-kind-options .options-check { display: flex; margin: 4px 0; }
+
+.print-entries[disabled] { opacity: 0.5; }
+
+.print-preview-pane {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  border: 1px solid #8ea4bf;
+  border-radius: 3px;
+  background: #6b707a;
+  overflow: hidden;
+}
+
+.print-preview-label {
+  margin: 0;
+  padding: 4px 8px;
+  font-size: 12px;
+  color: #f2f5f9;
+  background: rgba(20, 30, 45, 0.45);
+  letter-spacing: 0.02em;
+}
+
+.print-preview-pane > .print-stage {
+  margin: 14px auto 6px;
+  position: relative;
+  overflow: visible;
+  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.35);
+}
+
+.print-stage { flex: 0 0 auto; }
+
+.print-frame {
+  position: absolute;
+  top: 0;
+  left: 0;
+  transform-origin: top left;
+  border: 0;
+  background: #fff;
+  display: block;
+}
+
+.print-preview-pane {
+  overflow: auto;
+}
+
+.print-status {
+  margin: auto 0 0;
+  padding: 6px 10px;
+  font-size: 12px;
+  color: #eef2f7;
+  background: rgba(20, 30, 45, 0.45);
+  min-height: 1.4em;
+}
+
+.print-actions { justify-content: flex-end; }
+
+@media (max-width: 760px) {
+  .print-body {
+    grid-template-columns: minmax(0, 1fr);
+    overflow: auto;
+  }
+  .print-controls { max-height: none; overflow: visible; }
+  .print-preview-pane { min-height: 360px; }
+}
+
+[data-skin="classic"] .print-preview-pane { border-color: #808080; border-radius: 0; }
+[data-skin="classic"] .print-preview-label,
+[data-skin="classic"] .print-status { color: #fff; background: #000080; }

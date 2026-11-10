@@ -167,7 +167,7 @@ export const buildUiMethods = {
           { scope: 'editor', label: 'Export as Markdown…', shortcut: 'Ctrl+E', disabled: !this.entry, action: () => this.exportMarkdown() },
           { scope: 'editor', label: 'Export drawing as PNG…', disabled: !this.entry || this.drawing.isEmpty, action: () => this.exportDrawing() },
           { scope: 'editor', label: 'Postcard…', disabled: !this.entry, action: () => this.postcard() },
-          { scope: 'editor', label: 'Print or save as PDF…', shortcut: 'Ctrl+P', disabled: !this.entry, action: () => this.printPdf() },
+          { label: 'Print…', shortcut: 'Ctrl+P', action: () => this.printPdf() },
           'sep',
           { label: 'Back up all entries…', action: () => this.backup() },
           { label: 'Restore from backup…', action: () => this.restore() },

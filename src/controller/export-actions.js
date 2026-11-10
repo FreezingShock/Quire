@@ -1,4 +1,4 @@
-/** Export, backup, and restore actions for the Quire controller: Markdown and drawing exports, print to PDF, and whole-library backup and restore. Mixed into QuireApp. */
+/** Export, print, backup, and restore actions for the Quire controller: Markdown and drawing exports, the Print dialog, and whole-library backup and restore. Mixed into QuireApp. */
 
 import { FONT_STACKS } from './constants.js';
 import { el } from '../dom.js';
@@ -8,8 +8,8 @@ import {
   exportMarkdown,
   makeBackup,
   parseBackup,
-  printEntry,
 } from '../export.js';
+import { openPrintDialog } from '../printing.js';
 import { openPasscodeSettings } from '../lock.js';
 import { localISODate } from '../model.js';
 import { installState, promptInstall, showInstallHelp } from '../pwa.js';
@@ -44,9 +44,18 @@ export const exportMethods = {
     await postcardDialog(this.snapshot(), { onStatus: (text) => this.showStatus(text) });
   },
 
-  printPdf() {
-    if (!this.entry) return;
-    printEntry(this.snapshot(), { fontStack: FONT_STACKS[this.prefs.font] ?? FONT_STACKS.serif });
+  /** File > Print. The dialog reads the whole library, with the open entry's unsaved text swapped in. */
+  async printPdf() {
+    await this.persist();
+    const current = this.entry ? this.snapshot() : null;
+    const saved = await this.store.listFull();
+    const entries = current ? saved.map((entry) => (entry.id === current.id ? current : entry)) : saved;
+    openPrintDialog({
+      entries,
+      current,
+      fontStack: FONT_STACKS[this.prefs.font] ?? FONT_STACKS.serif,
+      stylesheet: new URL('../../styles/reader.css', import.meta.url).href,
+    });
   },
 
   /** Uses the browser's install prompt when it offered one. Otherwise it explains the browser's own steps. */
