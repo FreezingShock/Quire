@@ -1,5 +1,6 @@
 /** Entry actions for the Quire controller: opening, creating, patching, moving, and deleting entries. Mixed into QuireApp. */
 
+import { el } from '../dom.js';
 import { contentKey, paintSheet } from './helpers.js';
 import { entryRoute } from './routes.js';
 import { confirmDialog, entriesDialog, notebookDialog } from '../dialogs.js';
@@ -9,6 +10,7 @@ import { countByNotebook } from '../library.js';
 import {
   createEntry,
   displayTitle,
+  formatShortDate,
   isBlankEntry,
   localISODate,
 } from '../model.js';
@@ -16,6 +18,7 @@ import { isHidden, redactSealed, capsuleStatus, unsealedEntry } from '../capsule
 import { unsealAnimation } from '../capsule-ui.js';
 import { playSound } from '../sound.js';
 import { pickRandomMemory } from '../memories.js';
+import { findLinkTarget, linkedFrom } from '../wikilinks.js';
 
 export const entryMethods = {
   // ---------- entries ----------
@@ -73,6 +76,7 @@ export const entryMethods = {
     this.rebuildInk();
     this.renderInkChip();
     this.updateChrome();
+    this.renderBacklinks(next);
     this.setPref({ lastEntryId: id });
     this.showStatus('');
     this.dom.editor.focus({ preventScroll: true });
@@ -99,6 +103,46 @@ export const entryMethods = {
     const existing = todaysJournal(open, today);
     if (existing) await this.openEntry(existing.id);
     else await this.newEntry({ date: today, kind: 'journal', body: prompt ? `> ${prompt}\n\n` : '' });
+  },
+
+  /** Ctrl+click on [[Title]]: opens the entry with that title, or starts a new entry with it. */
+  async followWikiLink(title) {
+    await this.persist();
+    const today = localISODate();
+    const target = findLinkTarget(await this.store.list(), title, today);
+    if (target) {
+      await this.openEntry(target.id);
+      return;
+    }
+    await this.newEntry({ title, date: today, kind: 'journal' });
+    this.showStatus(`Started “${title}”. Entries that link to it will show under it.`);
+  },
+
+  /** The Linked from panel under the page: entries whose text links to this one. Refreshed each time an entry opens. */
+  async renderBacklinks(entry) {
+    const panel = this.dom.backlinks;
+    if (!panel) return;
+    const sources = linkedFrom(await this.store.list(), entry, localISODate());
+    panel.hidden = sources.length === 0;
+    panel.replaceChildren(
+      el('h3', { class: 'backlinks-title' }, `Linked from (${sources.length})`),
+      el(
+        'ul',
+        { class: 'backlinks-list' },
+        sources.map((source) =>
+          el(
+            'li',
+            {},
+            el(
+              'button',
+              { class: 'backlink', type: 'button', onClick: () => this.openEntry(source.id) },
+              el('span', { class: 'backlink-title' }, displayTitle(source)),
+              el('span', { class: 'backlink-date' }, formatShortDate(source.date)),
+            ),
+          ),
+        ),
+      ),
+    );
   },
 
   /** Opens one past entry at random. Sealed capsules, the sample and blank entries are never picked. */

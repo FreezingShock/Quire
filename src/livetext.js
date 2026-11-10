@@ -97,12 +97,14 @@ export class LiveEditor {
    *   onChange?: () => void,
    *   onHistory?: (redo: boolean) => void,
    *   onFiles?: (files: File[], range: { start: number, end: number }) => void,
+   *   onWikiLink?: (title: string) => void,
    *   inkStyle?: () => { color: string, size: number },
    * }} [options]
    */
-  constructor(root, { onChange = () => {}, onHistory = () => {}, onFiles = () => {}, inkStyle = () => ({ color: '#1d1b19', size: 3 }) } = {}) {
+  constructor(root, { onChange = () => {}, onHistory = () => {}, onFiles = () => {}, onWikiLink = () => {}, inkStyle = () => ({ color: '#1d1b19', size: 3 }) } = {}) {
     this.root = root;
     this.onChange = onChange;
+    this.onWikiLink = onWikiLink;
     this.onHistory = onHistory;
     this.onFiles = onFiles;
     this.inkStyle = inkStyle;
@@ -336,8 +338,15 @@ export class LiveEditor {
     return this.offsetOf(node, offset);
   }
 
-  /** A click on a checklist box flips it between [ ] and [x] in the source. */
+  /** Ctrl+click on a [[link]] opens the entry it names. A plain click leaves the caret where it is. */
   onClick(event) {
+    const link = event.target.closest?.('.lv-wikilink');
+    if (link && (event.ctrlKey || event.metaKey)) {
+      event.preventDefault();
+      this.onWikiLink(link.textContent);
+      return;
+    }
+    // A click on a checklist box flips it between [ ] and [x] in the source.
     const box = event.target.closest?.('.lv-check');
     if (!box || !box.firstChild) return;
     event.preventDefault();
