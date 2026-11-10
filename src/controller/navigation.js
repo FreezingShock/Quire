@@ -91,6 +91,7 @@ export const navigationMethods = {
       'sep',
       { label: 'Image…', action: () => this.pickImages() },
       { label: 'Sketch between paragraphs', action: () => this.insertSketch() },
+      { label: this.voice ? 'Stop voice note' : 'Voice note', action: () => this.toggleVoiceNote() },
       { label: 'Today’s date', action: () => this.insertText(formatLongDate(localISODate())) },
     ];
   },

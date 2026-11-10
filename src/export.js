@@ -2,6 +2,7 @@
 
 import { createZip } from './zip.js';
 import { SKETCH_PRINT_WIDTH, dataUrlBytes, dataUrlParts, extensionFor, mediaRefsIn, sketchDataUrl } from './media.js';
+import { audioExtension } from './voice.js';
 import { displayTitle, fileStem, localISODate, normalizeEntry } from './model.js';
 import { inkExtent, renderInkCanvas, visibleOps } from './drawing.js';
 import { normalizeVersion } from './versions.js';
@@ -15,9 +16,9 @@ export function inkHeightFor(entry) {
   return Math.max(entry.ink.h || 0, inkExtent(entry.ink.ops) + 20, 600);
 }
 
-const MEDIA_REF_CAPTURE = /!\[([^\]\n]*)\]\(quire-(image|sketch):([A-Za-z0-9_-]+)\)/g;
+const MEDIA_REF_CAPTURE = /!\[([^\]\n]*)\]\(quire-(image|sketch|audio):([A-Za-z0-9_-]+)\)/g;
 
-/** Pictures and sketches that the text refers to, as files for the ZIP next to the Markdown. */
+/** Pictures, voice notes and sketches that the text refers to, as files for the ZIP next to the Markdown. */
 export function mediaExports(entry) {
   const files = [];
   for (const { kind, id } of mediaRefsIn(entry.body)) {
@@ -25,6 +26,10 @@ export function mediaExports(entry) {
       const src = entry.images[id];
       const bytes = dataUrlBytes(src);
       if (bytes) files.push({ kind, id, path: `images/${id}.${extensionFor(dataUrlParts(src).type)}`, data: bytes });
+    } else if (kind === 'audio' && Object.hasOwn(entry.audio ?? {}, id)) {
+      const src = entry.audio[id];
+      const bytes = dataUrlBytes(src);
+      if (bytes) files.push({ kind, id, path: `audio/${id}.${audioExtension(dataUrlParts(src).type)}`, data: bytes });
     } else if (kind === 'sketch' && Object.hasOwn(entry.sketches ?? {}, id)) {
       const png = dataUrlBytes(sketchDataUrl(entry.sketches[id], entry.pageColor, SKETCH_PRINT_WIDTH));
       files.push({ kind, id, path: `sketches/${id}.png`, data: png });

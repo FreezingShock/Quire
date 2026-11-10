@@ -70,13 +70,18 @@ export const mediaKey = (entryId, kind, id) => `${entryId}/${kind}/${id}`;
 export function rowOf(entry) {
   const row = { ...normalizeEntry(entry) };
   delete row.images;
+  delete row.audio;
   delete row.sketches;
   return row;
 }
 
-/** Store records for an entry's pictures and sketches. */
+/** Store records for an entry's pictures, voice notes and sketches. */
 export function imageRecord(entryId, id, src) {
   return { key: mediaKey(entryId, 'image', id), entryId, kind: 'image', id, src };
+}
+
+export function audioRecord(entryId, id, src) {
+  return { key: mediaKey(entryId, 'audio', id), entryId, kind: 'audio', id, src };
 }
 
 export function sketchRecord(entryId, id, sketch) {
@@ -86,12 +91,14 @@ export function sketchRecord(entryId, id, sketch) {
 /** Rebuilds a full entry from its row and its media records. Shared by both stores and by the upgrade. */
 export function entryFromStorage(row, records = []) {
   const images = {};
+  const audio = {};
   const sketches = {};
   for (const record of records) {
     if (record.kind === 'image') images[record.id] = record.src;
+    else if (record.kind === 'audio') audio[record.id] = record.src;
     else sketches[record.id] = { h: record.h, ops: record.ops };
   }
-  return normalizeEntry({ ...row, images, sketches });
+  return normalizeEntry({ ...row, images, audio, sketches });
 }
 
 /**
@@ -209,6 +216,10 @@ async function encodeMediaFor(codec, entry, storedKeys) {
   }
   for (const [id, src] of Object.entries(entry.images ?? {})) {
     if (!storedKeys.has(mediaKey(entry.id, 'image', id))) out.push(await codec.encodeMedia(imageRecord(entry.id, id, src)));
+  }
+  // A voice note is written once, like a picture. Its bytes never change after it is recorded.
+  for (const [id, src] of Object.entries(entry.audio ?? {})) {
+    if (!storedKeys.has(mediaKey(entry.id, 'audio', id))) out.push(await codec.encodeMedia(audioRecord(entry.id, id, src)));
   }
   return out;
 }

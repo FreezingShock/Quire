@@ -42,6 +42,8 @@ export function contentKey(entry) {
     normalizeLayers(entry.ink.layers),
     // Pictures are never edited once added, so their ids are enough to notice a new one.
     Object.keys(entry.images ?? {}).sort(),
+    // A new voice note is an edit too, so it gets written.
+    Object.keys(entry.audio ?? {}).sort(),
     entry.sketches ?? {},
     // Sealing and unsealing are edits too, so the change gets written.
     entry.capsule ?? null,

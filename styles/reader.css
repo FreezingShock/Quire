@@ -61,3 +61,6 @@
   height: auto;
   border-radius: 3px;
 }
+
+/* A voice note in the reader. */
+.sheet-text figure.media-audio audio { display: block; width: min(100%, 360px); }

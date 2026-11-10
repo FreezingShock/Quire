@@ -186,6 +186,12 @@ function pieceHtml({ text, role, color }) {
  */
 function mediaHtml({ alt, kind, id }, resolve) {
   const found = resolve(kind, id);
+  if (kind === 'audio') {
+    // A voice note plays where it sits. Nothing here adds text, so the offsets stay right.
+    return found
+      ? `<span class="lv-media lv-audio" contenteditable="false"><audio controls preload="metadata" aria-label="${escapeHtml(alt || 'Voice note')}" src="${escapeHtml(found)}"></audio></span>`
+      : '<span class="lv-media lv-missing" contenteditable="false"></span>';
+  }
   if (kind === 'sketch') {
     // The editor mounts the live sketch pad into this slot.
     return found

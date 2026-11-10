@@ -136,6 +136,7 @@ const SHELL = [
   './src/vault.js',
   './src/versions.js',
   './src/virtual-rows.js',
+  './src/voice.js',
   './src/wikilinks.js',
   './src/yearpixels.js',
   './src/zip.js',

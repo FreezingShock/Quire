@@ -295,3 +295,6 @@
 :root[data-theme="dark"] .sheet[data-page="default"] .lv-link { color: #8fc1e6; }
 :root[data-theme="dark"] .sheet[data-page="default"] .lv-check { border-color: #8593a8; background: #1d2638; }
 :root[data-theme="dark"] .sheet[data-page="default"] .sketch { border-color: #41506a; background: rgba(255, 255, 255, 0.04); }
+
+/* A voice note in the live editor plays where its reference line sits. */
+.lv-audio audio { display: block; width: min(100%, 360px); }

@@ -109,6 +109,7 @@ export class LiveEditor {
     this.onFiles = onFiles;
     this.inkStyle = inkStyle;
     this.images = {}; // id -> data URL, from the open entry
+    this.audio = {}; // id -> audio data URL, from the open entry
     this.sketches = {}; // id -> { h, ops }, from the open entry
     this.urls = new Map(); // image id -> object URL for display
     this.pads = new Map(); // sketch id -> SketchPad
@@ -193,6 +194,7 @@ export class LiveEditor {
     this.urls = new Map();
     this.pads = new Map();
     this.images = entry?.images ?? {};
+    this.audio = entry?.audio ?? {};
     this.sketches = entry?.sketches ?? {};
   }
 
@@ -467,14 +469,24 @@ export class LiveEditor {
   /** What a picture or sketch id resolves to while drawing a line. */
   mediaFor(kind, id) {
     if (kind === 'image') return this.imageUrl(id);
+    if (kind === 'audio') return this.audioUrl(id);
     return Object.hasOwn(this.sketches, id) ? true : null;
   }
 
   /** Display URL for a stored picture, made once per picture from its data URL. */
   imageUrl(id) {
+    return this.blobUrl(this.images, id);
+  }
+
+  /** Display URL for a voice note, made once per clip from its data URL. */
+  audioUrl(id) {
+    return this.blobUrl(this.audio, id);
+  }
+
+  blobUrl(store, id) {
     if (this.urls.has(id)) return this.urls.get(id);
-    if (!Object.hasOwn(this.images, id)) return null;
-    const blob = dataUrlToBlob(this.images[id]);
+    if (!Object.hasOwn(store, id)) return null;
+    const blob = dataUrlToBlob(store[id]);
     if (!blob) return null;
     const url = URL.createObjectURL(blob);
     this.urls.set(id, url);

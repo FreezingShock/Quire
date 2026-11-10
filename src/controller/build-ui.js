@@ -245,6 +245,7 @@ export const buildUiMethods = {
         items: () => [
           { label: 'Image…', disabled: !this.entry, action: () => this.pickImages() },
           { label: 'Sketch between paragraphs', disabled: !this.entry, action: () => this.insertSketch() },
+          { label: this.voice ? 'Stop voice note' : 'Voice note', disabled: !this.entry && !this.voice, action: () => this.toggleVoiceNote() },
           { label: 'Song for the mixtape…', disabled: !this.entry, action: () => this.addSong() },
           'sep',
           { label: 'Today’s date', action: () => this.insertText(formatLongDate(localISODate())) },

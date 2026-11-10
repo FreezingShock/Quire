@@ -29,10 +29,11 @@ export const versionActionMethods = {
       onRestore: (version) => this.restoreVersion(version),
       onSaveNow: () => this.saveVersionNow(),
       onDelete: (version) => this.deleteVersion(version),
-      // Pictures are kept with the entry. Sketches come from the version's own strokes, falling back to the current ones.
+      // Pictures and voice notes are kept with the entry. Sketches come from the version's own strokes, falling back to the current ones.
       mediaFor: (version) =>
         mediaResolver({
           images: entry.images,
+          audio: entry.audio,
           sketches: { ...entry.sketches, ...(version.content.sketches ?? {}) },
           pageColor: version.content.pageColor,
         }),
