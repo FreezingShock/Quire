@@ -187,6 +187,7 @@ export class LiveEditor {
    */
   setMedia(entry) {
     for (const url of this.urls.values()) URL.revokeObjectURL(url);
+    for (const pad of this.pads.values()) pad.destroy();
     this.urls = new Map();
     this.pads = new Map();
     this.images = entry?.images ?? {};

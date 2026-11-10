@@ -87,7 +87,16 @@ export class SketchPad {
       describe: (on) => (on ? 'Sketch. Arrow keys move the pen, Space or Enter puts it down and lifts it, Escape lifts it.' : 'Sketch.'),
     });
     this.keyPen.refresh();
+    // A pad can be built while the editor is still hidden, when the canvas has no width yet.
+    // The observer paints it again once the canvas is laid out.
+    this.resizeObserver = typeof ResizeObserver === 'function' ? new ResizeObserver(() => this.sync()) : null;
+    this.resizeObserver?.observe(this.canvas);
     this.paint();
+  }
+
+  /** Stops watching the canvas. Call it when the pad is dropped. */
+  destroy() {
+    this.resizeObserver?.disconnect();
   }
 
   iconButton(name, label, onClick) {
@@ -109,7 +118,9 @@ export class SketchPad {
 
   /** Canvas height follows the sketch height at the current width. */
   paint(ops = this.record.ops) {
-    const width = this.canvas.clientWidth || 1;
+    const width = this.canvas.clientWidth;
+    // Hidden or not yet laid out: nothing to size against. The resize observer paints it later.
+    if (!width) return;
     this.width = width;
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
     const pxW = Math.round(width * dpr);
