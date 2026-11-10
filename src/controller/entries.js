@@ -3,6 +3,7 @@
 import { el } from '../dom.js';
 import { contentKey, paintSheet } from './helpers.js';
 import { entryRoute } from './routes.js';
+import { mark } from '../perf.js';
 import { confirmDialog, entriesDialog, infoDialog, notebookDialog, recapList } from '../dialogs.js';
 import { Drawing, normalizeLayers } from '../drawing.js';
 import { todaysJournal } from '../journal.js';
@@ -72,6 +73,7 @@ export const entryMethods = {
     paintSheet(this.dom.sheet, next.pageColor);
     this.lastSurface = 'text';
     this.setView('editor');
+    mark('quire:entry-ready');
     this.writeRoute(entryRoute(id), mode);
     this.renderLayers();
     this.syncCanvas();

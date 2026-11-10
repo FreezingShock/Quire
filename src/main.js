@@ -1,6 +1,8 @@
 import { QuireApp } from './app.js';
 import { startSplash } from './splash.js';
+import { mark } from './perf.js';
 
+mark('quire:boot');
 const splash = startSplash();
 const app = new QuireApp();
 app

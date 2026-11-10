@@ -73,3 +73,19 @@ export function icon(name) {
   const body = PATHS[name] ?? '';
   return `<svg class="qi" data-ic="${name}" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><g class="qi-glow">${body}</g><g class="qi-main">${body}</g><g class="qi-shine">${body}</g><g class="qi-pixel"><path d="${PIXELS[name] ?? ''}"/></g></svg>`;
 }
+
+const ICON_NODES = new Map();
+
+/**
+ * The icon as a DOM node. Each name is parsed once and cloned after that, so a
+ * list with thousands of rows does not parse the same markup thousands of times.
+ */
+export function iconElement(name) {
+  let template = ICON_NODES.get(name);
+  if (!template) {
+    template = document.createElement('template');
+    template.innerHTML = icon(name);
+    ICON_NODES.set(name, template);
+  }
+  return template.content.firstElementChild.cloneNode(true);
+}
