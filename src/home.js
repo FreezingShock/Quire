@@ -12,6 +12,7 @@ import { wordCount } from './markdown.js';
 import { NORM_WIDTH, paintInk } from './drawing.js';
 import { icon } from './icons.js';
 import { notebookDialog } from './dialogs.js';
+import { menuPointFor, openContextMenu } from './contextmenu.js';
 import {
   SORTS,
   countByKind,
@@ -317,6 +318,8 @@ export class HomeView {
     );
     this.nav = el('nav', { class: 'home-nav', 'aria-label': 'Filter entries' });
     this.main = el('div', { class: 'home-main' });
+    // Right-clicking a row or tile opens its menu. The app's own menus skip the home view.
+    this.main.addEventListener('contextmenu', (event) => this.onContextMenu(event));
 
     this.root.replaceChildren(
       el(
@@ -1451,7 +1454,10 @@ export class HomeView {
 
   moveSelected() {
     const entry = this.selectedEntry();
-    if (!entry) return;
+    if (entry) this.moveEntry(entry);
+  }
+
+  moveEntry(entry) {
     notebookDialog({
       entryName: displayTitle(entry),
       notebooks: countByNotebook(this.entries).map((notebook) => notebook.name),
@@ -1460,6 +1466,34 @@ export class HomeView {
         if (notebook !== entry.notebook) this.patch(entry.id, { notebook });
       },
     });
+  }
+
+  /** Right-click on an entry: it becomes the selection, and its menu opens where the pointer is. */
+  onContextMenu(event) {
+    if (event.shiftKey) return;
+    const node = event.target instanceof Element ? event.target.closest('[data-id]') : null;
+    const entry = node ? this.entries.find((item) => item.id === node.dataset.id) : null;
+    if (!entry) return;
+    event.preventDefault();
+    event.stopPropagation();
+    this.select(entry.id);
+    openContextMenu({
+      ...menuPointFor(event),
+      label: displayTitle(entry),
+      items: this.entryMenuItems(entry),
+    });
+  }
+
+  entryMenuItems(entry) {
+    return [
+      { label: 'Open', shortcut: 'Enter', action: () => this.open(entry.id) },
+      'sep',
+      { label: entry.pinned ? 'Unpin from top' : 'Pin to top', action: () => this.patch(entry.id, { pinned: !entry.pinned }) },
+      { label: entry.favorite ? 'Remove from favorites' : 'Add to favorites', action: () => this.patch(entry.id, { favorite: !entry.favorite }) },
+      { label: 'Move to notebook…', action: () => this.moveEntry(entry) },
+      'sep',
+      { label: 'Delete…', shortcut: 'Delete', action: () => this.callbacks.onDelete?.(entry.id) },
+    ];
   }
 
   open(id) {

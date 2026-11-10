@@ -111,11 +111,14 @@ export const chromeMethods = {
   },
 
   updateChrome() {
+    // Only an open entry has a title and a word count. The entries list sets its own.
+    if (!this.entry) return;
     const title = displayTitle({ title: this.dom.title.value.trim(), body: this.dom.editor.value });
     this.dom.windowTitle.textContent = title;
     document.title = `${title} · Quire`;
     this.dom.statusDate.textContent = this.entry ? formatLongDate(this.entry.date) : '';
     this.refreshWordStatus();
+    this.renderEntryPath();
   },
 
   /** "120 words · 1 min read". The reading time is about 238 words a minute. */

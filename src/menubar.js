@@ -1,6 +1,8 @@
 /**
- * Application menu bar. `menus` is [{ label, items: () => Item[] }], where items
- * are rebuilt on every open so check marks and disabled states stay current.
+ * Application menu bar. `menus` is [{ label, items: () => Item[], hidden?: () => boolean }],
+ * where items are rebuilt on every open so check marks and disabled states stay
+ * current. A menu whose `hidden()` is true is left out of the bar until
+ * `refresh()` runs again, and the arrow keys skip it.
  * An Item is either 'sep' or { label, shortcut, action, check, checked, disabled }.
  *
  * Keyboard follows the menu button pattern: Enter, Space or Down opens a menu and
@@ -34,6 +36,23 @@ export function createMenuBar(root, menus) {
     return button;
   });
   root.replaceChildren(...titles);
+
+  /** Shows or hides menu titles to match `hidden()`, closing a menu that just went away. */
+  function refresh() {
+    menus.forEach((menu, index) => {
+      titles[index].hidden = Boolean(menu.hidden?.());
+    });
+    if (open && titles[open.index].hidden) close();
+  }
+
+  /** The next menu that is showing, moving `step` places from `from`. */
+  function neighbour(from, step) {
+    let next = from;
+    do {
+      next = (next + step + menus.length) % menus.length;
+    } while (titles[next].hidden && next !== from);
+    return next;
+  }
 
   function enabledItems() {
     return open ? [...open.panel.querySelectorAll('.menu-item:not(:disabled)')] : [];
@@ -113,7 +132,7 @@ export function createMenuBar(root, menus) {
     } else if (event.key === 'ArrowRight' || event.key === 'ArrowLeft') {
       event.preventDefault();
       const step = event.key === 'ArrowRight' ? 1 : -1;
-      const next = (open.index + step + menus.length) % menus.length;
+      const next = neighbour(open.index, step);
       if (inPanel) {
         show(next, { focusFirst: true });
       } else {
@@ -140,5 +159,5 @@ export function createMenuBar(root, menus) {
     }
   });
 
-  return { close };
+  return { close, refresh };
 }

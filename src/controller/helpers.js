@@ -41,3 +41,22 @@ export function contentKey(entry) {
     entry.sketches ?? {},
   ]);
 }
+
+/**
+ * Keeps the menu items for one view. An item with `scope` shows only in that
+ * view ('editor' or 'home'); items without one show in both. Separators that
+ * would lead, trail or double up are dropped.
+ */
+export function scopeItems(items, view) {
+  const out = [];
+  for (const item of items) {
+    if (item !== 'sep' && item.scope && item.scope !== view) continue;
+    if (item === 'sep') {
+      if (out.length && out[out.length - 1] !== 'sep') out.push(item);
+    } else {
+      out.push(item);
+    }
+  }
+  while (out.length && out[out.length - 1] === 'sep') out.pop();
+  return out;
+}

@@ -14,20 +14,20 @@
   --glare: linear-gradient(115deg, rgba(255, 255, 255, 0.75), rgba(255, 255, 255, 0) 42%);
   /* Frosted grain: fine noise drawn as an SVG, so the blank space has texture without an image file. */
   --frost: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.22  0 0 0 0 0.42  0 0 0 0 0.68  0 0 0 0.16 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
-  --frost-glow: radial-gradient(60% 45% at 16% 12%, rgba(150, 200, 255, 0.85), transparent 70%), radial-gradient(50% 40% at 88% 94%, rgba(170, 230, 205, 0.7), transparent 70%), radial-gradient(45% 35% at 72% 30%, rgba(255, 255, 255, 1), transparent 70%);
+  --home-sheen: linear-gradient(to bottom, rgba(255, 255, 255, 0.5), rgba(255, 255, 255, 0) 55%);
 }
 
 :root[data-theme="dark"] {
   --pattern: radial-gradient(circle at 1px 1px, rgba(150, 190, 240, 0.12) 1px, transparent 1.6px);
   --glare: linear-gradient(115deg, rgba(180, 210, 255, 0.16), rgba(180, 210, 255, 0) 42%);
-  --frost-glow: radial-gradient(60% 45% at 16% 12%, rgba(70, 110, 170, 0.4), transparent 70%), radial-gradient(50% 40% at 88% 94%, rgba(60, 130, 120, 0.3), transparent 70%), radial-gradient(45% 35% at 72% 30%, rgba(120, 150, 200, 0.2), transparent 70%);
+  --home-sheen: linear-gradient(to bottom, rgba(150, 190, 240, 0.06), rgba(150, 190, 240, 0.02));
 }
 
 :root:not([data-skin^="aero"]) {
   --pattern: none;
   --glare: none;
   --frost: none;
-  --frost-glow: none;
+  --home-sheen: none;
 }
 
 /* Reduced motion: the window's Motion setting turns off every animation and transition. */
@@ -148,9 +148,20 @@ html[data-skin="luna"].has-wallpaper { background: #3a6fd6; }
   border-radius: 0 0 4px 4px;
 }
 [data-skin="luna"] .menu-item:hover,
-[data-skin="luna"] .menu-item:focus-visible {
+[data-skin="luna"] .menu-item:focus-visible,
+[data-skin="luna"] .palette-option[aria-selected="true"] {
   background: #316ac5;
+  border-color: transparent;
   color: #ffffff;
+}
+[data-skin="luna"] .entry-path {
+  background: linear-gradient(to bottom, #ffffff, #ece9d8);
+  border-bottom-color: #aca899;
+}
+[data-skin="luna"] .entry-path-link:hover,
+[data-skin="luna"] .entry-back:hover {
+  background: linear-gradient(to bottom, #ffffff, #dbe6fb);
+  border-color: #3c7fb1;
 }
 [data-skin="luna"] .btn {
   border-color: #003c74;
@@ -232,7 +243,7 @@ html[data-skin="classic"].has-wallpaper { background: #008080; }
   border-color: #dfdfdf #000000 #000000 #dfdfdf;
   overflow: hidden;
 }
-[data-skin="classic"] :is(.toolbox, .palette, .entry-bar, .home-command, .home-nav, .statusbar, .menubar-row, .menubar, .workspace) {
+[data-skin="classic"] :is(.toolbox, .palette, .entry-bar, .entry-path, .home-command, .home-nav, .statusbar, .menubar-row, .menubar, .workspace) {
   background: #c0c0c0;
   background-image: none;
 }
@@ -258,7 +269,8 @@ html[data-skin="classic"].has-wallpaper { background: #008080; }
 }
 [data-skin="classic"] .menu-panel::before { display: none; }
 [data-skin="classic"] .menu-item:hover,
-[data-skin="classic"] .menu-item:focus-visible {
+[data-skin="classic"] .menu-item:focus-visible,
+[data-skin="classic"] .palette-option[aria-selected="true"] {
   background: #000080;
   color: #ffffff;
 }
@@ -356,10 +368,7 @@ html[data-skin="classic"].has-wallpaper { background: #008080; }
 
 [data-skin="luna"] .home-main {
   background-color: #ffffff;
-  background-image:
-    radial-gradient(70% 55% at 8% 0%, rgba(90, 156, 255, 0.22), transparent 70%),
-    radial-gradient(60% 50% at 100% 100%, rgba(255, 214, 120, 0.22), transparent 70%),
-    linear-gradient(to bottom, rgba(255, 255, 255, 0), rgba(198, 211, 247, 0.22));
+  background-image: linear-gradient(to bottom, rgba(255, 255, 255, 0), rgba(198, 211, 247, 0.22));
 }
 
 /* A 50% dither in two grays: the old Windows desktop fill. */
@@ -482,3 +491,35 @@ html[data-skin="classic"].has-wallpaper { background: #008080; }
   from { opacity: 0; transform: translateY(-3px); }
   to { opacity: 1; transform: none; }
 }
+
+/* Navigation: the palette, right-click menus and the path above an entry. */
+[data-skin="classic"] .palette-scroll,
+[data-skin="classic"] .palette-input {
+  border: 2px solid;
+  border-color: #808080 #ffffff #ffffff #808080;
+  background: #ffffff;
+  box-shadow: none;
+}
+[data-skin="classic"] .palette-option[aria-selected="true"] .palette-meta,
+[data-skin="classic"] .palette-option[aria-selected="true"] .menu-shortcut {
+  color: #ffffff;
+}
+[data-skin="classic"] .entry-path {
+  border-bottom: 1px solid #808080;
+}
+[data-skin="classic"] .entry-path-link:hover,
+[data-skin="classic"] .entry-back:hover {
+  border-color: #000000;
+  background: #ffffff;
+}
+[data-skin="classic"] .entry-back {
+  border: 2px solid;
+  border-color: #ffffff #000000 #000000 #ffffff;
+  background: #c0c0c0;
+  color: #000000;
+}
+
+/* Classic's title bar is shorter, so the entry name and its rename field get less room. */
+[data-skin="classic"] .titlebar-entry { margin: 2px 10px; }
+[data-skin="classic"] .entry-title { height: 18px; }
+[data-skin="classic"] .titlebar-name { padding: 0 8px; }

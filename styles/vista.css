@@ -255,7 +255,7 @@
 
 :root[data-skin^="aero"] .home-main {
   background-color: var(--field);
-  background-image: var(--frost), var(--frost-glow), var(--pattern);
+  background-image: var(--frost), var(--home-sheen), var(--pattern);
   background-size: 180px 180px, auto, var(--pattern-size) var(--pattern-size);
 }
 

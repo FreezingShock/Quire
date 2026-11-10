@@ -21,6 +21,8 @@ export const savingMethods = {
   },
 
   scheduleSave() {
+    // An edit that lands after the entry has closed has nothing to save, and must not leave a pending status behind.
+    if (!this.entry) return;
     clearTimeout(this.saveTimer);
     this.showStatus('Unsaved changes…', false, 'pending');
     this.saveTimer = setTimeout(() => this.persist(), SAVE_DELAY_MS);

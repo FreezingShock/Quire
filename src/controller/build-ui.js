@@ -10,6 +10,8 @@ import { icon } from '../icons.js';
 import { attachKeyboardPen } from '../keypen.js';
 import { renderLayerPanel } from '../layers.js';
 import { createMenuBar } from '../menubar.js';
+import { wireContextMenus } from '../contextmenu.js';
+import { scopeItems } from './helpers.js';
 import { DEFAULT_PAGE_COLOR, formatLongDate, localISODate } from '../model.js';
 import { installState } from '../pwa.js';
 import { SKINS, skinOf } from '../skins.js';
@@ -124,6 +126,14 @@ export const buildUiMethods = {
   },
 
   buildMenus() {
+    // Entries-list views, offered in the View menu while the list is showing.
+    const viewChoice = (id, label) => ({
+      scope: 'home',
+      label,
+      check: true,
+      checked: this.home?.state.view === id,
+      action: () => this.home?.setViewMode(id),
+    });
     const menus = [
       {
         label: 'File',
@@ -133,27 +143,29 @@ export const buildUiMethods = {
           { label: 'New entry', shortcut: 'Ctrl+N', action: () => this.newEntry() },
           { label: "Today's entry", shortcut: 'Alt+T', action: () => this.openToday() },
           { label: 'Open entry…', shortcut: 'Ctrl+O', action: () => this.showEntries() },
-          { label: 'Delete entry…', disabled: !this.entry, action: () => this.entry && this.deleteEntry(this.entry.id) },
+          { scope: 'editor', label: 'Delete entry…', disabled: !this.entry, action: () => this.entry && this.deleteEntry(this.entry.id) },
           'sep',
-          { label: 'Move to notebook…', disabled: !this.entry, action: () => this.entry && this.moveEntryToNotebook(this.entry.id) },
+          { scope: 'editor', label: 'Move to notebook…', disabled: !this.entry, action: () => this.entry && this.moveEntryToNotebook(this.entry.id) },
           {
+            scope: 'editor',
             label: this.entry?.pinned ? 'Unpin from top' : 'Pin to top',
             disabled: !this.entry,
             action: () => this.entry && this.patchEntry(this.entry.id, { pinned: !this.entry.pinned }),
           },
           {
+            scope: 'editor',
             label: this.entry?.favorite ? 'Remove from favorites' : 'Add to favorites',
             disabled: !this.entry,
             action: () => this.entry && this.patchEntry(this.entry.id, { favorite: !this.entry.favorite }),
           },
           'sep',
-          { label: 'Save now', shortcut: 'Ctrl+S', action: () => this.persist() },
-          { label: 'Save version now', disabled: !this.entry, action: () => this.saveVersionNow() },
-          { label: 'Version history…', disabled: !this.entry, action: () => this.showVersions() },
+          { scope: 'editor', label: 'Save now', shortcut: 'Ctrl+S', action: () => this.persist() },
+          { scope: 'editor', label: 'Save version now', disabled: !this.entry, action: () => this.saveVersionNow() },
+          { scope: 'editor', label: 'Version history…', disabled: !this.entry, action: () => this.showVersions() },
           'sep',
-          { label: 'Export as Markdown…', shortcut: 'Ctrl+E', disabled: !this.entry, action: () => this.exportMarkdown() },
-          { label: 'Export drawing as PNG…', disabled: !this.entry || this.drawing.isEmpty, action: () => this.exportDrawing() },
-          { label: 'Print or save as PDF…', shortcut: 'Ctrl+P', disabled: !this.entry, action: () => this.printPdf() },
+          { scope: 'editor', label: 'Export as Markdown…', shortcut: 'Ctrl+E', disabled: !this.entry, action: () => this.exportMarkdown() },
+          { scope: 'editor', label: 'Export drawing as PNG…', disabled: !this.entry || this.drawing.isEmpty, action: () => this.exportDrawing() },
+          { scope: 'editor', label: 'Print or save as PDF…', shortcut: 'Ctrl+P', disabled: !this.entry, action: () => this.printPdf() },
           'sep',
           { label: 'Back up all entries…', action: () => this.backup() },
           { label: 'Restore from backup…', action: () => this.restore() },
@@ -166,10 +178,18 @@ export const buildUiMethods = {
       {
         label: 'Edit',
         items: () => [
-          { label: 'Undo', shortcut: 'Ctrl+Z', action: () => this.undo() },
-          { label: 'Redo', shortcut: 'Ctrl+Shift+Z', action: () => this.redo() },
+          { label: 'Find entries', shortcut: 'Ctrl+F', scope: 'home', action: () => this.home.focusSearch() },
+          { label: 'Open selected entry', shortcut: 'Enter', scope: 'home', disabled: !this.home?.selectedEntry(), action: () => this.home.openSelected() },
+          { label: 'Pin selected to top', scope: 'home', disabled: !this.home?.selectedEntry(), action: () => this.home.togglePinned() },
+          { label: 'Favorite selected', scope: 'home', disabled: !this.home?.selectedEntry(), action: () => this.home.toggleFavorite() },
+          { label: 'Move selected to notebook…', scope: 'home', disabled: !this.home?.selectedEntry(), action: () => this.home.moveSelected() },
+          { label: 'Delete selected entry…', shortcut: 'Delete', scope: 'home', disabled: !this.home?.selectedEntry(), action: () => this.home.deleteSelected() },
+          'sep',
+          { scope: 'editor', label: 'Undo', shortcut: 'Ctrl+Z', action: () => this.undo() },
+          { scope: 'editor', label: 'Redo', shortcut: 'Ctrl+Shift+Z', action: () => this.redo() },
           'sep',
           {
+            scope: 'editor',
             label: 'Select all text',
             shortcut: 'Ctrl+A',
             action: () => {
@@ -178,20 +198,23 @@ export const buildUiMethods = {
             },
           },
           'sep',
-          { label: 'Delete selection', shortcut: 'Del', disabled: !this.selection.size, action: () => this.deleteSelection() },
+          { scope: 'editor', label: 'Delete selection', shortcut: 'Del', disabled: !this.selection.size, action: () => this.deleteSelection() },
           'sep',
-          { label: 'Flip selection horizontally', disabled: !this.selection.size, action: () => this.transformSelection('flip-h') },
-          { label: 'Flip selection vertically', disabled: !this.selection.size, action: () => this.transformSelection('flip-v') },
-          { label: 'Rotate selection clockwise', disabled: !this.selection.size, action: () => this.transformSelection('rotate-cw') },
-          { label: 'Rotate selection counterclockwise', disabled: !this.selection.size, action: () => this.transformSelection('rotate-ccw') },
-          { label: 'Resize selection…', disabled: !this.selection.size, action: () => this.resizeSelection() },
+          { scope: 'editor', label: 'Flip selection horizontally', disabled: !this.selection.size, action: () => this.transformSelection('flip-h') },
+          { scope: 'editor', label: 'Flip selection vertically', disabled: !this.selection.size, action: () => this.transformSelection('flip-v') },
+          { scope: 'editor', label: 'Rotate selection clockwise', disabled: !this.selection.size, action: () => this.transformSelection('rotate-cw') },
+          { scope: 'editor', label: 'Rotate selection counterclockwise', disabled: !this.selection.size, action: () => this.transformSelection('rotate-ccw') },
+          { scope: 'editor', label: 'Resize selection…', disabled: !this.selection.size, action: () => this.resizeSelection() },
           'sep',
-          { label: 'Clear current layer', disabled: !this.entry || !hasInkOn(this.drawing.ops, this.activeLayer), action: () => this.clearInk(this.activeLayer) },
-          { label: 'Clear all layers', disabled: this.drawing.isEmpty, action: () => this.clearInk() },
+          { scope: 'editor', label: 'Clear current layer', disabled: !this.entry || !hasInkOn(this.drawing.ops, this.activeLayer), action: () => this.clearInk(this.activeLayer) },
+          { scope: 'editor', label: 'Clear all layers', disabled: this.drawing.isEmpty, action: () => this.clearInk() },
+          'sep',
+          { scope: 'editor', label: 'Select all drawings', disabled: !this.entry || this.drawing.isEmpty, action: () => this.selectAllInk() },
         ],
       },
       {
         label: 'Format',
+        scope: 'editor',
         items: () => [
           { label: 'Heading 1', action: () => this.applyFormat('h1') },
           { label: 'Heading 2', action: () => this.applyFormat('h2') },
@@ -212,6 +235,7 @@ export const buildUiMethods = {
       },
       {
         label: 'Insert',
+        scope: 'editor',
         items: () => [
           { label: 'Image…', disabled: !this.entry, action: () => this.pickImages() },
           { label: 'Sketch between paragraphs', disabled: !this.entry, action: () => this.insertSketch() },
@@ -223,12 +247,20 @@ export const buildUiMethods = {
       {
         label: 'View',
         items: () => [
-          { label: 'Actual size', disabled: this.zoom === 1, action: () => this.setZoom(1) },
+          { label: 'Command palette…', shortcut: 'Ctrl+K', action: () => this.openPalette() },
           'sep',
-          { label: 'Source mode', check: true, checked: Boolean(this.prefs.source), action: () => this.setPref({ source: !this.prefs.source }) },
+          viewChoice('dashboard', 'Dashboard'),
+          viewChoice('details', 'Details'),
+          viewChoice('tiles', 'Tiles'),
+          viewChoice('calendar', 'Calendar'),
+          viewChoice('moods', 'Mood chart'),
           'sep',
-          { label: 'Show grid', check: true, checked: Boolean(this.prefs.showGrid), action: () => this.setPref({ showGrid: !this.prefs.showGrid }) },
-          { label: 'Snap to grid', check: true, checked: Boolean(this.prefs.snapGrid), action: () => this.setPref({ snapGrid: !this.prefs.snapGrid }) },
+          { scope: 'editor', label: 'Actual size', disabled: this.zoom === 1, action: () => this.setZoom(1) },
+          'sep',
+          { scope: 'editor', label: 'Source mode', check: true, checked: Boolean(this.prefs.source), action: () => this.setPref({ source: !this.prefs.source }) },
+          'sep',
+          { scope: 'editor', label: 'Show grid', check: true, checked: Boolean(this.prefs.showGrid), action: () => this.setPref({ showGrid: !this.prefs.showGrid }) },
+          { scope: 'editor', label: 'Snap to grid', check: true, checked: Boolean(this.prefs.snapGrid), action: () => this.setPref({ snapGrid: !this.prefs.snapGrid }) },
           'sep',
           { label: 'Focus mode', shortcut: 'F11', check: true, checked: this.focusMode, disabled: !this.entry, action: () => this.toggleFocusMode() },
           'sep',
@@ -255,7 +287,14 @@ export const buildUiMethods = {
         ],
       },
     ];
-    this.menubar = createMenuBar(this.dom.menubar, menus);
+    // Each menu shows only the items for the current view: the entries list, or a page.
+    const scopedMenus = menus.map((menu) => ({
+      label: menu.label,
+      hidden: () => menu.scope === 'editor' && this.view !== 'editor',
+      items: () => scopeItems(menu.items(), this.view === 'editor' ? 'editor' : 'home'),
+    }));
+    this.menuDefs = scopedMenus;
+    this.menubar = createMenuBar(this.dom.menubar, scopedMenus);
   },
 
   bindEvents() {
@@ -263,6 +302,12 @@ export const buildUiMethods = {
     this.dom.ribbonToggle.addEventListener('click', () => this.setPref({ ribbonHidden: !this.prefs.ribbonHidden }));
     editorEl.addEventListener('keydown', (event) => this.onEditorKeydown(event));
     this.dom.windowTitle.addEventListener('click', () => this.startRename());
+    // Clicking the open title bar's blank space renames the entry too, not just the name itself.
+    const titlebar = document.querySelector('.titlebar');
+    titlebar.addEventListener('click', (event) => {
+      if (this.view !== 'editor' || !this.entry || this.dom.titleWrap.classList.contains('is-renaming')) return;
+      if (event.target === titlebar || event.target.closest('#titlebar-entry')) this.startRename();
+    });
     // The rename field lives in the title bar. Its focus state drives the animation.
     title.addEventListener('focus', () => {
       this.renameStart = title.value;
@@ -356,6 +401,8 @@ export const buildUiMethods = {
     });
     window.addEventListener('pagehide', () => this.persist());
     window.addEventListener('popstate', () => this.onRouteChange());
+    document.addEventListener('contextmenu', (event) => this.onContextMenu(event));
+    wireContextMenus();
     window.addEventListener('unhandledrejection', (event) => {
       console.error(event.reason);
       this.showStatus(`Something went wrong: ${event.reason?.message ?? event.reason}`, true);

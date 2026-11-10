@@ -85,8 +85,10 @@ const SHORTCUT_GROUPS = [
     rows: [
       ['Open the next or previous menu', 'Left or Right arrow'],
       ['Close a menu or dialog', 'Escape'],
+      ['Command palette: find a command or an entry', 'Ctrl+K'],
       ['Options', 'Ctrl+,'],
       ['Keyboard shortcuts', 'F1'],
+      ['Context menu for entries, text and drawings', 'Right-click, or Shift+F10'],
     ],
   },
 ];
