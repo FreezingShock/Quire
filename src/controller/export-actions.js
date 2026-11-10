@@ -83,7 +83,8 @@ export const exportMethods = {
     await this.persist();
     const entries = await this.store.listFull();
     const versions = await this.store.listAllVersions();
-    downloadBlob(makeBackup(entries, versions), `quire-backup-${localISODate()}.json`);
+    const habits = await this.store.getHabits();
+    downloadBlob(makeBackup(entries, versions, habits), `quire-backup-${localISODate()}.json`);
     this.showStatus(`Backed up ${entries.length} entries and ${versions.length} versions`);
   },
 
@@ -99,7 +100,7 @@ export const exportMethods = {
   },
 
   async restoreFrom(file) {
-    const { entries, versions } = parseBackup(await file.text());
+    const { entries, versions, habits } = parseBackup(await file.text());
     await this.persist();
     // Drop the in-memory entry first, so a stale copy cannot overwrite the restored one.
     this.entry = null;
@@ -108,6 +109,11 @@ export const exportMethods = {
     const restored = new Set(entries.map((entry) => entry.id));
     const usable = versions.filter((version) => restored.has(version.entryId));
     for (const version of usable) await this.store.saveVersion(version, MAX_VERSIONS);
+    // A backup without habits (an older one) leaves the current tracker alone.
+    if (habits) {
+      await this.store.setHabits(habits);
+      this.home.setHabits(habits);
+    }
     await this.showHome();
     this.showStatus(`Restored ${entries.length} entries and ${usable.length} versions`);
   },

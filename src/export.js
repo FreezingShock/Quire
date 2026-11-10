@@ -5,6 +5,7 @@ import { SKETCH_PRINT_WIDTH, dataUrlBytes, dataUrlParts, extensionFor, mediaRefs
 import { displayTitle, fileStem, localISODate, normalizeEntry } from './model.js';
 import { inkExtent, renderInkCanvas, visibleOps } from './drawing.js';
 import { normalizeVersion } from './versions.js';
+import { normalizeHabits } from './habits.js';
 
 const encoder = new TextEncoder();
 /** Sheet width in CSS px. Ink coordinates are scaled against it when printed. */
@@ -107,7 +108,7 @@ export async function exportDrawingPng(entry) {
 }
 
 /** Format 1. `versions` is optional, so backups from before version history still restore. */
-export function makeBackup(entries, versions = []) {
+export function makeBackup(entries, versions = [], habits = null) {
   const payload = {
     app: 'quire',
     format: 1,
@@ -115,6 +116,8 @@ export function makeBackup(entries, versions = []) {
     date: localISODate(),
     entries,
     versions,
+    // The habit tracker is kept beside the entries, so the backup carries it too. Older backups have none.
+    ...(habits ? { habits } : {}),
   };
   return new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
 }
@@ -125,5 +128,6 @@ export function parseBackup(text) {
     throw new Error('This file is not a Quire backup.');
   }
   const versions = Array.isArray(data.versions) ? data.versions.map(normalizeVersion).filter(Boolean) : [];
-  return { entries: data.entries.map((entry) => normalizeEntry(entry)), versions };
+  const habits = data.habits ? normalizeHabits(data.habits) : null;
+  return { entries: data.entries.map((entry) => normalizeEntry(entry)), versions, habits };
 }

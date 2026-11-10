@@ -61,6 +61,11 @@ export const chromeMethods = {
   },
 
   /** The sticky note is sealed by the passcode lock like the rest of the store, so it waits a moment and writes once the typing pauses. */
+  /** Saves the habit tracker's state. A failure is shown in the status bar. */
+  saveHabits(state) {
+    this.store?.setHabits(state).catch(() => this.showStatus('The habit tracker could not be saved.', true));
+  },
+
   saveSidebarNote(text) {
     clearTimeout(this.noteTimer);
     this.noteTimer = setTimeout(() => {
