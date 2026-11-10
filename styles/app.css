@@ -71,6 +71,13 @@
   --scroll-hover-b: #a9ccf2;
   --scroll-hover-c: #6fa3da;
   --scroll-ring: rgba(47, 111, 191, 0.45);
+  /* plain buttons (.btn) */
+  --btn-hi: #ffffff;
+  --btn-lo: #dbe6f3;
+  --btn-press-hi: #cfe0f3;
+  --btn-press-lo: #eaf2fb;
+  --btn-edge: #7d93b0;
+  --btn-ink: #1c2a3b;
   color-scheme: light;
 }
 
@@ -128,6 +135,12 @@
   --scroll-hover-b: #4d6688;
   --scroll-hover-c: #3a5070;
   --scroll-ring: rgba(150, 190, 240, 0.35);
+  --btn-hi: #3d5070;
+  --btn-lo: #263650;
+  --btn-press-hi: #1d2c45;
+  --btn-press-lo: #2f4262;
+  --btn-edge: #4b6287;
+  --btn-ink: #e3edfb;
   color-scheme: dark;
 }
 
@@ -1092,10 +1105,10 @@ button.layer-name:focus-visible {
   height: 28px;
   min-width: 78px;
   padding: 0 14px;
-  border: 1px solid #7d93b0;
+  border: 1px solid var(--btn-edge);
   border-radius: 3px;
-  background: linear-gradient(to bottom, #ffffff, #dbe6f3);
-  color: var(--raised-ink);
+  background: linear-gradient(to bottom, var(--btn-hi), var(--btn-lo));
+  color: var(--btn-ink);
   cursor: pointer;
 }
 
@@ -1110,7 +1123,7 @@ button.layer-name:focus-visible {
 }
 
 .btn:active:not(:disabled) {
-  background: linear-gradient(to bottom, #cfe0f3, #eaf2fb);
+  background: linear-gradient(to bottom, var(--btn-press-hi), var(--btn-press-lo));
   box-shadow: inset 1px 1px 3px rgba(20, 50, 90, 0.35);
 }
 
