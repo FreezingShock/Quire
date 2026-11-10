@@ -453,29 +453,24 @@ textarea {
 
 /* ---------- the sheet on a blue-gray canvas ---------- */
 
+/* Pageless: the writing surface fills the desk and starts at the top left. */
+
 .desk {
+  display: flex;
+  flex-direction: column;
   overflow: auto;
-  padding: 28px 40px 44px;
-  background: linear-gradient(to bottom, var(--desk-hi), var(--desk-lo));
+  padding: 0;
+  background-color: var(--paper);
 }
 
 .sheet {
   position: relative;
-  width: min(820px, 100%);
-  min-height: 640px;
-  margin: 0 auto;
-  padding: 56px 72px 80px 88px;
+  flex: 1 0 auto;
+  width: 100%;
+  min-height: 100%;
+  margin: 0;
+  padding: 28px 56px 96px;
   background-color: var(--paper);
-  background-image: linear-gradient(
-    to right,
-    transparent 62px,
-    rgba(176, 72, 60, 0.32) 62px,
-    rgba(176, 72, 60, 0.32) 63px,
-    transparent 63px
-  );
-  box-shadow: var(--shadow);
-  border: 1px solid #7f98b8;
-  border-radius: 1px;
 }
 
 /* The live-preview editor's own styles are in live.css. */
@@ -777,18 +772,7 @@ kbd {
   .format-btn { width: 30px; }
   .source-btn { flex: none; }
 
-  .desk { padding: 12px 8px 22px; }
-
-  .sheet {
-    padding: 36px 20px 56px 44px;
-    background-image: linear-gradient(
-      to right,
-      transparent 30px,
-      rgba(176, 72, 60, 0.32) 30px,
-      rgba(176, 72, 60, 0.32) 31px,
-      transparent 31px
-    );
-  }
+  .sheet { padding: 20px 16px 72px; }
 
   .entry-bar { padding: 8px; }
   .field-tags input { width: 140px; }
