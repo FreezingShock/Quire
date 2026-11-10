@@ -27,13 +27,13 @@ You can also open `index.html` through any static server.
 - **Calendar and streaks:** a month view shows how many entries each day has and its mood. The toolbar counts days in a row with at least one entry. Today's entry (Alt+T) opens today's journal, or starts one.
 - **Writing:** a live preview. Headings, quotes, lists, checklists, rules, code, bold, italics, links, and colors render as you type, and the Markdown markup shows only on the line you are editing. Enter continues lists. Select text and click a color to color it.
 - **Checklists:** type `- [ ] item` or use the checklist button. Click a box to check it off. Enter on a checked item starts a new unchecked one.
-- **Pictures:** paste or drop an image file into the text, or use Insert > Image. Large photos are scaled to 1600 px. The picture sits on its own line, and its file is stored with the entry.
+- **Pictures:** paste or drop an image file into the text, or use Insert > Image. Large photos are scaled to 1600 px. The picture sits on its own line, and its file is kept with the entry in a separate media store.
 - **Inline sketches:** Insert > Sketch between paragraphs puts a small drawing pad in the text. It has its own pencil, brush, highlighter, eraser, undo and clear, and uses the current ink color.
 - **Word count:** the status bar shows words and reading time (about 238 words a minute). Pictures, sketches and checkboxes do not count as words.
 - **Source mode:** View > Source mode shows every Markdown marker. Formatting still applies right away.
 - **Drawing:** pencil, brush, highlighter, eraser, line, rectangle, ellipse, fill, and color picker. Stroke widths 1, 3, and 6. Undo and redo follow whichever surface you touched last. Right-click a swatch to change the page color. Without a mouse, Tab to the drawing layer (or an inline sketch) once a drawing tool is picked: the arrow keys move a crosshair, Space or Enter puts the pen down and lifts it, and Escape lifts it.
 - **Export:** Markdown with front matter (a .zip with the drawing PNG when the entry has ink), drawing as PNG, print or save as PDF, and JSON backup and restore. Backups include version history.
-- **Version history:** Quire keeps a version every five minutes while you edit, when you leave an entry, and before a restore. Open File > Version history to preview a version's text and drawing, restore it, or delete it. Save version now keeps one by hand. The newest 30 versions are kept per entry.
+- **Version history:** Quire keeps a version every five minutes while you edit, when you leave an entry, and before a restore. Open File > Version history to preview a version's text, drawing and sketches, restore it, or delete it. Save version now keeps one by hand. The newest 30 versions are kept per entry. Pictures are kept with the entry until it is deleted, so every version can show its pictures.
 - **Save status:** the dot in the title bar shows whether changes are pending, saving, saved, or failed to save.
 - **Look:** the Skin menu picks Aero (the default), Aero dark, Aero Basic, XP Luna, or Classic 98. View > Options (Ctrl+,) holds the rest in one tabbed dialog: the writing font, a custom accent color (which recolors the selection and the title bar), Window animations, the Aero wallpaper, grid and snap, sound effects, the startup splash, and the Home cards. Format holds the color swap and resets. Keyboard shortcuts (F1) lists every key.
 
@@ -42,18 +42,18 @@ You can also open `index.html` through any static server.
 - **Plain ES modules, no build step.** The app is small, so it runs straight from the browser and deploys to any static host.
 - **Drawings are stored as ops, not bitmaps.** Each stroke is a small JSON record in normalized page units, so it survives resizing and undo is a replay. Bitmaps would make undo expensive.
 - **Markdown is escaped first.** Only a few tags are rebuilt afterwards, so raw HTML in an entry is shown as text. The one HTML allowed is the color span the editor writes.
-- **Storage is behind one small interface** (`src/storage.js`). IndexedDB is the default, with a memory fallback that shows a warning when storage is blocked.
+- **Storage is behind one small interface** (`src/storage.js`). IndexedDB is the default, with a memory fallback that shows a warning when storage is blocked. Entry rows hold text and metadata only. Pictures and sketches are in their own `media` store, so the entries list reads small rows and never loads image bytes.
 
 ## Known limits
 
 - In Source mode, color spans appear as tags. Colors show in the live preview and in exports.
-- Pictures and sketches are stored on the entry, not in version history. Removing a picture line leaves its file on the entry until the entry is deleted, so an old version can always bring it back. Restoring a version does not undo sketch edits.
-- The entries list loads each entry in full, so entries with many pictures make the list slower. Moving media into its own store is the next step.
+- A picture line can be removed from the text, but its file stays with the entry until the entry is deleted, so any version can bring it back. Pictures are never cleaned up on their own.
+- Restoring a version puts back its sketch strokes, but a sketch that was added after that version is kept as it is.
 - The live editor is a contenteditable that re-renders from the Markdown source on every change. Very long entries (tens of thousands of lines) may type more slowly.
 - Ink is pinned to the page, not to a line of text. If you edit text above a drawing, the ink does not move with it.
 - The print/PDF layout is close to the screen layout but can differ slightly.
 - There is no zoom or lasso selection yet.
-- Each version keeps a full copy of the text and ink, so a long entry with many versions takes more browser storage.
+- Each version keeps a full copy of the text, ink and sketch strokes, so a long entry with many versions takes more browser storage. Pictures are not copied into versions.
 
 ## Layout
 
@@ -70,7 +70,7 @@ src/prompts.js      daily writing prompts (pure, no DOM)
 src/textops.js      pure text edits (lists, headings, color spans)
 src/drawing.js      ops, undo stack, flood fill, rendering
 src/keypen.js       keyboard pen: sends pointer events from arrow keys and Space to a drawing canvas
-src/storage.js      IndexedDB and memory stores behind one interface (entries and versions)
+src/storage.js      IndexedDB and memory stores behind one interface (entries, media, and versions)
 src/export.js       Markdown, ZIP, PNG, print, backup
 src/versions.js     version rules: when a copy is kept and what it holds (no DOM)
 src/history.js      version history dialog

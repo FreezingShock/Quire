@@ -29,7 +29,7 @@ function inkPreview(content) {
  * the dialog closes. `onDelete(version)` resolves true when a version was removed.
  * `onSaveNow()` resolves with a message to show under the list.
  */
-export function historyDialog({ load, onRestore, onSaveNow, onDelete, media = null }) {
+export function historyDialog({ load, onRestore, onSaveNow, onDelete, mediaFor = null }) {
   let versions = [];
   let selectedId = null;
 
@@ -102,7 +102,7 @@ export function historyDialog({ load, onRestore, onSaveNow, onDelete, media = nu
     }
     const { content } = version;
     const text = el('div', { class: 'sheet-text version-body' });
-    text.innerHTML = content.body.trim() ? renderMarkdown(content.body, { media }) : '<p class="version-blank">This version has no text.</p>';
+    text.innerHTML = content.body.trim() ? renderMarkdown(content.body, { media: mediaFor?.(version) ?? null }) : '<p class="version-blank">This version has no text.</p>';
     preview.replaceChildren(
       el(
         'header',

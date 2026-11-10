@@ -24,10 +24,13 @@ export function describeReason(reason) {
 
 /**
  * The fields a version holds. Ids and timestamps stay with the entry, and sheet
- * height is derived from the ink, so neither is copied.
+ * height is derived from the ink, so neither is copied. Pictures are not copied
+ * either: they are never changed or removed while the entry exists, so a version
+ * refers to them by id and keeps them. Sketches change as you draw on them, so
+ * their strokes are copied, and only when the entry has any.
  */
 export function contentOf(entry) {
-  return {
+  const content = {
     title: entry.title ?? '',
     date: entry.date,
     kind: entry.kind,
@@ -36,6 +39,10 @@ export function contentOf(entry) {
     pageColor: entry.pageColor,
     ink: { ops: entry.ink?.ops ?? [] },
   };
+  if (Object.keys(entry.sketches ?? {}).length) {
+    content.sketches = structuredClone(entry.sketches);
+  }
+  return content;
 }
 
 /** True when an entry's content matches a stored version's content. */

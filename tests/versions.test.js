@@ -118,3 +118,24 @@ test('memory store keeps the newest versions per entry and removes them with the
   assert.deepEqual(await store.listVersions('e1'), []);
   assert.deepEqual(await store.listAllVersions(), []);
 });
+
+test('a version copies sketch strokes, so restoring it brings them back', () => {
+  const entry = { ...createEntry({ body: 'Hi' }), sketches: { s1: { h: 320, ops: [{ t: 'stroke', id: 'a' }] } } };
+  const content = contentOf(entry);
+  assert.deepEqual(content.sketches, { s1: { h: 320, ops: [{ t: 'stroke', id: 'a' }] } });
+  entry.sketches.s1.ops.push({ t: 'stroke', id: 'b' });
+  assert.deepEqual(content.sketches.s1.ops, [{ t: 'stroke', id: 'a' }], 'the copy does not change when the sketch does');
+});
+
+test('a version without sketches leaves them out, so older versions still match', () => {
+  const content = contentOf(createEntry({ body: 'Hi' }));
+  assert.equal('sketches' in content, false);
+});
+
+test('a version with a changed sketch is not the same content', () => {
+  const entry = { ...createEntry({ body: 'Hi' }), sketches: { s1: { h: 320, ops: [] } } };
+  const latest = makeVersion(entry, 'manual');
+  assert.equal(sameContent(entry, latest.content), true);
+  entry.sketches.s1.ops = [{ t: 'stroke', id: 'new' }];
+  assert.equal(sameContent(entry, latest.content), false);
+});
