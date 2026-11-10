@@ -89,6 +89,19 @@ export const keyboardMethods = {
       return;
     }
     if (typing || event.altKey || this.view === 'home') return;
+    if (this.stickerPlace) {
+      // A sticker waiting for a place: Enter stamps it in the middle, Escape cancels.
+      if (event.key === 'Enter') {
+        event.preventDefault();
+        this.placeStickerAtCenter();
+        return;
+      }
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        this.cancelStickerPlacement();
+        return;
+      }
+    }
     if (this.draft && (event.key === 'Enter' || event.key === 'Escape')) {
       event.preventDefault();
       this.commitDraft();
@@ -100,6 +113,7 @@ export const keyboardMethods = {
         this.deleteSelection();
         return;
       }
+      if (this.handleStickerKey(event)) return;
       const step = event.shiftKey ? NUDGE_FAST : NUDGE;
       const nudge = { ArrowLeft: [-step, 0], ArrowRight: [step, 0], ArrowUp: [0, -step], ArrowDown: [0, step] }[event.key];
       if (nudge) {

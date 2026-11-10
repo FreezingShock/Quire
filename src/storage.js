@@ -18,6 +18,9 @@
  *   reseal(vault | null)       -> Promise<void>       rewrites every row, picture and version under that cipher, in one transaction
  *   getMeta / setMeta / removeMeta(key)  -> small records kept beside the rows (the passcode lock lives here)
  *   getNote / setNote(text)    -> the sticky note's text, sealed with the rows when the lock is on
+ *   listStickers()             -> Promise<Sticker[]>  the sticker library, oldest first
+ *   saveSticker(sticker)       -> Promise<void>       upserts a library sticker by id
+ *   removeSticker(id)          -> Promise<void>
  *   clear()                    -> Promise<void>       erases every row and record
  *
  * Pictures and sketches live in their own `media` store, so the entries list
@@ -46,6 +49,13 @@ const LOCKED = Symbol('locked');
 /** The sticky note's record in the meta store. Its text is sealed like entries when the lock is on. */
 const NOTE_META = 'sticky-note';
 
+/**
+ * The sticker library keeps its pictures in the media store under this pseudo
+ * entry id. No entry has it, so entry removal never touches a library sticker,
+ * and the records are sealed with the pictures.
+ */
+const LIBRARY_ID = '_sticker-library';
+
 export class LockedError extends Error {
   constructor() {
     super('Quire is locked. Enter your passcode to open your entries.');
@@ -56,6 +66,7 @@ export class LockedError extends Error {
 /** Key range covering every version of one entry, ordered by savedAt. */
 const entryRange = (entryId) => IDBKeyRange.bound([entryId, ''], [entryId, '￿']);
 const byTimeAscending = (a, b) => a.savedAt.localeCompare(b.savedAt);
+const byCreated = (a, b) => String(a.createdAt ?? '').localeCompare(String(b.createdAt ?? ''));
 
 /** Primary key of one picture or sketch: its entry, its kind, and its id. */
 export const mediaKey = (entryId, kind, id) => `${entryId}/${kind}/${id}`;
@@ -75,6 +86,23 @@ export function imageRecord(entryId, id, src) {
 
 export function sketchRecord(entryId, id, sketch) {
   return { key: mediaKey(entryId, 'sketch', id), entryId, kind: 'sketch', id, h: sketch.h, ops: sketch.ops };
+}
+
+/** A library sticker as a media record. */
+export function stickerRecord(sticker) {
+  return {
+    key: mediaKey(LIBRARY_ID, 'sticker', sticker.id),
+    entryId: LIBRARY_ID,
+    kind: 'sticker',
+    id: sticker.id,
+    name: sticker.name,
+    src: sticker.src,
+    createdAt: sticker.createdAt,
+  };
+}
+
+export function stickerFromRecord(record) {
+  return { id: record.id, name: record.name, src: record.src, createdAt: record.createdAt };
 }
 
 /** Rebuilds a full entry from its row and its media records. Shared by both stores and by the upgrade. */
@@ -408,6 +436,22 @@ function createIndexedDBStore(db) {
       const stored = await readTransaction(db, META, (tx) => requestToPromise(tx.objectStore(META).get(NOTE_META)));
       return codec.decodeNote(stored);
     },
+    async listStickers() {
+      codec.ready();
+      const records = await readTransaction(db, MEDIA, (tx) =>
+        requestToPromise(tx.objectStore(MEDIA).index(BY_ENTRY).getAll(IDBKeyRange.only(LIBRARY_ID))),
+      );
+      const decoded = await Promise.all(records.map((record) => codec.decodeMedia(record)));
+      return decoded.filter((record) => record.kind === 'sticker').map(stickerFromRecord).sort(byCreated);
+    },
+    async saveSticker(sticker) {
+      codec.ready();
+      const record = await codec.encodeMedia(stickerRecord(sticker));
+      await writeTransaction(db, MEDIA, (tx) => tx.objectStore(MEDIA).put(record));
+    },
+    async removeSticker(id) {
+      await writeTransaction(db, MEDIA, (tx) => tx.objectStore(MEDIA).delete(mediaKey(LIBRARY_ID, 'sticker', id)));
+    },
     async setNote(text) {
       const sealed = await codec.encodeNote(text);
       await writeTransaction(db, META, (tx) => tx.objectStore(META).put(sealed, NOTE_META));
@@ -524,6 +568,21 @@ export function createMemoryStore() {
     },
     async getNote() {
       return codec.decodeNote(metas.get(NOTE_META) ?? null);
+    },
+    async listStickers() {
+      codec.ready();
+      // A sealed record keeps only its key and entry id readable, so the kind is checked after decoding.
+      const records = [...media.values()].filter((record) => record.entryId === LIBRARY_ID).map(clone);
+      const decoded = await Promise.all(records.map((record) => codec.decodeMedia(record)));
+      return decoded.filter((record) => record.kind === 'sticker').map(stickerFromRecord).sort(byCreated);
+    },
+    async saveSticker(sticker) {
+      codec.ready();
+      const record = await codec.encodeMedia(stickerRecord(sticker));
+      media.set(record.key, clone(record));
+    },
+    async removeSticker(id) {
+      media.delete(mediaKey(LIBRARY_ID, 'sticker', id));
     },
     async setNote(text) {
       metas.set(NOTE_META, await codec.encodeNote(text));

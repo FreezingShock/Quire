@@ -107,7 +107,7 @@ export async function exportDrawingPng(entry) {
 }
 
 /** Format 1. `versions` is optional, so backups from before version history still restore. */
-export function makeBackup(entries, versions = []) {
+export function makeBackup(entries, versions = [], stickers = []) {
   const payload = {
     app: 'quire',
     format: 1,
@@ -115,6 +115,7 @@ export function makeBackup(entries, versions = []) {
     date: localISODate(),
     entries,
     versions,
+    stickers,
   };
   return new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
 }
@@ -125,5 +126,9 @@ export function parseBackup(text) {
     throw new Error('This file is not a Quire backup.');
   }
   const versions = Array.isArray(data.versions) ? data.versions.map(normalizeVersion).filter(Boolean) : [];
-  return { entries: data.entries.map((entry) => normalizeEntry(entry)), versions };
+  // Older backups have no sticker library. A sticker without a picture is dropped.
+  const stickers = Array.isArray(data.stickers)
+    ? data.stickers.filter((item) => typeof item?.id === 'string' && /^data:image\//.test(String(item.src ?? '')))
+    : [];
+  return { entries: data.entries.map((entry) => normalizeEntry(entry)), versions, stickers };
 }

@@ -33,6 +33,7 @@ You can also open `index.html` through any static server.
 - **Pictures:** paste or drop an image file into the text, or use Insert > Image. Large photos are scaled to 1600 px. The picture sits on its own line, and its file is kept with the entry in a separate media store.
 - **Mixtape:** Insert > Song for the mixtape… (or the Add song button above the page) takes a Spotify or YouTube link. Each entry can hold up to 12 songs, shown as a cassette with a track list. Play opens the service's own player, and Stop closes it. The title and artist are saved with the entry, so the cassette still shows with no connection.
 - **Inline sketches:** Insert > Sketch between paragraphs puts a small drawing pad in the text. It has its own pencil, brush, highlighter, eraser, undo and clear, and uses the current ink color.
+- **Stickers:** Insert > Sticker… opens the sticker sheet. Preset holds twelve stickers drawn for Quire. My stickers holds pictures added from disk and ink saved from the page (select some ink, then Make from selected ink). Pick a sticker, then click the page to stamp it. Drag a sticker to move it, a corner to resize it, or the round handle above it to turn it. From the keyboard, Enter stamps the sticker in the middle, + and - resize the selected sticker, and [ and ] turn it. Each sticker keeps its own copy of its picture, so removing one from My stickers leaves the pages as they are. The library is sealed by the passcode lock and included in backups.
 - **Word count:** the status bar shows words and reading time (about 238 words a minute). Pictures, sketches and checkboxes do not count as words.
 - **Focus mode:** F11 (or View > Focus mode) hides the menus, ribbon, and status bar, so only the page is left. A bar at the bottom shows the word count and save state. Esc or F11 leaves it. Options has three focus settings: typewriter scrolling (Writing tab) keeps the line you are typing at the middle of the window; a session word goal (Writing tab) fills a progress bar as you write; and ambient sounds (General tab) play rain, a café murmur, or a CRT hum while you write. The ambient sounds are synthesized in the browser, play only in focus mode, and need Sound effects on. A session starts when you open an entry or turn on focus mode.
 - **Source mode:** View > Source mode shows every Markdown marker. Formatting still applies right away.
@@ -101,6 +102,8 @@ src/skins.js        skin list, skin choice from saved prefs, and accent colors (
 src/options.js      Options dialog: the tabbed settings that the View and Skin menus used to hold
 src/gadgets.js      sidebar gadgets: the catalog, saved order, clock hands, mood gauge, streak goal, word of the day (no DOM)
 src/gadget-views.js sidebar gadgets: their panels, drag to reorder, the Add menu, and the slideshow
+src/stickers.js     stickers: preset art, the sticker's geometry (turn, mirror, size), and picture loading
+src/sticker-view.js the sticker sheet: presets, My stickers, and the picture and ink actions
 styles/             app chrome, live editor, rendered-text styles, Vista extras, skins, the sidebar gadgets, the lock dialogs, and focus mode (loaded last)
 tests/              node:test unit tests (including the passcode vault and the sealed store)
 scripts/serve.js    dependency-free static server

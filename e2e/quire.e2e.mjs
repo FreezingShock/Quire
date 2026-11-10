@@ -591,3 +591,68 @@ test('moving the last entry out of a notebook returns the list to All entries', 
     await page.close();
   }
 });
+
+/** Opens Insert > Sticker…, which lists the presets and My stickers. */
+async function openStickerSheet(page) {
+  await page.getByRole('button', { name: 'Insert', exact: true }).click();
+  await page.getByRole('menuitem', { name: 'Sticker…' }).click();
+  await page.waitForSelector('dialog.sticker-dialog[open]');
+}
+
+test('a preset sticker stamps on the page, turns, and survives a reload', async () => {
+  const page = await freshPage();
+  try {
+    await openQuire(page);
+    await newEntry(page);
+    await openStickerSheet(page);
+    await page.getByRole('button', { name: 'Star', exact: true }).click();
+    const box = await page.locator('#ink').boundingBox();
+    await page.mouse.click(box.x + box.width * 0.3, box.y + box.height * 0.3);
+    await page.waitForFunction(() => document.querySelector('#ink')?.dataset.placing === undefined);
+    assert.equal(await inkHasPixels(page), true, 'the star is drawn on the drawing layer');
+    // The new sticker is selected, so + makes it bigger and [ turns it left.
+    await page.keyboard.press('+');
+    await page.keyboard.press('[');
+    await page.keyboard.press('Control+z');
+    await page.keyboard.press('Control+z');
+    await page.keyboard.press('Control+z');
+    assert.equal(await inkHasPixels(page), false, 'three undos remove the star, the size and the turn');
+    await page.keyboard.press('Control+Shift+z');
+    await page.keyboard.press('Control+Shift+z');
+    await page.keyboard.press('Control+Shift+z');
+    assert.equal(await inkHasPixels(page), true, 'redo brings the star back');
+    await waitForSaved(page);
+    await page.reload({ waitUntil: 'load' });
+    await page.waitForSelector('#splash', { state: 'detached', timeout: 15000 });
+    await page.waitForFunction(() => document.querySelector('.app')?.dataset.view === 'editor', null, { timeout: 8000 });
+    assert.equal(await inkHasPixels(page), true, 'the star is still on the entry after a reload');
+    expectNoErrors(page);
+  } finally {
+    await page.close();
+  }
+});
+
+test('a picture added to My stickers can be stamped and stays in the library after a reload', async () => {
+  const page = await freshPage();
+  try {
+    await openQuire(page);
+    await newEntry(page);
+    await openStickerSheet(page);
+    await page.setInputFiles('dialog.sticker-dialog input[type=file]', fileURLToPath(new URL('../assets/icon-192.png', import.meta.url)));
+    await page.getByRole('tab', { name: /My stickers \(1\)/ }).click();
+    await page.getByRole('button', { name: 'Stamp icon-192' }).click();
+    const box = await page.locator('#ink').boundingBox();
+    await page.mouse.click(box.x + box.width * 0.5, box.y + box.height * 0.4);
+    await page.waitForFunction(() => document.querySelector('#ink')?.dataset.placing === undefined);
+    assert.equal(await inkHasPixels(page), true, 'the picture sticker is drawn once its image has loaded');
+    await waitForSaved(page);
+    await page.reload({ waitUntil: 'load' });
+    await page.waitForSelector('#splash', { state: 'detached', timeout: 15000 });
+    await openStickerSheet(page);
+    await page.getByRole('tab', { name: /My stickers \(1\)/ }).click();
+    assert.equal(await page.getByRole('button', { name: 'Stamp icon-192' }).count(), 1, 'the library keeps the picture');
+    expectNoErrors(page);
+  } finally {
+    await page.close();
+  }
+});

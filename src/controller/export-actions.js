@@ -82,7 +82,8 @@ export const exportMethods = {
     await this.persist();
     const entries = await this.store.listFull();
     const versions = await this.store.listAllVersions();
-    downloadBlob(makeBackup(entries, versions), `quire-backup-${localISODate()}.json`);
+    const stickers = await this.store.listStickers();
+    downloadBlob(makeBackup(entries, versions, stickers), `quire-backup-${localISODate()}.json`);
     this.showStatus(`Backed up ${entries.length} entries and ${versions.length} versions`);
   },
 
@@ -98,11 +99,12 @@ export const exportMethods = {
   },
 
   async restoreFrom(file) {
-    const { entries, versions } = parseBackup(await file.text());
+    const { entries, versions, stickers } = parseBackup(await file.text());
     await this.persist();
     // Drop the in-memory entry first, so a stale copy cannot overwrite the restored one.
     this.entry = null;
     for (const entry of entries) await this.store.save(entry);
+    for (const sticker of stickers) await this.store.saveSticker(sticker);
     // Only versions whose entry is in this backup are restored. Same ids overwrite, so restoring twice adds nothing.
     const restored = new Set(entries.map((entry) => entry.id));
     const usable = versions.filter((version) => restored.has(version.entryId));

@@ -241,6 +241,7 @@ export const buildUiMethods = {
         items: () => [
           { label: 'Image…', disabled: !this.entry, action: () => this.pickImages() },
           { label: 'Sketch between paragraphs', disabled: !this.entry, action: () => this.insertSketch() },
+          { label: 'Sticker…', disabled: !this.entry, action: () => this.openStickers() },
           { label: 'Song for the mixtape…', disabled: !this.entry, action: () => this.addSong() },
           'sep',
           { label: 'Today’s date', action: () => this.insertText(formatLongDate(localISODate())) },

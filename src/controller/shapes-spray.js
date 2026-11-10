@@ -69,6 +69,10 @@ export const sprayShapeMethods = {
 
   updateGesture(p) {
     const g = this.gesture;
+    if (g.kind === 'sticker') {
+      this.updateStickerGesture(p);
+      return;
+    }
     if (Math.hypot(p.x - g.start.x, p.y - g.start.y) > MOVE_SLOP) g.moved = true;
     if (g.kind === 'bend') {
       Object.assign(this.draft.op, bendCurve(g.snap, g.t, [p.x, p.y], g.which));
@@ -80,6 +84,10 @@ export const sprayShapeMethods = {
   },
 
   finishGesture(event) {
+    if (this.gesture?.kind === 'sticker') {
+      this.finishStickerGesture();
+      return;
+    }
     const g = this.gesture;
     this.gesture = null;
     const d = this.draft;

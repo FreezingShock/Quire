@@ -4,7 +4,7 @@
  * keeps its shape when the window resizes. Ops are plain JSON, so they store
  * directly in the entry, and undo is just "pop the last op and replay".
  *
- * Each drawing op (stroke, line, rect, ellipse, curve, poly, stamp, fill, text)
+ * Each drawing op (stroke, line, rect, ellipse, curve, poly, stamp, sticker, fill, text)
  * has a stable `id` and belongs to a layer through `l`. Ops without `l` are on
  * the first layer, so entries saved before layers existed still open correctly.
  * A stroke with tool 'spray' is a path too, painted as scattered dots.
@@ -19,6 +19,7 @@
  */
 
 import { GRID_STEP } from './snap.js';
+import { drawSticker, stickerCorners } from './stickers.js';
 
 export const NORM_WIDTH = 1000;
 export const BASE_LAYER = 'base';
@@ -39,7 +40,7 @@ export const TEXT_FONTS = {
 export const TEXT_SIZES = { 1: 20, 3: 34, 6: 56 };
 export const DEFAULT_TEXT_WIDTH = 300;
 
-const DRAW_TYPES = new Set(['stroke', 'line', 'rect', 'ellipse', 'curve', 'poly', 'stamp', 'fill', 'text']);
+const DRAW_TYPES = new Set(['stroke', 'line', 'rect', 'ellipse', 'curve', 'poly', 'stamp', 'sticker', 'fill', 'text']);
 
 /** Stamp sizes (box side in normalized units) for the size row at 1, 3 and 6. */
 export const STAMP_SIZES = { 1: 40, 3: 80, 6: 140 };
@@ -243,6 +244,18 @@ export function selectionMatrix(kind, cx, cy, kx = 1, ky = 1) {
   }
 }
 
+/** Turns about the point (cx, cy) by `theta` radians, clockwise on screen. */
+export function rotationMatrix(theta, cx, cy) {
+  const c = Math.cos(theta);
+  const s = Math.sin(theta);
+  return [c, s, -s, c, cx - c * cx + s * cy, cy - s * cx - c * cy].map((v) => Math.round(v * 1e6) / 1e6);
+}
+
+/** Scales uniformly by `k` about the point (cx, cy). */
+export function scaleMatrix(k, cx, cy) {
+  return [k, 0, 0, k, cx * (1 - k), cy * (1 - k)].map((v) => Math.round(v * 1e6) / 1e6);
+}
+
 /**
  * Maps one drawable op through an affine matrix. Ids and styles are kept. Line
  * widths, stamp sizes and font sizes scale with the matrix's area factor, so a
@@ -264,6 +277,21 @@ function transformOp(op, m) {
   }
   if (op.t === 'poly') return { ...op, pts: op.pts.map(map), w: op.w * k };
   if (op.t === 'stamp') return { ...op, a: map(op.a), s: op.s * k, w: op.w * k };
+  if (op.t === 'sticker') {
+    // A sticker is a square, so it keeps its shape under any matrix. Its turn and mirror
+    // are read off the matrix: M = k·R(θ)·F^δ, where F flips x and δ is 1 for a flip.
+    // The sticker's own turn r and mirror m then combine as R(θ ± r) and m XOR δ.
+    const flip = a * d - b * c < 0;
+    const turn = flip ? Math.atan2(-b, -a) : Math.atan2(b, a);
+    const r = op.r ?? 0;
+    return {
+      ...op,
+      a: map(op.a),
+      s: op.s * k,
+      r: turn + (flip ? -r : r),
+      m: (op.m ? 1 : 0) ^ (flip ? 1 : 0),
+    };
+  }
   if (op.t === 'text') {
     const a0 = map(op.a);
     const width = Math.abs(op.b[0] - op.a[0]) * k;
@@ -275,6 +303,11 @@ function transformOp(op, m) {
 /** A copy of a drawable op moved by (dx, dy). Used for drag previews. */
 export function moveOp(op, dx, dy) {
   return transformOp(op, translationMatrix(dx, dy));
+}
+
+/** A copy of a drawable op mapped through any affine matrix. Used for drag previews. */
+export function mapOp(op, m) {
+  return transformOp(op, m);
 }
 
 /**
@@ -436,6 +469,9 @@ export function opBounds(op, measure) {
     if (!op.a) return null;
     const half = op.s / 2;
     points = [[op.a[0] - half, op.a[1] - half], [op.a[0] + half, op.a[1] + half]];
+  } else if (op.t === 'sticker') {
+    if (!op.a) return null;
+    points = stickerCorners(op);
   } else if (op.t === 'text') {
     if (!op.a || !op.b) return null;
     const layout = textLayout(measure ?? measureContext(), op, 1);
@@ -737,6 +773,10 @@ export function applyOp(ctx, op, scale) {
     return;
   }
   if (op.t === 'fill') return;
+  if (op.t === 'sticker') {
+    drawSticker(ctx, op, scale);
+    return;
+  }
 
   ctx.save();
   ctx.lineCap = 'round';

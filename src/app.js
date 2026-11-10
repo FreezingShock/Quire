@@ -46,6 +46,7 @@ import { focusMethods } from './controller/focus-mode.js';
 import { navigationMethods } from './controller/navigation.js';
 import { capsuleActionMethods } from './controller/capsule-actions.js';
 import { mixtapeMethods } from './controller/mixtape.js';
+import { stickerMethods } from './controller/sticker-actions.js';
 import { MixtapeView } from './mixtape-view.js';
 
 
@@ -121,7 +122,9 @@ export class QuireApp {
     this.selection = new Set();
     this.selDrag = null; // { mode: 'marquee' | 'move', start, end } while a select drag runs
     this.draft = null; // a curve being bent, or a polygon still getting sides; see commitDraft()
-    this.gesture = null; // { kind: 'bend' | 'polygon', ... } while the pointer works on the draft
+    this.gesture = null; // { kind: 'bend' | 'polygon' | 'sticker', ... } while the pointer works on the draft
+    this.stickerPlace = null; // the sticker waiting for a press on the page, from the sticker sheet
+    this.stickerSheet = null; // the open sticker sheet, kept in step with the library
     this.sprayTimer = 0;
     this.stampKind = 'star';
     this.zoom = 1; // magnifier level from ZOOM_STEPS; a view setting, not saved with the entry
@@ -263,3 +266,4 @@ Object.assign(QuireApp.prototype, navigationMethods);
 Object.assign(QuireApp.prototype, capsuleActionMethods);
 
 Object.assign(QuireApp.prototype, mixtapeMethods);
+Object.assign(QuireApp.prototype, stickerMethods);

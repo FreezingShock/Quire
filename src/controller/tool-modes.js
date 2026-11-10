@@ -12,6 +12,7 @@ export const toolModeMethods = {
     this.commitTextDraft();
     this.commitDraft();
     this.stopSpray();
+    this.cancelStickerPlacement();
     this.tool = id;
     this.dom.ink.dataset.tool = id;
     for (const button of this.dom.toolbox.querySelectorAll('[data-tool-id]')) {

@@ -47,6 +47,7 @@ export const entryMethods = {
       return;
     }
     this.entry = next;
+    this.prepareStickers(next);
     this.dom.editor.setMedia(next);
     this.dom.editor.value = next.body;
     this.dom.title.value = next.title;

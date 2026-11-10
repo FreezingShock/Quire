@@ -1,0 +1,138 @@
+/* Stickers: the sticker sheet dialog, its tabs and tiles, and the placement cursor. Colors come from the skin tokens. */
+
+.sticker-dialog {
+  width: min(560px, calc(100vw - 32px));
+}
+
+.sticker-dialog .dialog-text {
+  margin-bottom: 10px;
+}
+
+.sticker-tabs {
+  display: flex;
+  gap: 2px;
+  padding: 0 8px;
+  border-bottom: 1px solid var(--panel-edge);
+}
+
+.sticker-tab {
+  height: 26px;
+  padding: 0 14px;
+  border: 1px solid var(--panel-edge);
+  border-bottom: none;
+  border-radius: 4px 4px 0 0;
+  background: linear-gradient(to bottom, var(--tile-hi), var(--tile-lo));
+  color: var(--tile-ink);
+  cursor: pointer;
+  margin-bottom: -1px;
+}
+
+.sticker-tab[aria-selected="true"] {
+  background: linear-gradient(to bottom, var(--glow-hi), var(--glow-lo));
+  border-color: var(--hover-edge);
+  font-weight: 600;
+}
+
+.sticker-tab:focus-visible,
+.sticker-tile:focus-visible,
+.sticker-remove:focus-visible {
+  outline: 2px dotted var(--accent);
+  outline-offset: 2px;
+}
+
+.sticker-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+  gap: 8px;
+  max-height: 46vh;
+  overflow-y: auto;
+  padding: 10px 8px;
+  background: var(--tile-lo);
+}
+
+.sticker-grid[hidden],
+.sticker-empty[hidden] {
+  display: none;
+}
+
+.sticker-own {
+  position: relative;
+}
+
+.sticker-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+  padding: 8px 4px 6px;
+  border: 1px solid var(--tile-edge);
+  border-radius: 4px;
+  background: linear-gradient(to bottom, var(--tile-hi), var(--tile-lo));
+  color: var(--tile-ink);
+  cursor: pointer;
+  font: inherit;
+}
+
+.sticker-tile:hover {
+  border-color: var(--hover-edge);
+  background: linear-gradient(to bottom, var(--glow-hi), var(--glow-lo));
+}
+
+.sticker-tile:active {
+  background: linear-gradient(to bottom, var(--press-hi), var(--press-lo));
+}
+
+.sticker-art,
+.sticker-thumb {
+  width: 64px;
+  height: 64px;
+  object-fit: contain;
+  pointer-events: none;
+}
+
+.sticker-name {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+}
+
+.sticker-remove {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 1px solid var(--tile-edge);
+  border-radius: 50%;
+  background: linear-gradient(to bottom, var(--tile-hi), var(--tile-lo));
+  color: var(--tile-ink);
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.sticker-remove:hover {
+  border-color: var(--hover-edge);
+}
+
+.sticker-empty {
+  margin: 0;
+  padding: 16px 12px;
+  background: var(--tile-lo);
+  color: var(--muted);
+  font-size: 13px;
+  text-align: center;
+}
+
+.sticker-actions {
+  flex-wrap: wrap;
+}
+
+/* A sticker waits for a press on the page. */
+.ink[data-placing="sticker"] {
+  cursor: copy;
+}

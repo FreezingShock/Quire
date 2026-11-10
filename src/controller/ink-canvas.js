@@ -8,7 +8,7 @@ import {
   STAMP_SIZES,
   applyOp,
   layerOf,
-  moveOp,
+  mapOp,
   opBounds,
   paintGrid,
   replayInk,
@@ -99,8 +99,8 @@ export const inkCanvasMethods = {
     ctx.clearRect(0, 0, this.dom.ink.width, this.dom.ink.height);
     ctx.drawImage(this.base, 0, 0);
     if (this.lifted?.ops.length) {
-      const { dx, dy } = this.lifted;
-      for (const op of this.lifted.ops) applyOp(ctx, moveOp(op, dx, dy), this.scale);
+      const m = this.liftMatrix();
+      for (const op of this.lifted.ops) applyOp(ctx, mapOp(op, m), this.scale);
     }
     const draft = this.draftOp();
     if (draft) applyOp(ctx, draft, this.scale);
@@ -140,6 +140,11 @@ export const inkCanvasMethods = {
   drawSelectionFrame(ctx) {
     const marquee = this.selDrag?.mode === 'marquee';
     if (!this.selection.size && !marquee) return;
+    const sticker = marquee ? null : this.selectedSticker();
+    if (sticker) {
+      this.drawStickerFrame(ctx, this.shownSticker(sticker));
+      return;
+    }
     const { bounds } = this.inkIndex();
     const dx = this.lifted?.dx ?? 0;
     const dy = this.lifted?.dy ?? 0;
@@ -228,6 +233,12 @@ export const inkCanvasMethods = {
 
   onPointerDown(event) {
     if (event.button !== 0 || !POINTER_TOOLS.has(this.tool) || !this.entry) return;
+    if (this.stickerPlace) {
+      // A sticker chosen from the sheet is stamped where the page is pressed.
+      event.preventDefault();
+      this.placeStickerAt(this.pointFromEvent(event));
+      return;
+    }
     const p = this.pointFromEvent(event);
     if (this.tool === 'pick') {
       const hex = sampleColor(this.baseCtx, p.x * this.scale, p.y * this.scale) ?? this.entry?.pageColor ?? DEFAULT_PAGE_COLOR;
@@ -238,6 +249,10 @@ export const inkCanvasMethods = {
       event.preventDefault(); // keeps the editor from taking focus or selecting text under the sheet
       this.shiftHeld = event.shiftKey;
       this.capturePointer(event);
+      if (this.beginStickerHandle(p)) {
+        this.requestRedraw();
+        return;
+      }
       this.beginSelect(event, p);
       return;
     }
