@@ -25,6 +25,8 @@
   --dialog-hi: #ffffff;
   --dialog-lo: #e6eef8;
   --raised-ink: #1c2a3b;
+  --row-hover: #e3eefa;
+  --row-line: #e1e9f3;
 
   /* selection and hover */
   --accent: #2f6fbf;
@@ -79,6 +81,8 @@
   --popup-body: #26354d;
   --dialog-hi: #2b3b55;
   --dialog-lo: #1e2c43;
+  --row-hover: #2c4262;
+  --row-line: #2c3d58;
 
   --accent: #4f8fd6;
   --accent-hi: #6aa6e6;
@@ -1040,7 +1044,7 @@ button.layer-name:focus-visible {
   position: sticky;
   top: 0;
   padding: 6px 10px;
-  background: linear-gradient(to bottom, #ffffff, #d9e5f3);
+  background: linear-gradient(to bottom, var(--tile-hi), var(--tile-lo));
   border-bottom: 1px solid var(--panel-edge);
   text-align: left;
   font-size: 12px;
@@ -1050,12 +1054,12 @@ button.layer-name:focus-visible {
 
 .entries-table td {
   padding: 6px 10px;
-  border-bottom: 1px solid #e1e9f3;
+  border-bottom: 1px solid var(--row-line);
   white-space: nowrap;
 }
 
 .entries-table tbody tr { cursor: pointer; }
-.entries-table tbody tr:hover { background: #e3eefa; }
+.entries-table tbody tr:hover { background: var(--row-hover); }
 .entries-table tbody tr.is-selected {
   background: linear-gradient(to bottom, var(--accent-hi), var(--accent-lo));
   color: var(--accent-ink);
