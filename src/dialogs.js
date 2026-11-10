@@ -19,7 +19,7 @@ const SHORTCUT_GROUPS = [
       ['Search entries (All entries page)', 'Ctrl+F'],
       ['Save now', 'Ctrl+S'],
       ['Export as Markdown', 'Ctrl+E'],
-      ['Print or save as PDF', 'Ctrl+P'],
+      ['Print, or save as PDF', 'Ctrl+P'],
     ],
   },
   {
