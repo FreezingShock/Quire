@@ -2,6 +2,10 @@
 
 A local-first journal and drawing page. Write entries in Markdown, sketch on the page with paint-style tools, and export when you're ready. Everything lives in your browser (IndexedDB), with no account and no upload.
 
+## Branches
+
+`release` is the branch to pull from. Feature work goes on its own branch and opens a PR into `release`.
+
 ## Run it
 
 Requires Node 18.17 or newer. No dependencies to install.
