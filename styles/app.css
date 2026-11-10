@@ -20,6 +20,11 @@
   --menu-lo: #e4edf8;
   --field: #ffffff;
   --field-edge: #8ea6c2;
+  --popup-gutter: #d7e5f5;
+  --popup-body: #ffffff;
+  --dialog-hi: #ffffff;
+  --dialog-lo: #e6eef8;
+  --raised-ink: #1c2a3b;
 
   /* selection and hover */
   --accent: #2f6fbf;
@@ -70,6 +75,10 @@
   --menu-lo: #22314a;
   --field: #1a2538;
   --field-edge: #4a5f7c;
+  --popup-gutter: #1d2a3e;
+  --popup-body: #26354d;
+  --dialog-hi: #2b3b55;
+  --dialog-lo: #1e2c43;
 
   --accent: #4f8fd6;
   --accent-hi: #6aa6e6;
@@ -290,11 +299,13 @@ textarea {
 .menu-title:hover {
   background: linear-gradient(to bottom, #ffffff, #cfe3f8 62%, #b8d7f5);
   border-color: var(--hover-edge);
+  color: var(--raised-ink);
 }
 
 .menu-title.is-open {
   background: linear-gradient(to bottom, #b4d6f6, #8ebfea);
   border-color: #3d7ccc;
+  color: var(--raised-ink);
   box-shadow: inset 0 1px 2px rgba(20, 60, 120, 0.25);
 }
 
@@ -307,7 +318,8 @@ textarea {
   padding: 3px;
   display: flex;
   flex-direction: column;
-  background: linear-gradient(to right, #d7e5f5 0, #d7e5f5 27px, #f9fbfe 27px, #ffffff 100%);
+  background: linear-gradient(to right, var(--popup-gutter) 0, var(--popup-gutter) 27px, var(--popup-body) 27px, var(--popup-body) 100%);
+  color: var(--text);
   border: 1px solid #5f7fa6;
   border-radius: 0 0 5px 5px;
   box-shadow: 0 10px 22px rgba(20, 40, 70, 0.32), 0 2px 4px rgba(20, 40, 70, 0.2);
@@ -719,29 +731,6 @@ textarea {
 .format-btn.is-bold { font-weight: 800; }
 .format-btn.is-italic { font-style: italic; font-family: Georgia, serif; font-weight: 400; }
 
-.source-btn {
-  height: 28px;
-  padding: 0 6px;
-  border: 1px solid var(--tile-edge);
-  border-radius: 3px;
-  background: linear-gradient(to bottom, var(--tile-hi), var(--tile-lo));
-  box-shadow: inset 1px 1px 0 rgba(255, 255, 255, 0.9);
-  color: var(--tile-ink);
-  cursor: pointer;
-}
-
-.source-btn:hover {
-  background: linear-gradient(to bottom, var(--glow-hi), var(--glow-lo));
-  border-color: var(--hover-edge);
-}
-
-.source-btn[aria-pressed="true"] {
-  background: linear-gradient(to bottom, var(--press-hi), var(--press-lo));
-  border-color: var(--accent);
-  box-shadow: inset 1px 1px 3px rgba(10, 40, 90, 0.5);
-  color: var(--accent-ink);
-}
-
 /* ---------- the sheet on a blue-gray canvas ---------- */
 
 /* Pageless: the writing surface fills the desk and starts at the top left. */
@@ -898,7 +887,7 @@ textarea {
   padding: 0;
   border: 1px solid #5f7fa6;
   border-radius: 6px;
-  background: linear-gradient(to bottom, #ffffff, #e6eef8);
+  background: linear-gradient(to bottom, var(--dialog-hi), var(--dialog-lo));
   color: var(--text);
   box-shadow: 0 24px 60px rgba(10, 30, 60, 0.4);
 }
@@ -978,6 +967,7 @@ textarea {
   border: 1px solid #7d93b0;
   border-radius: 3px;
   background: linear-gradient(to bottom, #ffffff, #dbe6f3);
+  color: var(--raised-ink);
   cursor: pointer;
 }
 
@@ -1071,23 +1061,51 @@ textarea {
   font-variant-numeric: tabular-nums;
 }
 
+/* Keyboard shortcuts: sections in a scrolling two-column sheet, action on the left, keys on the right. */
+.shortcut-dialog { width: min(740px, calc(100vw - 32px)); }
+.shortcut-dialog .dialog-form { gap: 12px; }
+
+.shortcut-groups {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 14px 26px;
+  max-height: min(62vh, 520px);
+  overflow-y: auto;
+  padding: 2px 6px 2px 0;
+}
+
+.shortcut-group { min-width: 0; }
+
+.shortcut-heading {
+  margin: 0 0 6px;
+  padding-bottom: 3px;
+  border-bottom: 1px solid var(--panel-edge);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+}
+
 .shortcut-list {
   display: grid;
-  grid-template-columns: 1fr auto;
-  gap: 8px 18px;
+  grid-template-columns: minmax(0, 1fr) max-content;
+  align-items: baseline;
+  gap: 5px 14px;
   margin: 0;
   font-size: 13px;
 }
 
 .shortcut-list dt { color: var(--text); }
-.shortcut-list dd { margin: 0; }
+.shortcut-list dd { margin: 0; text-align: right; }
 
 kbd {
+  display: inline-block;
   padding: 1px 6px;
   border: 1px solid #7d93b0;
   border-radius: 3px;
   background: linear-gradient(to bottom, #ffffff, #dbe6f3);
+  color: var(--raised-ink);
   font: 12px ui-monospace, Menlo, Consolas, monospace;
+  white-space: nowrap;
 }
 
 /* ---------- scrollbars: thin glossy Vista-style bars ---------- */
@@ -1147,7 +1165,6 @@ kbd {
   .size-btn { height: 26px; }
   .format-grid { grid-template-columns: repeat(10, 30px); gap: 2px; flex: none; }
   .format-btn { width: 30px; height: 30px; }
-  .source-btn { flex: none; height: 30px; }
   .layer-panel { flex: none; width: 200px; }
   .layer-list { max-height: 72px; flex-direction: row; flex-wrap: wrap; }
   .layer-row { width: 96px; }
