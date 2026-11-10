@@ -246,7 +246,7 @@
 
 .nav-item[aria-current="true"] {
   border-color: var(--accent);
-  background: linear-gradient(to bottom, var(--accent-hi), var(--accent-lo));
+  background: linear-gradient(to bottom, var(--accent-lo), var(--accent));
   color: var(--accent-ink);
 }
 
