@@ -42,6 +42,7 @@ export function downloadBlob(blob, filename) {
 export function inkPngBlob(entry) {
   const canvas = renderInkCanvas(entry.ink.ops, {
     pageColor: entry.pageColor,
+    layers: entry.ink.layers,
     pixelWidth: 1600,
     normHeight: inkHeightFor(entry),
   });
@@ -80,7 +81,7 @@ export function printEntry(entry, { fontStack }) {
   const cssHeight = Math.round((height / NORM_WIDTH) * PAGE_WIDTH);
   const hasInk = entry.ink.ops.length > 0;
   const inkUrl = hasInk
-    ? renderInkCanvas(entry.ink.ops, { pageColor: entry.pageColor, pixelWidth: 1640, normHeight: height }).toDataURL('image/png')
+    ? renderInkCanvas(entry.ink.ops, { pageColor: entry.pageColor, layers: entry.ink.layers, pixelWidth: 1640, normHeight: height }).toDataURL('image/png')
     : '';
   const kind = KINDS.find((k) => k.id === entry.kind)?.label ?? 'Journal';
   const title = escapeHtml(displayTitle(entry));

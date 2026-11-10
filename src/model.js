@@ -3,6 +3,8 @@
  * both build on these helpers, so keep this file free of side effects.
  */
 
+import { normalizeLayers, normalizeOps } from './drawing.js';
+
 export const KINDS = Object.freeze([
   { id: 'journal', label: 'Journal' },
   { id: 'poem', label: 'Poem' },
@@ -52,8 +54,9 @@ export function normalizeEntry(raw = {}) {
     body: typeof raw.body === 'string' ? raw.body : '',
     pageColor: HEX.test(raw.pageColor ?? '') ? raw.pageColor.toLowerCase() : DEFAULT_PAGE_COLOR,
     ink: {
-      ops: Array.isArray(raw.ink?.ops) ? raw.ink.ops : [],
+      ops: normalizeOps(raw.ink?.ops),
       h: Number.isFinite(raw.ink?.h) ? raw.ink.h : 0,
+      layers: normalizeLayers(raw.ink?.layers),
     },
     createdAt,
     updatedAt: typeof raw.updatedAt === 'string' ? raw.updatedAt : createdAt,

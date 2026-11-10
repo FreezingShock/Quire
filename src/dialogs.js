@@ -15,7 +15,9 @@ const SHORTCUTS = [
   ['Undo / redo (last edited surface)', 'Ctrl+Z / Ctrl+Shift+Z'],
   ['Bold / italic', 'Ctrl+B / Ctrl+I'],
   ['Continue a list', 'Enter'],
-  ['Tools', 'T I G P B H E L R O'],
+  ['Tools', 'T I G P B H E L R O S A'],
+  ['Select: move, nudge, delete', 'Drag, arrow keys, Delete'],
+  ['Finish a text box', 'Escape or click away'],
   ['Constrain a line or shape', 'Hold Shift while dragging'],
   ['Keyboard shortcuts', 'F1'],
 ];

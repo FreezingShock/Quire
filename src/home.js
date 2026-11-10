@@ -9,7 +9,7 @@
 import { el } from './dom.js';
 import { KINDS, displayTitle, formatShortDate } from './model.js';
 import { wordCount } from './markdown.js';
-import { NORM_WIDTH, paintOps } from './drawing.js';
+import { NORM_WIDTH, paintInk } from './drawing.js';
 import { icon } from './icons.js';
 import {
   SORTS,
@@ -47,7 +47,7 @@ function inkThumbnail(entry) {
     height: Math.round(THUMB_PX * PAGE_RATIO),
     'aria-hidden': 'true',
   });
-  paintOps(canvas.getContext('2d'), entry.ink.ops, THUMB_PX / NORM_WIDTH);
+  paintInk(canvas.getContext('2d'), entry.ink.ops, entry.ink.layers, THUMB_PX / NORM_WIDTH);
   return canvas;
 }
 
