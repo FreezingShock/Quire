@@ -17,7 +17,8 @@ import {
   localISODate,
   parseTags,
 } from './model.js';
-import { renderMarkdown, wordCount } from './markdown.js';
+import { wordCount } from './markdown.js';
+import { LiveEditor } from './livetext.js';
 import { Drawing, NORM_WIDTH, applyOp, inkExtent, paintOps, sampleColor, strokeWidth } from './drawing.js';
 import { FORMAT_BUTTONS, PALETTE, POINTER_TOOLS, SHAPE_TOOLS, STROKE_SIZES, TOOLS, TOOL_BY_KEY } from './tools.js';
 import {
@@ -72,8 +73,7 @@ export class QuireApp {
       kind: $('#entry-kind'),
       tags: $('#entry-tags'),
       sheet: $('#sheet'),
-      editor: $('#editor'),
-      reader: $('#reader'),
+      editorEl: $('#editor'),
       ink: $('#ink'),
       toolbox: $('#toolbox'),
       swatches: $('#swatches'),
@@ -83,6 +83,10 @@ export class QuireApp {
       mode: $('#status-mode'),
       statusDate: $('#status-date'),
     };
+    this.dom.editor = new LiveEditor(this.dom.editorEl, {
+      onChange: () => this.onEditorChanged(),
+      onHistory: (redo) => (redo ? this.redo() : this.undo()),
+    });
     this.prefs = loadPrefs();
     this.store = null;
     this.entry = null;
@@ -94,7 +98,6 @@ export class QuireApp {
     this.tool = 'write';
     this.size = 3;
     this.fg = PALETTE[0];
-    this.reading = false;
     this.live = null;
     this.pointerId = null;
     this.lastSurface = 'text';
@@ -128,12 +131,17 @@ export class QuireApp {
     const root = document.documentElement;
     root.dataset.theme = this.prefs.dark ? 'dark' : 'light';
     root.style.setProperty('--page-font', FONT_STACKS[this.prefs.font] ?? FONT_STACKS.serif);
+    const source = Boolean(this.prefs.source);
+    this.dom.editorEl.classList.toggle('is-source', source);
+    this.dom.mode.textContent = source ? 'Source' : 'Live preview';
+    for (const button of document.querySelectorAll('[data-source]')) {
+      button.setAttribute('aria-pressed', String(source));
+    }
   }
 
   setPref(patch) {
     this.prefs = savePrefs(patch);
     this.applyPrefs();
-    if (this.entry) this.fitEditor();
     this.requestSync();
   }
 
@@ -212,20 +220,20 @@ export class QuireApp {
         ),
       ),
     );
-    const read = el(
+    const source = el(
       'button',
       {
-        class: 'read-btn',
+        class: 'source-btn',
         type: 'button',
-        'data-read': '',
-        'aria-pressed': 'false',
-        title: 'Read view',
+        'data-source': '',
+        'aria-pressed': String(Boolean(this.prefs.source)),
+        title: 'Source mode: show the Markdown markup',
         onMousedown: prevent,
-        onClick: () => this.setReading(!this.reading),
+        onClick: () => this.setPref({ source: !this.prefs.source }),
       },
-      'Read',
+      'Source',
     );
-    this.dom.toolbox.replaceChildren(tools, sizes, format, read);
+    this.dom.toolbox.replaceChildren(tools, sizes, format, source);
   }
 
   buildSwatches() {
@@ -308,7 +316,7 @@ export class QuireApp {
       {
         label: 'View',
         items: () => [
-          { label: 'Read view', check: true, checked: this.reading, action: () => this.setReading(!this.reading) },
+          { label: 'Source mode', check: true, checked: Boolean(this.prefs.source), action: () => this.setPref({ source: !this.prefs.source }) },
           'sep',
           ...Object.keys(FONT_STACKS).map((id) => ({
             label: `${FONT_LABELS[id]} writing font`,
@@ -340,9 +348,8 @@ export class QuireApp {
   }
 
   bindEvents() {
-    const { editor, title, date, kind, tags, ink, sheet } = this.dom;
-    editor.addEventListener('input', () => this.onEditorChanged());
-    editor.addEventListener('keydown', (event) => this.onEditorKeydown(event));
+    const { editor, editorEl, title, date, kind, tags, ink, sheet } = this.dom;
+    editorEl.addEventListener('keydown', (event) => this.onEditorKeydown(event));
     title.addEventListener('keydown', (event) => {
       if (event.key === 'Enter') {
         event.preventDefault();
@@ -374,7 +381,6 @@ export class QuireApp {
   // ---------- tools and modes ----------
 
   setTool(id) {
-    if (id === 'write' && this.reading) this.setReading(false);
     this.tool = id;
     this.dom.ink.dataset.tool = id;
     for (const button of this.dom.toolbox.querySelectorAll('[data-tool-id]')) {
@@ -392,25 +398,8 @@ export class QuireApp {
     }
   }
 
-  setReading(on) {
-    this.reading = on;
-    if (on) this.dom.reader.innerHTML = renderMarkdown(this.dom.editor.value);
-    this.dom.editor.hidden = on;
-    this.dom.reader.hidden = !on;
-    this.dom.mode.textContent = on ? 'Read view' : 'Markdown';
-    for (const button of this.dom.toolbox.querySelectorAll('[data-read]')) {
-      button.setAttribute('aria-pressed', String(on));
-    }
-    if (!on) {
-      this.fitEditor();
-      if (this.tool === 'write') this.dom.editor.focus({ preventScroll: true });
-    }
-    this.requestSync();
-  }
-
-  /** Leaves read view and switches to the Write tool so text can be edited. */
+  /** Switches to the Write tool so the text can take input. */
   prepareEditing() {
-    if (this.reading) this.setReading(false);
     this.setTool('write');
   }
 
@@ -437,7 +426,7 @@ export class QuireApp {
   /** Swatch click: colors the selected text if there is any, and sets the ink. */
   pickColor(hex) {
     const ta = this.dom.editor;
-    if (this.tool === 'write' && !this.reading && ta.selectionStart !== ta.selectionEnd) {
+    if (this.tool === 'write' && ta.selectionStart !== ta.selectionEnd) {
       const edit = colorEdit(ta.value, ta.selectionStart, ta.selectionEnd, hex);
       if (edit) this.applyEdit(edit);
     }
@@ -446,22 +435,12 @@ export class QuireApp {
 
   // ---------- text editing ----------
 
-  /** Applies an edit description from textops.js. execCommand keeps native undo working. */
+  /** Applies an edit description from textops.js. The editor keeps its own undo history. */
   applyEdit({ from, to, insert, selStart, selEnd }) {
     const ta = this.dom.editor;
     ta.focus({ preventScroll: true });
-    ta.setSelectionRange(from, to);
-    let done = false;
-    if (typeof document.execCommand === 'function') {
-      try {
-        done = document.execCommand('insertText', false, insert);
-      } catch {
-        done = false;
-      }
-    }
-    if (!done) ta.setRangeText(insert, from, to, 'end');
+    ta.setRangeText(insert, from, to);
     ta.setSelectionRange(selStart, selEnd);
-    this.onEditorChanged();
   }
 
   applyFormat(kind) {
@@ -484,19 +463,12 @@ export class QuireApp {
 
   onEditorChanged() {
     this.lastSurface = 'text';
-    this.fitEditor();
     this.updateChrome();
     this.scheduleSave();
   }
 
-  fitEditor() {
-    const ta = this.dom.editor;
-    ta.style.height = 'auto';
-    ta.style.height = `${ta.scrollHeight}px`;
-  }
-
   onEditorKeydown(event) {
-    const ta = event.currentTarget;
+    const ta = this.dom.editor;
     if (event.key === 'Enter' && !event.shiftKey && !event.isComposing && ta.selectionStart === ta.selectionEnd) {
       const edit = enterEdit(ta.value, ta.selectionStart);
       if (edit) {
@@ -608,8 +580,7 @@ export class QuireApp {
       this.undoInk();
       return;
     }
-    this.dom.editor.focus({ preventScroll: true });
-    document.execCommand('undo');
+    this.dom.editor.undo();
   }
 
   redo() {
@@ -617,8 +588,7 @@ export class QuireApp {
       this.redoInk();
       return;
     }
-    this.dom.editor.focus({ preventScroll: true });
-    document.execCommand('redo');
+    this.dom.editor.redo();
   }
 
   pointFromEvent(event) {
@@ -749,8 +719,6 @@ export class QuireApp {
     this.drawing = new Drawing(next.ink.ops);
     this.dom.sheet.style.backgroundColor = next.pageColor;
     this.lastSurface = 'text';
-    this.setReading(false);
-    this.fitEditor();
     this.syncCanvas();
     this.renderInkChip();
     this.updateChrome();
