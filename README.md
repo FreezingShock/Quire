@@ -19,7 +19,8 @@ You can also open `index.html` through any static server.
 
 ## What it does
 
-- **Entries:** title, date, kind (journal, poem, blog post, note), and tags. Open entries from the list with search and kind filters.
+- **Entries:** title, date, kind (journal, poem, blog post, note), mood, weather, and tags. Open entries from the list with search and filters for kind, tag, mood, and weather.
+- **Calendar and streaks:** a month view shows how many entries each day has and its mood. The toolbar counts days in a row with at least one entry. Today's entry (Alt+T) opens today's journal, or starts one.
 - **Writing:** a live preview. Headings, quotes, lists, rules, code, bold, italics, links, and colors render as you type, and the Markdown markup shows only on the line you are editing. Enter continues lists. Select text and click a color to color it.
 - **Source mode:** the Source button (or View > Source mode) shows every Markdown marker. Formatting still applies right away.
 - **Drawing:** pencil, brush, highlighter, eraser, line, rectangle, ellipse, fill, and color picker. Stroke widths 1, 3, and 6. Undo and redo follow whichever surface you touched last. Right-click a swatch to change the page color.

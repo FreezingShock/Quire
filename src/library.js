@@ -3,7 +3,7 @@
  * No DOM and no storage, so they are covered by node:test.
  */
 
-import { KINDS, compareEntries, displayTitle } from './model.js';
+import { KINDS, MOODS, WEATHERS, compareEntries, displayTitle, labelFor } from './model.js';
 import { plainText, wordCount } from './markdown.js';
 
 /** Default direction for each sortable column. */
@@ -31,16 +31,19 @@ export function excerptOf(entry, max = 200) {
 }
 
 /**
- * `filter` is { type: 'all' | 'kind' | 'tag', value }. `query` matches the
- * title, body, tags, and kind label, ignoring case.
+ * `filter` is { type: 'all' | 'kind' | 'tag' | 'mood' | 'weather', value }.
+ * `query` matches the title, body, tags, kind, mood, and weather labels, ignoring case.
  */
 export function filterEntries(entries, { filter = { type: 'all', value: null }, query = '' } = {}) {
   const q = query.trim().toLowerCase();
   return entries.filter((entry) => {
     if (filter.type === 'kind' && entry.kind !== filter.value) return false;
     if (filter.type === 'tag' && !entry.tags.includes(filter.value)) return false;
+    if (filter.type === 'mood' && entry.mood !== filter.value) return false;
+    if (filter.type === 'weather' && entry.weather !== filter.value) return false;
     if (!q) return true;
-    const haystack = `${displayTitle(entry)} ${entry.body} ${entry.tags.join(' ')} ${kindLabel(entry.kind)}`;
+    const feel = `${labelFor(MOODS, entry.mood)} ${labelFor(WEATHERS, entry.weather)}`;
+    const haystack = `${displayTitle(entry)} ${entry.body} ${entry.tags.join(' ')} ${kindLabel(entry.kind)} ${feel}`;
     return haystack.toLowerCase().includes(q);
   });
 }
@@ -76,4 +79,25 @@ export function countByTag(entries) {
   return [...counts]
     .sort(([a], [b]) => a.localeCompare(b, undefined, { sensitivity: 'base' }))
     .map(([tag, count]) => ({ tag, count }));
+}
+
+/** Counts one optional field (mood or weather), in the order of its option list. Options nobody has used are left out. */
+function countOptions(entries, field, options) {
+  const counts = new Map();
+  for (const entry of entries) {
+    if (entry[field]) counts.set(entry[field], (counts.get(entry[field]) ?? 0) + 1);
+  }
+  return options
+    .filter((option) => counts.has(option.id))
+    .map((option) => ({ id: option.id, label: option.label, count: counts.get(option.id) }));
+}
+
+/** [{ id, label, count }] for each mood in use. */
+export function countByMood(entries) {
+  return countOptions(entries, 'mood', MOODS);
+}
+
+/** [{ id, label, count }] for each weather in use. */
+export function countByWeather(entries) {
+  return countOptions(entries, 'weather', WEATHERS);
 }

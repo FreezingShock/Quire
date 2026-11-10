@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createEntry } from '../src/model.js';
-import { countByKind, countByTag, excerptOf, filterEntries, sortEntries } from '../src/library.js';
+import { countByKind, countByMood, countByTag, countByWeather, excerptOf, filterEntries, sortEntries } from '../src/library.js';
 
 const sample = () => [
   createEntry({ id: 'a', title: 'Winter walk', date: '2026-01-05', kind: 'journal', tags: ['winter'], body: 'Cold and bright.', updatedAt: '2026-01-05T10:00:00.000Z' }),
@@ -58,4 +58,27 @@ test('countByKind includes empty kinds and countByTag sorts tags', () => {
     { tag: 'travel', count: 1 },
     { tag: 'winter', count: 2 },
   ]);
+});
+
+test('filterEntries narrows by mood and weather, and search finds their labels', () => {
+  const entries = [
+    createEntry({ id: 'a', date: '2026-01-05', mood: 'good', weather: 'rain', body: 'Wet street.' }),
+    createEntry({ id: 'b', date: '2026-01-06', mood: 'low', weather: null, body: 'Quiet day.' }),
+    createEntry({ id: 'c', date: '2026-01-07', mood: null, weather: 'snow', body: 'Flakes.' }),
+  ];
+  assert.deepEqual(filterEntries(entries, { filter: { type: 'mood', value: 'low' } }).map((e) => e.id), ['b']);
+  assert.deepEqual(filterEntries(entries, { filter: { type: 'weather', value: 'snow' } }).map((e) => e.id), ['c']);
+  assert.deepEqual(filterEntries(entries, { query: 'rain' }).map((e) => e.id), ['a']);
+  assert.deepEqual(filterEntries(entries, { query: 'good' }).map((e) => e.id), ['a']);
+});
+
+test('countByMood and countByWeather list only values in use, in option order', () => {
+  const entries = [
+    createEntry({ mood: 'rough', weather: 'storm' }),
+    createEntry({ mood: 'great', weather: null }),
+    createEntry({ mood: 'rough', weather: 'sunny' }),
+    createEntry({ mood: null, weather: null }),
+  ];
+  assert.deepEqual(countByMood(entries).map(({ id, count }) => [id, count]), [['great', 1], ['rough', 2]]);
+  assert.deepEqual(countByWeather(entries).map(({ id, label }) => [id, label]), [['sunny', 'Sunny'], ['storm', 'Storm']]);
 });

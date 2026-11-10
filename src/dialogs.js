@@ -8,6 +8,7 @@ const SHORTCUTS = [
   ['All entries (home)', 'Ctrl+Shift+H'],
   ['Search entries, on home', 'Ctrl+F'],
   ['New entry', 'Ctrl+N'],
+  ["Today's entry (journal)", 'Alt+T'],
   ['Open entry', 'Ctrl+O'],
   ['Save now', 'Ctrl+S'],
   ['Export Markdown', 'Ctrl+E'],

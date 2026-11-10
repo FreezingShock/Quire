@@ -9,6 +9,8 @@
 import { createLocalStore } from './storage.js';
 import {
   DEFAULT_PAGE_COLOR,
+  MOODS,
+  WEATHERS,
   createEntry,
   displayTitle,
   formatLongDate,
@@ -17,6 +19,7 @@ import {
   localISODate,
   parseTags,
 } from './model.js';
+import { todaysJournal } from './journal.js';
 import { wordCount } from './markdown.js';
 import { LiveEditor } from './livetext.js';
 import {
@@ -102,6 +105,14 @@ function routeEntryId(hash) {
   }
 }
 
+/** Fills a select with an empty "not set" option followed by each { id, label }. */
+function fillSelect(select, options, emptyLabel) {
+  select.replaceChildren(
+    el('option', { value: '' }, emptyLabel),
+    ...options.map((option) => el('option', { value: option.id }, option.label)),
+  );
+}
+
 function isTextTarget(node) {
   return Boolean(node) && (node.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(node.tagName));
 }
@@ -121,6 +132,8 @@ export class QuireApp {
       title: $('#entry-title'),
       date: $('#entry-date'),
       kind: $('#entry-kind'),
+      mood: $('#entry-mood'),
+      weather: $('#entry-weather'),
       tags: $('#entry-tags'),
       sheet: $('#sheet'),
       editorEl: $('#editor'),
@@ -177,6 +190,8 @@ export class QuireApp {
   }
 
   async start() {
+    fillSelect(this.dom.mood, MOODS, 'Not set');
+    fillSelect(this.dom.weather, WEATHERS, 'Not set');
     this.applyPrefs();
     this.buildToolbox();
     this.buildSwatches();
@@ -184,7 +199,8 @@ export class QuireApp {
     this.home = new HomeView(this.dom.home, {
       view: this.prefs.homeView,
       onOpen: (id) => this.openEntry(id),
-      onNew: () => this.newEntry(),
+      onNew: (options) => this.newEntry(options),
+      onToday: () => this.openToday(),
       onDelete: (id) => this.deleteEntry(id),
       onViewChange: (view) => this.setPref({ homeView: view }),
     });
@@ -428,6 +444,7 @@ export class QuireApp {
           { label: 'All entries', shortcut: 'Ctrl+Shift+H', action: () => this.showHome() },
           'sep',
           { label: 'New entry', shortcut: 'Ctrl+N', action: () => this.newEntry() },
+          { label: "Today's entry", shortcut: 'Alt+T', action: () => this.openToday() },
           { label: 'Open entry…', shortcut: 'Ctrl+O', action: () => this.showEntries() },
           { label: 'Delete entry…', disabled: !this.entry, action: () => this.entry && this.deleteEntry(this.entry.id) },
           'sep',
@@ -534,7 +551,7 @@ export class QuireApp {
   }
 
   bindEvents() {
-    const { editor, editorEl, title, date, kind, tags, ink, sheet } = this.dom;
+    const { editor, editorEl, title, date, kind, mood, weather, tags, ink, sheet } = this.dom;
     this.dom.ribbonToggle.addEventListener('click', () => this.setPref({ ribbonHidden: !this.prefs.ribbonHidden }));
     editorEl.addEventListener('keydown', (event) => this.onEditorKeydown(event));
     this.dom.windowTitle.addEventListener('click', () => this.startRename());
@@ -558,6 +575,8 @@ export class QuireApp {
     title.addEventListener('input', () => this.onFieldChanged());
     date.addEventListener('input', () => this.onFieldChanged());
     kind.addEventListener('change', () => this.onFieldChanged());
+    mood.addEventListener('change', () => this.onFieldChanged());
+    weather.addEventListener('change', () => this.onFieldChanged());
     tags.addEventListener('input', () => this.onFieldChanged());
 
     ink.addEventListener('pointerdown', (event) => this.onPointerDown(event));
@@ -753,6 +772,8 @@ export class QuireApp {
     this.entry.title = this.dom.title.value.slice(0, 120);
     if (isISODate(this.dom.date.value)) this.entry.date = this.dom.date.value;
     this.entry.kind = this.dom.kind.value;
+    this.entry.mood = this.dom.mood.value || null;
+    this.entry.weather = this.dom.weather.value || null;
     this.entry.tags = parseTags(this.dom.tags.value);
     this.updateChrome();
     this.scheduleSave();
@@ -1400,6 +1421,8 @@ export class QuireApp {
     this.dom.title.value = next.title;
     this.dom.date.value = next.date;
     this.dom.kind.value = next.kind;
+    this.dom.mood.value = next.mood ?? '';
+    this.dom.weather.value = next.weather ?? '';
     this.dom.tags.value = next.tags.join(', ');
     this.drawing = new Drawing(next.ink.ops);
     this.layers = normalizeLayers(next.ink.layers);
@@ -1421,12 +1444,22 @@ export class QuireApp {
     this.dom.editor.focus({ preventScroll: true });
   }
 
-  async newEntry() {
-    const entry = createEntry();
+  /** Starts a blank entry. `fields` can set the date, e.g. when a calendar day is picked. */
+  async newEntry(fields = {}) {
+    const entry = createEntry(fields);
     await this.store.save(entry);
     await this.openEntry(entry.id);
     this.dom.title.focus();
     playSound('newEntry');
+  }
+
+  /** Opens today's most recently edited journal entry, or starts a new journal for today. */
+  async openToday() {
+    await this.persist();
+    const today = localISODate();
+    const existing = todaysJournal(await this.store.list(), today);
+    if (existing) await this.openEntry(existing.id);
+    else await this.newEntry({ date: today, kind: 'journal' });
   }
 
   showEntries() {
@@ -1528,6 +1561,11 @@ export class QuireApp {
     if (event.key === 'F1') {
       event.preventDefault();
       showShortcuts();
+      return;
+    }
+    if (event.altKey && !event.ctrlKey && !event.metaKey && key === 't') {
+      event.preventDefault();
+      this.openToday();
       return;
     }
     if (event.ctrlKey || event.metaKey) {

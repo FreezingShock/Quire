@@ -19,6 +19,8 @@ export function entryToMarkdown(entry, { drawingName = null } = {}) {
     `title: ${JSON.stringify(displayTitle(entry))}`,
     `date: ${entry.date}`,
     `kind: ${entry.kind}`,
+    ...(entry.mood ? [`mood: ${entry.mood}`] : []),
+    ...(entry.weather ? [`weather: ${entry.weather}`] : []),
     `tags: [${entry.tags.map((tag) => JSON.stringify(tag)).join(', ')}]`,
     '---',
   ].join('\n');
