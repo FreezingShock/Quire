@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { Drawing, inkExtent, strokeWidth } from '../src/drawing.js';
+import { Drawing, inkExtent, penFactor, strokeWidth } from '../src/drawing.js';
 
 const stroke = (x) => ({ t: 'stroke', tool: 'pencil', c: '#000000', w: 1.4, p: [[x, 1], [x + 5, 9]] });
 
@@ -56,4 +56,12 @@ test('ink extent is the lowest point drawn', () => {
 test('stroke width grows with size and marker is wider than pencil', () => {
   assert.ok(strokeWidth('brush', 6) > strokeWidth('brush', 3));
   assert.ok(strokeWidth('marker', 3) > strokeWidth('pencil', 3));
+});
+
+test('pen pressure scales width within a fixed range, with a typical press near the nominal width', () => {
+  assert.ok(Math.abs(penFactor(0.6) - 0.98) < 1e-9);
+  assert.ok(penFactor(0) < penFactor(0.5));
+  assert.ok(penFactor(0.5) < penFactor(1));
+  assert.equal(penFactor(2), penFactor(1), 'values above 1 are clamped');
+  assert.equal(penFactor(undefined), penFactor(0.5), 'a missing reading counts as a typical press');
 });

@@ -612,12 +612,15 @@ textarea {
 
 /* The live-preview editor's own styles are in live.css. */
 
+/* Drawing tools take over single-finger and pen drags, but two fingers still pinch-zoom the page.
+   The `none` line is a fallback for browsers that do not know `pinch-zoom`. */
 .ink {
   position: absolute;
   inset: 0;
   width: 100%;
   height: 100%;
   touch-action: none;
+  touch-action: pinch-zoom;
 }
 
 .grid { pointer-events: none; }
@@ -930,6 +933,13 @@ kbd {
 /* ---------- narrow screens ---------- */
 
 @media (max-width: 760px) {
+  /* dvh tracks the visible area when the mobile browser toolbar slides away. */
+  .app {
+    height: 100vh;
+    height: 100dvh;
+  }
+
+  /* The toolbox wraps into rows instead of scrolling, so every tool, size, and format key stays in reach. */
   .workspace {
     grid-template-columns: minmax(0, 1fr);
     grid-template-rows: auto minmax(0, 1fr);
@@ -937,40 +947,73 @@ kbd {
 
   .toolbox {
     flex-direction: row;
-    align-items: center;
-    gap: 10px;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    gap: 6px 8px;
     padding: 6px 8px;
-    overflow-x: auto;
-    overflow-y: hidden;
+    overflow: hidden;
     border-right: 0;
     border-bottom: 1px solid var(--panel-edge);
   }
 
-  .tool-grid { grid-template-columns: repeat(10, 32px); }
-  .tool-btn { width: 32px; height: 32px; }
+  .tool-grid { grid-template-columns: repeat(10, 34px); gap: 2px; }
+  .tool-btn { width: 34px; height: 34px; }
   .size-row { flex-direction: row; flex: none; }
-  .format-grid { grid-template-columns: repeat(9, 30px); flex: none; }
-  .format-btn { width: 30px; }
-  .source-btn { flex: none; }
+  .size-btn { height: 26px; }
+  .format-grid { grid-template-columns: repeat(9, 30px); gap: 2px; flex: none; }
+  .format-btn { width: 30px; height: 30px; }
+  .source-btn { flex: none; height: 30px; }
 
-  .sheet { padding: 20px 16px 72px; }
+  .sheet { padding: 16px 16px 72px; }
 
-  .entry-bar { padding: 8px; }
-  .field-tags input { width: 140px; }
-
-  .palette {
-    flex-wrap: wrap;
-    gap: 8px;
+  .entry-bar {
+    gap: 6px 10px;
+    padding: 6px 8px;
   }
 
-  .swatches { grid-template-columns: repeat(14, minmax(0, 1fr)); width: 100%; }
-  .swatch { width: 100%; height: 16px; }
-  .palette-note { flex-basis: 100%; }
+  .field-tags {
+    flex: 1 1 100%;
+  }
+
+  .field-tags input { width: 100%; }
+
+  /* iOS zooms the page when a field under 16px gets focus, so phone inputs stay at 16px. */
+  .field input,
+  .field select,
+  .input,
+  .entry-title { font-size: 16px; }
+
+  /* Color chip and swatches share one row, and the long hint moves out of the way. */
+  .palette {
+    gap: 8px;
+    padding: 5px 8px;
+  }
+
+  .ink-chip { width: 36px; height: 36px; flex: none; }
+
+  .swatches {
+    grid-template-columns: repeat(14, minmax(0, 1fr));
+    flex: 1 1 auto;
+    min-width: 0;
+    width: auto;
+  }
+
+  .swatch { width: 100%; height: 15px; }
+  .palette-note { display: none; }
 
   #status-mode,
   #status-date { display: none; }
 
   .titlebar-status { min-width: 0; }
+}
+
+/* Touch tablets get the same 16px inputs, since Safari zooms in on smaller fields at any width. */
+@media (pointer: coarse) {
+  .field input,
+  .field select,
+  .input,
+  .entry-title,
+  .home-search input { font-size: 16px; }
 }
 
 @media (prefers-reduced-motion: reduce) {

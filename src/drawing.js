@@ -183,6 +183,13 @@ export function applyOp(ctx, op, scale) {
     if (op.tool === 'eraser') ctx.globalCompositeOperation = 'destination-out';
     if (op.tool === 'marker') ctx.globalAlpha = MARKER_ALPHA;
     const pts = op.p;
+    // Pen strokes carry a pressure value per point. The highlighter stays even, since
+    // overlapping translucent segments would darken at every joint.
+    if (pts[0].length > 2 && op.tool !== 'marker') {
+      drawPressureStroke(ctx, pts, op.w, scale);
+      ctx.restore();
+      return;
+    }
     ctx.beginPath();
     if (pts.length === 1) {
       ctx.arc(pts[0][0] * scale, pts[0][1] * scale, ctx.lineWidth / 2, 0, Math.PI * 2);
@@ -220,6 +227,31 @@ export function applyOp(ctx, op, scale) {
     ctx.stroke();
   }
   ctx.restore();
+}
+
+/** Width multiplier for a pen pressure in 0 to 1. A typical press (about 0.6) draws the nominal width. */
+export function penFactor(pressure) {
+  const p = Math.min(1, Math.max(0, pressure ?? 0.5));
+  return 0.2 + 1.3 * p;
+}
+
+/** Stroke with a width that follows pen pressure. Each segment takes the average pressure of its ends. */
+function drawPressureStroke(ctx, pts, width, scale) {
+  if (pts.length === 1) {
+    ctx.beginPath();
+    ctx.arc(pts[0][0] * scale, pts[0][1] * scale, (width * penFactor(pts[0][2]) * scale) / 2, 0, Math.PI * 2);
+    ctx.fill();
+    return;
+  }
+  for (let i = 1; i < pts.length; i += 1) {
+    const [ax, ay, ap] = pts[i - 1];
+    const [bx, by, bp] = pts[i];
+    ctx.lineWidth = width * penFactor((ap + bp) / 2) * scale;
+    ctx.beginPath();
+    ctx.moveTo(ax * scale, ay * scale);
+    ctx.lineTo(bx * scale, by * scale);
+    ctx.stroke();
+  }
 }
 
 export function paintOps(ctx, ops, scale) {
