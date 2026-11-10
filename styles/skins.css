@@ -523,3 +523,9 @@ html[data-skin="classic"].has-wallpaper { background: #008080; }
 [data-skin="classic"] .titlebar-entry { margin: 2px 10px; }
 [data-skin="classic"] .entry-title { height: 18px; }
 [data-skin="classic"] .titlebar-name { padding: 0 8px; }
+
+/* Dark skins: the tool, layer and toolbar icons are drawn in dark blues and greens, so they
+   disappear on dark buttons. Lift them toward white (hue kept) so each one reads in the dark skins. */
+:root[data-theme="dark"] :is(.tool-btn svg, .layer-eye svg, .layer-btn svg, .icon svg) {
+  filter: brightness(1.8) saturate(1.15);
+}
