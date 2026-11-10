@@ -62,5 +62,6 @@ export const PIXELS = Object.freeze({
   flipV: 'M4 2h8v1h-8zM5 3h1v1h-1zM10 3h1v1h-1zM5 4h2v1h-2zM9 4h2v1h-2zM6 5h1v1h-1zM9 5h1v1h-1zM7 6h2v1h-2zM2 7h2v1h-2zM5 7h5v1h-5zM11 7h2v1h-2zM2 8h2v1h-2zM5 8h5v1h-5zM11 8h2v1h-2zM7 9h2v1h-2zM6 10h1v1h-1zM9 10h1v1h-1zM5 11h2v1h-2zM9 11h2v1h-2zM5 12h1v1h-1zM10 12h1v1h-1zM4 13h8v1h-8z',
   rotate: 'M12 1h1v1h-1zM7 2h2v1h-2zM12 2h1v1h-1zM5 3h2v1h-2zM9 3h2v1h-2zM12 3h1v1h-1zM4 4h1v1h-1zM9 4h4v1h-4zM3 5h1v1h-1zM3 6h1v1h-1zM3 7h1v1h-1zM3 8h1v1h-1zM12 8h1v1h-1zM3 9h1v1h-1zM12 9h1v1h-1zM3 10h1v1h-1zM12 10h1v1h-1zM4 11h1v1h-1zM11 11h1v1h-1zM5 12h6v1h-6z',
   resize: 'M9 2h5v1h-5zM12 3h2v1h-2zM11 4h1v1h-1zM13 4h1v1h-1zM10 5h1v1h-1zM13 5h1v1h-1zM9 6h1v1h-1zM13 6h1v1h-1zM8 7h1v1h-1zM7 8h1v1h-1zM2 9h1v1h-1zM6 9h1v1h-1zM2 10h1v1h-1zM5 10h1v1h-1zM2 11h1v1h-1zM4 11h1v1h-1zM2 12h2v1h-2zM2 13h5v1h-5z',
+  place: 'M5 2h6v1h-6zM4 3h8v1h-8zM3 4h10v1h-10zM3 5h4v1h-4zM9 5h4v1h-4zM3 6h4v1h-4zM9 6h4v1h-4zM4 7h8v1h-8zM5 8h6v1h-6zM6 9h4v1h-4zM7 10h2v1h-2z',
   envelope: 'M2 3h12v1h-12zM2 4h2v1h-2zM12 4h2v1h-2zM2 5h3v1h-3zM11 5h3v1h-3zM2 6h1v1h-1zM4 6h2v1h-2zM10 6h2v1h-2zM13 6h1v1h-1zM2 7h1v1h-1zM5 7h2v1h-2zM9 7h2v1h-2zM13 7h1v1h-1zM2 8h1v1h-1zM7 8h2v1h-2zM13 8h1v1h-1zM2 9h1v1h-1zM13 9h1v1h-1zM2 10h1v1h-1zM13 10h1v1h-1zM2 11h1v1h-1zM13 11h1v1h-1zM2 12h12v1h-12z',
 });

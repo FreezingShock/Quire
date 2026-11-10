@@ -814,6 +814,7 @@ html[data-skin="basic"][data-theme="dark"].has-wallpaper { background: #1f2d40; 
 :root[data-skin="luna"] svg[data-ic="page"] .qi-main path:first-child,
 :root[data-skin="luna"] svg[data-ic="envelope"] .qi-main rect { fill: #ffffff; }
 :root[data-skin="luna"] svg[data-ic="lock"] .qi-main rect { fill: #f2c94c; }
+:root[data-skin="luna"] svg[data-ic="place"] .qi-main path:first-child { fill: #e4572e; }
 :root[data-skin="luna"] .qi-main { stroke-width: 1.15; }
 :root[data-skin="luna"] .qi-shine {
   display: block;

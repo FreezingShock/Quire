@@ -33,7 +33,7 @@ export const versionActionMethods = {
       mediaFor: (version) =>
         mediaResolver({
           images: entry.images,
-          audio: entry.audio,
+          audio: { ...entry.audio, ...(version.content.audio ?? {}) },
           sketches: { ...entry.sketches, ...(version.content.sketches ?? {}) },
           pageColor: version.content.pageColor,
         }),
@@ -52,6 +52,10 @@ export const versionActionMethods = {
     for (const [id, sketch] of Object.entries(c.sketches ?? {})) {
       if (Object.hasOwn(this.entry.sketches, id)) Object.assign(this.entry.sketches[id], sketch);
       else this.entry.sketches[id] = sketch;
+    }
+    // Voice notes are restored where the entry has none. A clip the entry still has is kept as it is.
+    for (const [id, src] of Object.entries(c.audio ?? {})) {
+      if (!Object.hasOwn(this.entry.audio, id)) this.entry.audio[id] = src;
     }
     this.dom.editor.value = c.body;
     this.dom.title.value = c.title;

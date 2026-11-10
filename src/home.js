@@ -576,7 +576,7 @@ export class HomeView {
               navItem({
                 label: name,
                 count,
-                icon: 'tag',
+                icon: 'place',
                 active: filter.type === 'place' && filter.value === name,
                 onSelect: () => this.setFilter({ type: 'place', value: name }),
               }),
