@@ -591,3 +591,101 @@ test('moving the last entry out of a notebook returns the list to All entries', 
     await page.close();
   }
 });
+
+/** Sends one touch gesture as pointer events: a press at `from`, a move through `to`, and a lift. */
+async function touchGesture(page, from, to, { holdMs = 0, steps = 6 } = {}) {
+  await page.evaluate(
+    async ({ from, to, holdMs, steps }) => {
+      const send = (type, x, y) => {
+        const target = document.elementFromPoint(x, y) ?? document.body;
+        target.dispatchEvent(new PointerEvent(type, { bubbles: true, cancelable: true, pointerId: 9, pointerType: 'touch', isPrimary: true, clientX: x, clientY: y, buttons: type === 'pointerup' ? 0 : 1 }));
+      };
+      send('pointerdown', from.x, from.y);
+      if (holdMs) await new Promise((resolve) => setTimeout(resolve, holdMs));
+      for (let i = 1; i <= steps; i++) {
+        send('pointermove', from.x + ((to.x - from.x) * i) / steps, from.y + ((to.y - from.y) * i) / steps);
+        await new Promise((resolve) => setTimeout(resolve, 8));
+      }
+      send('pointerup', to.x, to.y);
+    },
+    { from, to, holdMs, steps },
+  );
+}
+
+test('F10 moves focus to the menu bar and ArrowDown opens the first menu', async () => {
+  const page = await freshPage();
+  try {
+    await openQuire(page);
+    await page.locator('.dash-hero').first().waitFor();
+    await page.keyboard.press('F10');
+    assert.equal(await page.evaluate(() => document.activeElement?.textContent?.trim()), 'File');
+    await page.keyboard.press('ArrowDown');
+    assert.ok(await page.$('.menu-panel[role="menu"]'), 'the File menu opened');
+    await page.keyboard.press('Escape');
+    expectNoErrors(page);
+  } finally {
+    await page.close();
+  }
+});
+
+test('a long-press on a list row opens its context menu, and the click after it does nothing', async () => {
+  const page = await freshPage({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
+  try {
+    await openQuire(page);
+    const row = page.locator('.dash-recent-item').first();
+    await row.waitFor();
+    await row.scrollIntoViewIfNeeded();
+    const box = await row.boundingBox();
+    const point = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+    await touchGesture(page, point, point, { holdMs: 650, steps: 1 });
+    assert.ok(await page.$('.context-menu'), 'the long-press opened the context menu');
+    assert.equal(await page.getAttribute('.app', 'data-view'), 'home', 'the lift did not open the entry');
+    expectNoErrors(page);
+  } finally {
+    await page.close();
+  }
+});
+
+test('a quick sideways swipe in the editor opens the next older entry', async () => {
+  const page = await freshPage({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
+  try {
+    await openQuire(page);
+    await newEntry(page);
+    await renameEntry(page, 'Older one');
+    await page.fill('#entry-date', '2026-10-02');
+    await page.dispatchEvent('#entry-date', 'change');
+    await waitForSaved(page);
+    // The home button is hidden while an entry is open, so start the second entry with Ctrl+N.
+    await page.keyboard.press('Control+n');
+    await page.waitForFunction(() => document.querySelector('.app')?.dataset.view === 'editor' && document.querySelector('#window-title')?.textContent.trim() === 'Untitled');
+    await renameEntry(page, 'Newer one');
+    // Dated after 'Older one' but before the sample entry, which is dated today, so the order is fixed.
+    await page.fill('#entry-date', '2026-10-05');
+    await page.dispatchEvent('#entry-date', 'change');
+    await waitForSaved(page);
+    // Start on the mixtape strip: a swipe that begins in a field is left to the field.
+    const box = await page.locator('#mixtape').boundingBox();
+    const y = box.y + box.height / 2;
+    await touchGesture(page, { x: 320, y }, { x: 90, y: y + 4 });
+    await page.waitForFunction(() => /Older one/.test(document.querySelector('#window-title')?.textContent ?? ''));
+    expectNoErrors(page);
+  } finally {
+    await page.close();
+  }
+});
+
+test('a downward swipe on a dialog title closes the dialog', async () => {
+  const page = await freshPage({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
+  try {
+    await openQuire(page);
+    await page.keyboard.press('F1');
+    await page.waitForSelector('dialog[open] .dialog-title');
+    const box = await page.locator('dialog[open] .dialog-title').boundingBox();
+    const from = { x: box.x + 20, y: box.y + box.height / 2 };
+    await touchGesture(page, from, { x: from.x, y: from.y + 160 });
+    await page.waitForFunction(() => !document.querySelector('dialog[open]'));
+    expectNoErrors(page);
+  } finally {
+    await page.close();
+  }
+});
