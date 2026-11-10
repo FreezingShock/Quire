@@ -73,6 +73,8 @@ const SHELL = [
   './src/skins.js',
   './src/screensaver.js',
   './src/screensaver-scenes.js',
+  './src/screensaver-custom.js',
+  './src/screensaver-editor.js',
   './src/snap.js',
   './src/sketch.js',
   './src/sound.js',
