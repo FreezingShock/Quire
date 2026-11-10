@@ -1,25 +1,41 @@
 /**
- * Startup splash: a glassy Aero screen with the Quire mark and a pulsing ring
- * while the entries load. It stays for at least MIN_MS so it never flashes, and
- * it gives up after MAX_MS even if startup stalls. View > Startup splash turns it off.
+ * Startup splash: the Quire mark settles in and a glass bar slides while the
+ * entries load. A full load keeps it for at least MIN_MS so it never flashes.
+ * A reload gets a brief version (just the mark and the bar), since the page
+ * was already open a moment ago. It gives up after MAX_MS even if startup
+ * stalls. View > Startup splash turns it off.
  */
 
 import { loadPrefs } from './prefs.js';
 import { playSound } from './sound.js';
 
 const MIN_MS = 1400;
+const MIN_RELOAD_MS = 450;
 const MAX_MS = 6000;
 const FADE_MS = 700;
+const FADE_RELOAD_MS = 350;
+
+/** True when this page load is a browser reload, read from the Navigation Timing entry. */
+export function isReload() {
+  try {
+    return globalThis.performance?.getEntriesByType?.('navigation')?.[0]?.type === 'reload';
+  } catch {
+    return false;
+  }
+}
 
 /** Returns { done() }. Call done() once the app has started. */
-export function startSplash() {
+export function startSplash({ reload = isReload() } = {}) {
   const node = document.getElementById('splash');
   if (!node) return { done() {} };
   if (!loadPrefs().splash) {
     node.remove();
     return { done() {} };
   }
+  if (reload) node.classList.add('is-quick');
 
+  const minMs = reload ? MIN_RELOAD_MS : MIN_MS;
+  const fadeMs = reload ? FADE_RELOAD_MS : FADE_MS;
   const shownAt = performance.now();
   let hidden = false;
   const hide = () => {
@@ -27,14 +43,15 @@ export function startSplash() {
     hidden = true;
     clearTimeout(timeout);
     node.classList.add('is-leaving');
-    playSound('startup');
-    setTimeout(() => node.remove(), FADE_MS);
+    // The startup chime is for a real start, not a quick reload.
+    if (!reload) playSound('startup');
+    setTimeout(() => node.remove(), fadeMs);
   };
   const timeout = setTimeout(hide, MAX_MS);
 
   return {
     done() {
-      const wait = Math.max(0, MIN_MS - (performance.now() - shownAt));
+      const wait = Math.max(0, minMs - (performance.now() - shownAt));
       setTimeout(hide, wait);
     },
   };

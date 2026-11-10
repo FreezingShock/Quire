@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <defs>
+    <linearGradient id="tile" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#8cc8ff"/>
+      <stop offset="0.45" stop-color="#2f78d6"/>
+      <stop offset="1" stop-color="#17448f"/>
+    </linearGradient>
+    <linearGradient id="gloss" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.9"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0.05"/>
+    </linearGradient>
+    <linearGradient id="page" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="1" stop-color="#e4eefa"/>
+    </linearGradient>
+    <linearGradient id="nib" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#fff3b8"/>
+      <stop offset="0.5" stop-color="#f2b33a"/>
+      <stop offset="1" stop-color="#c77d12"/>
+    </linearGradient>
+    <linearGradient id="paint" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#e8553d"/>
+      <stop offset="0.5" stop-color="#f3c623"/>
+      <stop offset="1" stop-color="#3aa655"/>
+    </linearGradient>
+  </defs>
+  <rect x="2" y="2" width="60" height="60" rx="14" fill="url(#tile)"/>
+  <rect x="2.75" y="2.75" width="58.5" height="58.5" rx="13.25" fill="none" stroke="#0b2f6b" stroke-opacity="0.55" stroke-width="1.5"/>
+  <path d="M14 13h26l9 9v30H14z" fill="url(#page)" stroke="#4d73a6" stroke-width="1.5" stroke-linejoin="round"/>
+  <path d="M40 13v9h9" fill="#cadcf3" stroke="#4d73a6" stroke-width="1.5" stroke-linejoin="round"/>
+  <path d="M20 26h14M20 32h18M20 38h11" stroke="#9ab8dc" stroke-width="2" stroke-linecap="round"/>
+  <path d="M19 49c5-4 8-9 14-8s6 5 11 2" fill="none" stroke="url(#paint)" stroke-width="4" stroke-linecap="round"/>
+  <g transform="translate(46 30) rotate(38)">
+    <rect x="-3.5" y="-16" width="7" height="24" rx="2.5" fill="url(#nib)" stroke="#8a5a10" stroke-width="0.8"/>
+    <rect x="-1.2" y="8" width="2.4" height="4" fill="#3b3b46"/>
+    <path d="M-3.5 12h7l-3.5 8z" fill="#3b3b46"/>
+  </g>
+  <path d="M4 17C4 9 9 4 17 4h30c8 0 13 5 13 13v9C44 31 22 31 4 27z" fill="url(#gloss)" opacity="0.6"/>
+  <circle cx="52" cy="12" r="2.6" fill="#ffe36b" stroke="#b67a00" stroke-width="0.8"/>
+</svg>

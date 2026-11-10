@@ -93,7 +93,7 @@
   }
 }
 
-/* ---------- startup splash ---------- */
+/* ---------- startup splash: the mark settles in, then a glass bar fills while the pages load ---------- */
 
 .splash {
   position: fixed;
@@ -119,47 +119,65 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 16px;
+  gap: 12px;
   animation: splash-rise 0.7s cubic-bezier(0.2, 0.8, 0.2, 1) both;
 }
 
 .splash-mark {
-  width: 76px;
-  height: 76px;
-  filter: drop-shadow(0 4px 14px rgba(0, 20, 50, 0.5));
+  width: 92px;
+  height: 92px;
+  filter: drop-shadow(0 6px 18px rgba(0, 20, 50, 0.55));
+  animation: splash-mark-in 0.9s cubic-bezier(0.2, 0.8, 0.2, 1) both;
 }
 
 .splash-name {
+  margin-top: 4px;
   font: 600 30px/1 var(--ui-font);
   letter-spacing: 0.04em;
   text-shadow: 0 2px 10px rgba(0, 20, 50, 0.6);
 }
 
-/* Five glowing dots pulse in turn, the way the Vista boot ring did. */
-.splash-ring {
-  display: flex;
-  gap: 7px;
-  margin-top: 26px;
+.splash-status {
+  margin: 4px 0 0;
+  font: 13px/1.2 var(--ui-font);
+  opacity: 0.88;
+  text-shadow: 0 1px 4px rgba(0, 20, 50, 0.6);
 }
 
-.splash-ring span {
-  width: 9px;
+/* A glass track with a glossy block that slides across it, like the Vista copy bar. */
+.splash-bar {
+  position: relative;
+  width: 180px;
   height: 9px;
-  border-radius: 50%;
-  background: #ffffff;
-  box-shadow: 0 0 6px rgba(190, 230, 255, 0.9);
-  opacity: 0.25;
-  animation: splash-dot 1.2s ease-in-out infinite;
+  margin-top: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.55);
+  border-radius: 5px;
+  background: rgba(4, 22, 48, 0.35);
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.4);
+  overflow: hidden;
 }
 
-.splash-ring span:nth-child(2) { animation-delay: 0.15s; }
-.splash-ring span:nth-child(3) { animation-delay: 0.3s; }
-.splash-ring span:nth-child(4) { animation-delay: 0.45s; }
-.splash-ring span:nth-child(5) { animation-delay: 0.6s; }
+.splash-bar span {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 38%;
+  border-radius: 5px;
+  background: linear-gradient(to bottom, #e6f6ff, #7fd0ff 45%, #2d8be0 55%, #bfe6ff);
+  box-shadow: 0 0 8px rgba(190, 230, 255, 0.9);
+  animation: splash-sweep 1.3s cubic-bezier(0.45, 0, 0.55, 1) infinite;
+}
 
-@keyframes splash-dot {
-  0%, 100% { opacity: 0.25; transform: scale(0.85); }
-  40% { opacity: 1; transform: scale(1.1); }
+/* Reload: the splash is brief, so it shows only the mark and the bar. */
+.splash.is-quick .splash-mark { width: 56px; height: 56px; }
+.splash.is-quick .splash-name,
+.splash.is-quick .splash-status { display: none; }
+.splash.is-quick .splash-inner { gap: 10px; }
+
+@keyframes splash-sweep {
+  from { transform: translateX(-110%); }
+  to { transform: translateX(265%); }
 }
 
 @keyframes splash-rise {
@@ -167,13 +185,21 @@
   to { opacity: 1; transform: none; }
 }
 
+@keyframes splash-mark-in {
+  from { opacity: 0; transform: scale(0.86) translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .splash-inner,
-  .splash-ring span {
+  .splash-mark,
+  .splash-bar span {
     animation: none;
   }
-  .splash-ring span {
-    opacity: 0.7;
+  .splash-bar span {
+    left: 0;
+    width: 100%;
+    opacity: 0.45;
   }
   .splash,
   .splash.is-leaving {
