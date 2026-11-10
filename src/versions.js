@@ -5,7 +5,6 @@
  */
 
 import { isBlankEntry, newId, normalizeEntry } from './model.js';
-import { mediaRefsIn } from './media.js';
 
 /** While you keep editing, an automatic version is kept at most this often. */
 export const VERSION_INTERVAL_MS = 5 * 60 * 1000;
@@ -29,8 +28,8 @@ export function describeReason(reason) {
  * either: they are never changed or removed while the entry exists, so a version
  * refers to them by id and keeps them. Sketches change as you draw on them, so
  * their strokes are copied, and only when the entry has any. Voice notes are
- * copied when the text refers to them. A clip is the largest thing a version can
- * hold, so only the clips a version's text uses are kept with it.
+ * referred to by id too: a clip is large, and it is never changed or removed
+ * while the entry exists.
  */
 export function contentOf(entry) {
   const content = {
@@ -45,21 +44,12 @@ export function contentOf(entry) {
   if (Object.keys(entry.sketches ?? {}).length) {
     content.sketches = structuredClone(entry.sketches);
   }
-  // Strings are shared, not cloned, so a version does not copy the clip in memory until it is saved.
-  const clips = mediaRefsIn(entry.body ?? '').filter((ref) => ref.kind === 'audio' && Object.hasOwn(entry.audio ?? {}, ref.id));
-  if (clips.length) content.audio = Object.fromEntries(clips.map(({ id }) => [id, entry.audio[id]]));
   return content;
-}
-
-/** The content with each voice note's data swapped for its id, so comparing never reads a clip. */
-function comparable(content) {
-  const { audio, ...rest } = content;
-  return { ...rest, audio: Object.keys(audio ?? {}).sort() };
 }
 
 /** True when an entry's content matches a stored version's content. */
 export function sameContent(entry, content) {
-  return JSON.stringify(comparable(contentOf(entry))) === JSON.stringify(comparable(contentOf(content)));
+  return JSON.stringify(contentOf(entry)) === JSON.stringify(contentOf(content));
 }
 
 export function makeVersion(entry, reason, now = new Date()) {
