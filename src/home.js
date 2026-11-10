@@ -44,6 +44,8 @@ import {
 } from './journal.js';
 import { promptFor } from './prompts.js';
 import { greetingFor, isFirstRun, lastDays, monthSummary, recentEntries } from './dashboard.js';
+import { addGadget, normalizeGadgetList, removeGadget } from './gadgets.js';
+import { buildSidebar } from './gadget-views.js';
 import { TIPS } from './onboarding.js';
 
 const PAGE_RATIO = 1.25; // sheet height relative to its width, as on the writing page
@@ -172,9 +174,11 @@ export class HomeView {
   /**
    * `view` is 'dashboard', 'details', 'tiles', 'calendar', or 'moods'. The
    * dashboard is the default. `showPrompts`, `showOnThisDay`, and `showTips`
-   * control the cards. Callbacks: onOpen(id), onNew(options), onToday(),
-   * onWritePrompt(prompt), onHidePrompts(), onDismissTips(), onDelete(id),
-   * onViewChange(view), onPatch(id, fields).
+   * control the cards. `showGadgets` and `gadgets` control the sidebar, and
+   * `note` is the sticky note's text. Callbacks: onOpen(id), onNew(options),
+   * onToday(), onWritePrompt(prompt), onHidePrompts(), onDismissTips(),
+   * onDelete(id), onViewChange(view), onPatch(id, fields), onGadgetsChange(list),
+   * onSaveNote(text).
    */
   constructor(
     root,
@@ -183,6 +187,8 @@ export class HomeView {
       showPrompts = true,
       showOnThisDay = true,
       showTips = true,
+      showGadgets = true,
+      gadgets,
       onOpen,
       onNew,
       onToday,
@@ -192,13 +198,17 @@ export class HomeView {
       onDelete,
       onViewChange,
       onPatch,
+      onGadgetsChange,
+      onSaveNote,
     } = {},
   ) {
     this.root = root;
-    this.callbacks = { onOpen, onNew, onToday, onWritePrompt, onHidePrompts, onDismissTips, onDelete, onViewChange, onPatch };
+    this.callbacks = { onOpen, onNew, onToday, onWritePrompt, onHidePrompts, onDismissTips, onDelete, onViewChange, onPatch, onGadgetsChange, onSaveNote };
     this.entries = [];
     this.terms = []; // search terms for the current query, used for highlighting
-    this.stripOptions = { showPrompts, showOnThisDay, showTips };
+    this.stripOptions = { showPrompts, showOnThisDay, showTips, showGadgets, gadgets: normalizeGadgetList(gadgets) };
+    this.note = ''; // the sticky note's text, kept here so a re-render does not clear it
+    this.focusGadget = null; // a gadget whose title bar gets focus after a keyboard move
     const today = localISODate();
     this.state = {
       filter: { type: 'all', value: null },
@@ -223,9 +233,17 @@ export class HomeView {
     this.render();
   }
 
-  /** Shows or hides the prompt card and the On this day card. */
+  /** Shows or hides the prompt card and the On this day card. Also the sidebar and its gadget list. */
   setStripOptions(options) {
-    this.stripOptions = { ...this.stripOptions, ...options };
+    const next = { ...this.stripOptions, ...options };
+    if ('gadgets' in options) next.gadgets = normalizeGadgetList(options.gadgets);
+    this.stripOptions = next;
+    this.render();
+  }
+
+  /** The sticky note's saved text, once the store has opened. */
+  setNote(text) {
+    this.note = text ?? '';
     this.render();
   }
 
@@ -352,6 +370,10 @@ export class HomeView {
     this.renderCrumb();
     this.renderStreak();
     this.renderMain(matches);
+    if (this.focusGadget) {
+      this.main.querySelector(`[data-gadget-id="${this.focusGadget}"] .gadget-head`)?.focus();
+      this.focusGadget = null;
+    }
   }
 
   renderNav() {
@@ -656,7 +678,38 @@ export class HomeView {
       firstRun ? null : tips,
     );
 
-    return el('div', { class: 'dash' }, hero, stats, el('div', { class: 'dash-grid' }, left, right));
+    const body = el('div', { class: 'dash-main' }, hero, stats, el('div', { class: 'dash-grid' }, left, right));
+    if (!this.stripOptions.showGadgets) return el('div', { class: 'dash' }, body);
+    return el('div', { class: 'dash' }, el('div', { class: 'dash-layout' }, body, this.gadgetSidebar(today)));
+  }
+
+  /** The Vista-style sidebar beside the dashboard. Its gadgets report changes through the callbacks below. */
+  gadgetSidebar(today) {
+    const { gadgets } = this.stripOptions;
+    return buildSidebar({
+      gadgets,
+      entries: this.entries,
+      today,
+      streak: dayStreaks(this.entries, today),
+      note: this.note,
+      on: {
+        onRemove: (id) => this.changeGadgets(removeGadget(gadgets, id)),
+        onAdd: (id) => this.changeGadgets(addGadget(gadgets, id)),
+        onReorder: (order, focusId) => this.changeGadgets(order, focusId),
+        onOpen: (id) => this.callbacks.onOpen?.(id),
+        onPickDay: (date) => this.openDayInCalendar(date),
+        onWriteWord: (prompt) => this.callbacks.onWritePrompt?.(prompt),
+        onNoteChange: (text) => {
+          this.note = text;
+          this.callbacks.onSaveNote?.(text);
+        },
+      },
+    });
+  }
+
+  changeGadgets(list, focusId = null) {
+    this.focusGadget = focusId;
+    this.callbacks.onGadgetsChange?.(list);
   }
 
   statCard({ label, icon: iconName, value, note, active = false }) {

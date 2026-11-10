@@ -145,6 +145,10 @@ export class QuireApp {
       showPrompts: Boolean(this.prefs.showPrompts),
       showOnThisDay: Boolean(this.prefs.showOnThisDay),
       showTips: !this.prefs.tipsDismissed,
+      showGadgets: this.prefs.showGadgets !== false,
+      gadgets: this.prefs.gadgets,
+      onGadgetsChange: (gadgets) => this.setPref({ gadgets }),
+      onSaveNote: (text) => this.saveSidebarNote(text),
       onOpen: (id) => this.openEntry(id),
       onNew: (options) => this.newEntry(options),
       onToday: () => this.openToday(),
@@ -164,6 +168,7 @@ export class QuireApp {
     }
     // Nothing is read until the passcode, if there is one, is typed.
     this.passcodeOn = await unlockStore(this.store);
+    this.home.setNote((await this.store.getNote()) ?? '');
     startPwa({ onReady: () => this.showStatus('Quire is ready to work offline', false, 'saved') });
     startReminders({
       getReminder: () => this.prefs.reminder ?? REMINDER_DEFAULTS,

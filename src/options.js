@@ -27,6 +27,7 @@ export const OPTION_PREFS = Object.freeze([
   'snapAngles',
   'showPrompts',
   'showOnThisDay',
+  'showGadgets',
   'tipsDismissed',
   'reminder',
   'typewriter',
@@ -278,6 +279,12 @@ export function showOptions({ get, set, pickAccent }) {
         note: 'A card that lists your entries from this date in earlier years.',
         read: (prefs) => Boolean(prefs.showOnThisDay),
         write: (on) => ({ showOnThisDay: on }),
+      }),
+      toggle({
+        label: 'Sidebar gadgets',
+        note: 'A column of gadgets beside the dashboard: clock, streak, mood, word of the day, a sticky note and drawings. Drag them to reorder, or add and remove them there.',
+        read: (prefs) => prefs.showGadgets !== false,
+        write: (on) => ({ showGadgets: on }),
       }),
       toggle({
         label: 'Getting started tips',
