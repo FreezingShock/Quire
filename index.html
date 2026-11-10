@@ -10,14 +10,15 @@
   <link rel="stylesheet" href="styles/app.css">
   <link rel="stylesheet" href="styles/reader.css">
   <link rel="stylesheet" href="styles/live.css">
+  <link rel="stylesheet" href="styles/home.css">
 </head>
 <body>
-  <div class="app">
+  <div class="app" data-view="home">
     <header class="titlebar">
-      <div class="brand">
+      <a class="brand" href="#/" title="All entries">
         <svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="8" fill="currentColor"/><path d="M9 22c2-7 4-11 9-13l2 2c-2 5-6 9-11 11z" fill="var(--paper-tone, #fffdf8)"/><circle cx="23" cy="9" r="2" fill="#f3d54a"/></svg>
         <span>Quire</span>
-      </div>
+      </a>
       <div class="titlebar-entry" id="titlebar-entry">
         <button type="button" class="titlebar-name" id="window-title" title="Click to rename this entry">Untitled</button>
         <input id="entry-title" class="entry-title" type="text" placeholder="Untitled" aria-label="Entry title" maxlength="120" autocomplete="off" spellcheck="false">
@@ -57,6 +58,8 @@
         </div>
       </section>
     </main>
+
+    <section class="home" id="home" aria-label="All entries"></section>
 
     <footer class="palette">
       <div class="ink-chip" id="ink-chip" aria-hidden="true"><span class="chip-bg"></span><span class="chip-fg"></span></div>

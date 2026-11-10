@@ -43,6 +43,7 @@ import {
 } from './export.js';
 import { createMenuBar } from './menubar.js';
 import { confirmDialog, entriesDialog, showAbout, showShortcuts } from './dialogs.js';
+import { HomeView } from './home.js';
 
 const SAVE_DELAY_MS = 400;
 const FONT_STACKS = {
@@ -54,6 +55,20 @@ const FONT_LABELS = { serif: 'Serif', sans: 'Sans', mono: 'Monospace' };
 
 const $ = (selector) => document.querySelector(selector);
 const prevent = (event) => event.preventDefault();
+
+/** Routes are plain hashes: #/ is the home view, #/entry/<id> is one entry. */
+const HOME_ROUTE = '#/';
+const entryRoute = (id) => `#/entry/${encodeURIComponent(id)}`;
+
+function routeEntryId(hash) {
+  const match = /^#\/entry\/(.+)$/.exec(hash);
+  if (!match) return null;
+  try {
+    return decodeURIComponent(match[1]);
+  } catch {
+    return null;
+  }
+}
 
 function isTextTarget(node) {
   return Boolean(node) && (node.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(node.tagName));
@@ -85,6 +100,8 @@ export class QuireApp {
       words: $('#status-words'),
       mode: $('#status-mode'),
       statusDate: $('#status-date'),
+      app: $('.app'),
+      home: $('#home'),
     };
     this.dom.editor = new LiveEditor(this.dom.editorEl, {
       onChange: () => this.onEditorChanged(),
@@ -112,6 +129,8 @@ export class QuireApp {
     this.frame = 0;
     this.syncFrame = 0;
     this.menubar = null;
+    this.view = 'home'; // 'home' or 'editor'; the landing page is the entries list
+    this.home = null;
   }
 
   async start() {
@@ -119,16 +138,27 @@ export class QuireApp {
     this.buildToolbox();
     this.buildSwatches();
     this.buildMenus();
+    this.home = new HomeView(this.dom.home, {
+      view: this.prefs.homeView,
+      onOpen: (id) => this.openEntry(id),
+      onNew: () => this.newEntry(),
+      onDelete: (id) => this.deleteEntry(id),
+      onViewChange: (view) => this.setPref({ homeView: view }),
+    });
     this.bindEvents();
     this.setTool('write');
     this.store = await createLocalStore();
     if (this.store.kind === 'memory') {
       this.showStatus('Browser storage is unavailable. Entries will not survive a reload.', true);
     }
+    // The site opens on the entries list. A reload on an entry keeps that entry.
+    const routed = routeEntryId(location.hash);
     const entries = await this.store.list();
-    const target = entries.find((entry) => entry.id === this.prefs.lastEntryId) ?? entries[0];
-    if (target) await this.openEntry(target.id);
-    else await this.newEntry();
+    if (routed && entries.some((entry) => entry.id === routed)) {
+      await this.openEntry(routed, { history: 'replace' });
+    } else {
+      await this.showHome({ history: 'replace' });
+    }
   }
 
   // ---------- preferences and chrome ----------
@@ -140,7 +170,7 @@ export class QuireApp {
     const source = Boolean(this.prefs.source);
     this.dom.editorEl.classList.toggle('is-source', source);
     this.dom.grid.hidden = !this.prefs.showGrid;
-    this.dom.mode.textContent = source ? 'Source' : 'Live preview';
+    if (this.view !== 'home') this.dom.mode.textContent = source ? 'Source' : 'Live preview';
     for (const button of document.querySelectorAll('[data-source]')) {
       button.setAttribute('aria-pressed', String(source));
     }
@@ -163,6 +193,62 @@ export class QuireApp {
     document.title = `${title} · Quire`;
     this.dom.statusDate.textContent = this.entry ? formatLongDate(this.entry.date) : '';
     this.dom.words.textContent = `${wordCount(this.dom.editor.value)} words`;
+  }
+
+  // ---------- views and routing ----------
+
+  setView(view) {
+    this.view = view;
+    this.dom.app.dataset.view = view;
+    if (view === 'editor') this.applyPrefs();
+  }
+
+  /** Saves the open entry, drops it if it is blank, and shows the entries list. */
+  async showHome({ history: mode = 'push' } = {}) {
+    await this.persist();
+    if (this.entry && isBlankEntry(this.snapshot())) {
+      await this.store.remove(this.entry.id);
+    }
+    this.entry = null;
+    this.lastSurface = 'text';
+    // Load the list before the view appears, so a stale list never flashes.
+    const entries = await this.store.list();
+    this.home.setEntries(entries);
+    this.setView('home');
+    this.writeRoute(HOME_ROUTE, mode);
+    this.updateHomeChrome(entries.length);
+  }
+
+  async refreshHome() {
+    const entries = await this.store.list();
+    this.home.setEntries(entries);
+    if (this.view === 'home') this.updateHomeChrome(entries.length);
+  }
+
+  updateHomeChrome(count) {
+    this.dom.windowTitle.textContent = 'All entries';
+    document.title = 'All entries · Quire';
+    this.dom.statusDate.textContent = '';
+    this.dom.words.textContent = `${count} ${count === 1 ? 'entry' : 'entries'}`;
+    this.dom.mode.textContent = 'Library';
+    this.dom.hint.textContent = '';
+    this.showStatus('');
+  }
+
+  /** `mode` is 'push', 'replace', or 'none' (for back and forward, which already moved the history). */
+  writeRoute(hash, mode) {
+    if (mode === 'none' || (location.hash || HOME_ROUTE) === hash) return;
+    if (mode === 'replace') history.replaceState(null, '', hash);
+    else history.pushState(null, '', hash);
+  }
+
+  async onRouteChange() {
+    const id = routeEntryId(location.hash);
+    if (id) {
+      if (this.view !== 'editor' || this.entry?.id !== id) await this.openEntry(id, { history: 'none' });
+    } else if (this.view !== 'home') {
+      await this.showHome({ history: 'none' });
+    }
   }
 
   renderInkChip() {
@@ -268,14 +354,16 @@ export class QuireApp {
       {
         label: 'File',
         items: () => [
+          { label: 'All entries', shortcut: 'Ctrl+Shift+H', action: () => this.showHome() },
+          'sep',
           { label: 'New entry', shortcut: 'Ctrl+N', action: () => this.newEntry() },
           { label: 'Open entry…', shortcut: 'Ctrl+O', action: () => this.showEntries() },
           { label: 'Delete entry…', disabled: !this.entry, action: () => this.entry && this.deleteEntry(this.entry.id) },
           'sep',
           { label: 'Save now', shortcut: 'Ctrl+S', action: () => this.persist() },
-          { label: 'Export as Markdown…', shortcut: 'Ctrl+E', action: () => this.exportMarkdown() },
-          { label: 'Export drawing as PNG…', disabled: this.drawing.isEmpty, action: () => this.exportDrawing() },
-          { label: 'Print or save as PDF…', shortcut: 'Ctrl+P', action: () => this.printPdf() },
+          { label: 'Export as Markdown…', shortcut: 'Ctrl+E', disabled: !this.entry, action: () => this.exportMarkdown() },
+          { label: 'Export drawing as PNG…', disabled: !this.entry || this.drawing.isEmpty, action: () => this.exportDrawing() },
+          { label: 'Print or save as PDF…', shortcut: 'Ctrl+P', disabled: !this.entry, action: () => this.printPdf() },
           'sep',
           { label: 'Back up all entries…', action: () => this.backup() },
           { label: 'Restore from backup…', action: () => this.restore() },
@@ -415,6 +503,7 @@ export class QuireApp {
       if (document.hidden) this.persist();
     });
     window.addEventListener('pagehide', () => this.persist());
+    window.addEventListener('popstate', () => this.onRouteChange());
     window.addEventListener('unhandledrejection', (event) => {
       console.error(event.reason);
       this.showStatus(`Something went wrong: ${event.reason?.message ?? event.reason}`, true);
@@ -779,14 +868,15 @@ export class QuireApp {
 
   // ---------- entries ----------
 
-  async openEntry(id) {
-    if (this.entry?.id === id) return;
+  async openEntry(id, { history: mode = 'push' } = {}) {
+    if (this.entry?.id === id && this.view === 'editor') return;
     await this.persist();
     if (this.entry && isBlankEntry(this.snapshot())) {
       await this.store.remove(this.entry.id);
     }
     const next = await this.store.get(id);
     if (!next) {
+      await this.showHome({ history: 'replace' });
       this.showStatus('That entry no longer exists.', true);
       return;
     }
@@ -799,11 +889,14 @@ export class QuireApp {
     this.drawing = new Drawing(next.ink.ops);
     this.dom.sheet.style.backgroundColor = next.pageColor;
     this.lastSurface = 'text';
+    this.setView('editor');
+    this.writeRoute(entryRoute(id), mode);
     this.syncCanvas();
     this.renderInkChip();
     this.updateChrome();
     this.setPref({ lastEntryId: id });
     this.showStatus('');
+    this.dom.editor.focus({ preventScroll: true });
   }
 
   async newEntry() {
@@ -842,22 +935,21 @@ export class QuireApp {
     const isCurrent = this.entry?.id === id;
     if (isCurrent) this.entry = null;
     await this.store.remove(id);
-    if (isCurrent) {
-      const rest = await this.store.list();
-      if (rest.length) await this.openEntry(rest[0].id);
-      else await this.newEntry();
-    }
+    if (isCurrent) await this.showHome({ history: 'replace' });
+    else await this.refreshHome();
     this.showStatus('Entry deleted');
   }
 
   // ---------- export, backup, restore ----------
 
   async exportMarkdown() {
+    if (!this.entry) return;
     await exportMarkdown(this.snapshot());
     this.showStatus('Exported Markdown');
   }
 
   async exportDrawing() {
+    if (!this.entry) return;
     if (this.drawing.isEmpty) {
       this.showStatus('Nothing drawn yet');
       return;
@@ -867,6 +959,7 @@ export class QuireApp {
   }
 
   printPdf() {
+    if (!this.entry) return;
     printEntry(this.snapshot(), { fontStack: FONT_STACKS[this.prefs.font] ?? FONT_STACKS.serif });
   }
 
@@ -891,13 +984,10 @@ export class QuireApp {
   async restoreFrom(file) {
     const entries = parseBackup(await file.text());
     await this.persist();
-    const currentId = this.entry?.id ?? null;
+    // Drop the in-memory entry first, so a stale copy cannot overwrite the restored one.
     this.entry = null;
     for (const entry of entries) await this.store.save(entry);
-    const all = await this.store.list();
-    const target = all.find((entry) => entry.id === currentId) ?? all[0];
-    if (target) await this.openEntry(target.id);
-    else await this.newEntry();
+    await this.showHome();
     this.showStatus(`Restored ${entries.length} entries`);
   }
 
@@ -914,7 +1004,18 @@ export class QuireApp {
       return;
     }
     if (event.ctrlKey || event.metaKey) {
+      if (this.view === 'home' && key === 'f') {
+        event.preventDefault();
+        this.home.focusSearch();
+        return;
+      }
       switch (key) {
+        case 'h':
+          if (event.shiftKey) {
+            event.preventDefault();
+            this.showHome();
+          }
+          break;
         case 'n':
           event.preventDefault();
           this.newEntry();
@@ -948,7 +1049,7 @@ export class QuireApp {
       }
       return;
     }
-    if (typing || event.altKey) return;
+    if (typing || event.altKey || this.view === 'home') return;
     const toolId = TOOL_BY_KEY[key];
     if (toolId) {
       event.preventDefault();
