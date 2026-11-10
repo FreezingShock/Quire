@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { renderMarkdown, wordCount } from '../src/markdown.js';
+import { readingMinutes, renderMarkdown, wordCount } from '../src/markdown.js';
 
 test('escapes raw HTML so entries cannot inject markup', () => {
   const html = renderMarkdown('<img src=x onerror=alert(1)>');
@@ -45,4 +45,37 @@ test('emphasis works and does not leak into code', () => {
 test('word count ignores markup', () => {
   assert.equal(wordCount('# Title\n\n> Quote with **bold** words'), 5);
   assert.equal(wordCount(''), 0);
+});
+
+test('checklist items render as disabled checkboxes, checked when done', () => {
+  const html = renderMarkdown('- [ ] milk\n- [x] eggs\n- plain');
+  assert.match(html, /<ul class="task-list"><li class="task"><input type="checkbox" disabled> milk<\/li>/);
+  assert.match(html, /<li class="task is-done"><input type="checkbox" disabled checked> eggs<\/li>/);
+  assert.match(html, /<li>plain<\/li>/);
+});
+
+test('an empty checkbox still renders as a task', () => {
+  assert.match(renderMarkdown('- [ ]'), /<li class="task">/);
+});
+
+test('picture and sketch lines render through the media resolver only', () => {
+  const media = (kind, id) => (id === 'known' ? 'data:image/png;base64,AAAA' : null);
+  const html = renderMarkdown('![Beach](quire-image:known)\n![Gone](quire-image:missing)', { media });
+  assert.match(html, /<figure class="media"><img src="data:image\/png;base64,AAAA" alt="Beach"><\/figure>/);
+  assert.ok(!html.includes('Gone'));
+  assert.equal(renderMarkdown('![x](quire-sketch:s1)'), '');
+});
+
+test('word count and plain text skip pictures, sketches and checkboxes', () => {
+  assert.equal(wordCount('- [ ] buy milk\n- [x] call mom'), 4);
+  assert.equal(wordCount('![Beach](quire-image:abc)\n\nsunny day'), 2);
+  assert.equal(wordCount('see [the docs](https://example.com) now'), 4);
+});
+
+test('reading time is about 238 words a minute, at least one minute for any text', () => {
+  assert.equal(readingMinutes(0), 0);
+  assert.equal(readingMinutes(1), 1);
+  assert.equal(readingMinutes(238), 1);
+  assert.equal(readingMinutes(476), 2);
+  assert.equal(readingMinutes(1000), 4);
 });

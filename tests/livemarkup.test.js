@@ -94,3 +94,27 @@ test('empty lines render a line break so they keep their height', () => {
   const html = documentHtml(parseLiveLines('a\n\nb'));
   assert.equal(html.match(/<br>/g).length, 1);
 });
+
+test('checklist lines split into a box piece and keep the source text', () => {
+  const [open, done] = parseLiveLines('- [ ] milk\n- [x]  eggs');
+  assert.equal(open.cls, 'ln-task');
+  assert.deepEqual(open.pieces.map((p) => p.role), ['mk', 'check', 'text', 'text']);
+  assert.equal(open.pieces[1].text, '[ ]');
+  assert.equal(done.cls, 'ln-task ln-task-done');
+  assert.equal(documentHtml([done]).includes('<span class="lv-check" aria-hidden="true">[x]</span>'), true);
+  assert.deepEqual([open, done].map((l) => l.pieces.map((p) => p.text).join('')), ['- [ ] milk', '- [x]  eggs']);
+});
+
+test('picture and sketch lines carry their media and keep the reference as text', () => {
+  const lines = parseLiveLines('![Beach](quire-image:abc)\n![Sketch](quire-sketch:def)');
+  assert.equal(lines[0].cls, 'ln-media');
+  assert.deepEqual(lines[0].media, { alt: 'Beach', kind: 'image', id: 'abc' });
+  assert.equal(lines[1].media.kind, 'sketch');
+  const html = documentHtml(lines, {
+    resolve: (kind, id) => (kind === 'image' && id === 'abc' ? 'blob:http://x/1' : kind === 'sketch' ? true : null),
+  });
+  assert.match(html, /<img class="lv-img" src="blob:http:\/\/x\/1" alt="Beach"/);
+  assert.match(html, /<div class="lv-sketch" data-sketch-id="def" contenteditable="false"><\/div>/);
+  // Media adds no text, so the offsets the editor uses still match the source.
+  assert.equal(documentHtml(lines, { resolve: () => null }).includes('lv-missing'), true);
+});

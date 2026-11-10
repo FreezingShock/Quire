@@ -10,7 +10,7 @@
  * exported page agree on what counts as bold, italic, code, links and colors.
  */
 
-import { escapeHtml } from './markdown.js';
+import { MEDIA_LINE, TASK_ITEM, escapeHtml } from './markdown.js';
 
 const HEADING = /^(#{1,3})(\s+)(.*)$/;
 const RULE = /^\s*([-*_])(\s*\1){2,}\s*$/;
@@ -91,6 +91,14 @@ export function inlinePieces(text) {
 
 function classify(raw) {
   let match;
+  if ((match = MEDIA_LINE.exec(raw))) {
+    // A picture or inline sketch. Its raw reference is the line's text; the picture is drawn after it.
+    return {
+      cls: 'ln-media',
+      pieces: [piece(raw, 'mk')],
+      media: { alt: match[1], kind: match[2], id: match[3] },
+    };
+  }
   if ((match = HEADING.exec(raw))) {
     return { cls: `ln-h${match[1].length}`, pieces: [piece(match[1] + match[2], 'mk'), ...inlinePieces(match[3])] };
   }
@@ -101,6 +109,16 @@ function classify(raw) {
     return { cls: 'ln-quote', pieces: [piece(match[1], 'mk'), ...inlinePieces(match[2])] };
   }
   if ((match = BULLET.exec(raw))) {
+    const task = TASK_ITEM.exec(match[2]);
+    if (task) {
+      // The box is one piece, so the line still joins back to its source text. The gap keeps the spacing after it.
+      const box = `[${task[1]}]`;
+      const gap = match[2].slice(box.length, match[2].length - task[2].length);
+      const pieces = [piece(match[1], 'mk'), piece(box, 'check')];
+      if (gap) pieces.push(piece(gap, 'text'));
+      pieces.push(...inlinePieces(task[2]));
+      return { cls: task[1] !== ' ' ? 'ln-task ln-task-done' : 'ln-task', pieces };
+    }
     return { cls: 'ln-ul', pieces: [piece(match[1], 'mk'), ...inlinePieces(match[2])] };
   }
   if ((match = NUMBERED.exec(raw))) {
@@ -137,6 +155,9 @@ function pieceHtml({ text, role, color }) {
       return `<span class="mk">${safe}</span>`;
     case 'num':
       return `<span class="lv-num">${safe}</span>`;
+    case 'check':
+      // The text stays in the DOM (it is the source), and CSS draws the box in its place.
+      return `<span class="lv-check" aria-hidden="true">${safe}</span>`;
     case 'code':
       return `<code class="lv-code"${style}>${safe}</code>`;
     case 'bold':
@@ -150,12 +171,32 @@ function pieceHtml({ text, role, color }) {
   }
 }
 
+/**
+ * A picture or inline sketch, drawn after its line's text. `resolve(kind, id)`
+ * gives the picture's URL, or a truthy value when a sketch exists, or null when
+ * the id is unknown. Nothing here adds text, so the offsets stay right.
+ */
+function mediaHtml({ alt, kind, id }, resolve) {
+  const found = resolve(kind, id);
+  if (kind === 'sketch') {
+    // The editor mounts the live sketch pad into this slot.
+    return found
+      ? `<div class="lv-sketch" data-sketch-id="${id}" contenteditable="false"></div>`
+      : '<span class="lv-media lv-missing" contenteditable="false"></span>';
+  }
+  if (!found || !/^(data:image\/|blob:)/.test(found)) {
+    return '<span class="lv-media lv-missing" contenteditable="false"></span>';
+  }
+  return `<span class="lv-media" contenteditable="false"><img class="lv-img" src="${escapeHtml(found)}" alt="${escapeHtml(alt)}" draggable="false"></span>`;
+}
+
 /** HTML for every line. Active lines are marked later by the editor, so markers can show there. */
-export function documentHtml(lines) {
+export function documentHtml(lines, { resolve = () => null } = {}) {
   return lines
     .map((line) => {
       const body = line.pieces.map(pieceHtml).join('');
-      return `<div class="ln ${line.cls}">${body || '<br>'}</div>`;
+      const media = line.media ? mediaHtml(line.media, resolve) : '';
+      return `<div class="ln ${line.cls}">${body || '<br>'}${media}</div>`;
     })
     .join('');
 }

@@ -3,6 +3,13 @@
  * only a few tags are re-created afterwards, so raw HTML in an entry is shown as
  * text. The one HTML we allow is the color span the editor writes:
  * <span style="color: #rrggbb">...</span>
+ *
+ * Two extra block forms come from the editor:
+ *   - [ ] and [x] at the start of a list item make a checklist item.
+ *   - A line holding only ![alt](quire-image:<id>) or ![alt](quire-sketch:<id>)
+ *     is a picture or an inline sketch. The caller decides what the id shows,
+ *     through the `media` option, so the same text can render in print or in
+ *     the version preview.
  */
 
 const ESCAPES = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
@@ -10,6 +17,15 @@ const SAFE_HREF = /^(https?:\/\/|mailto:|#|\/|\.{1,2}\/)/i;
 const COLOR_OPEN = /&lt;span style=&quot;color:\s?(#[0-9a-f]{6})&quot;&gt;/gi;
 const COLOR_CLOSE = /&lt;\/span&gt;/g;
 const STASH_REF = /\u0000(\d+)\u0000/g;
+
+/** A checklist item's text, after the list marker. Group 1 is the box, group 2 the rest. */
+export const TASK_ITEM = /^\[([ xX])\](?:\s+|$)([\s\S]*)$/;
+/** A whole line that is a picture (kind "image") or an inline sketch (kind "sketch"). */
+export const MEDIA_LINE = /^!\[([^\]\n]*)\]\(quire-(image|sketch):([A-Za-z0-9_-]+)\)\s*$/;
+/** The same reference anywhere in a line. */
+export const MEDIA_REF = /!\[[^\]\n]*\]\(quire-(?:image|sketch):[A-Za-z0-9_-]+\)/g;
+/** Silent reading speed for non-fiction prose: about 238 words a minute (Brysbaert, 2019, Journal of Memory and Language, 109, 104047). */
+export const READING_WPM = 238;
 
 export function escapeHtml(value) {
   return String(value).replace(/[&<>"']/g, (ch) => ESCAPES[ch]);
@@ -40,8 +56,28 @@ export function renderInline(text) {
   return s;
 }
 
-/** Block-level pass: headings, quotes, lists, rules, fenced code and paragraphs. */
-export function renderMarkdown(source) {
+/** Checklist item when the text starts with a box, otherwise a plain item. */
+function listItem(text) {
+  const task = TASK_ITEM.exec(text);
+  if (!task) return `<li>${renderInline(text)}</li>`;
+  const done = task[1] !== ' ';
+  const box = `<input type="checkbox" disabled${done ? ' checked' : ''}>`;
+  return `<li class="task${done ? ' is-done' : ''}">${box} ${renderInline(task[2])}</li>`;
+}
+
+/** Picture or sketch, or nothing when the caller cannot resolve the id. */
+function mediaHtml(match, media) {
+  const [, alt, kind, id] = match;
+  const src = media?.(kind, id);
+  if (!src || !/^(data:image\/|blob:)/.test(src)) return '';
+  return `<figure class="media"><img src="${escapeHtml(src)}" alt="${escapeHtml(alt)}"></figure>`;
+}
+
+/**
+ * Block-level pass: headings, quotes, lists, rules, fenced code and paragraphs.
+ * `options.media(kind, id)` returns an image URL for a picture or sketch id, or null.
+ */
+export function renderMarkdown(source, options = {}) {
   const lines = String(source ?? '').replace(/\u0000/g, '').replace(/\r\n?/g, '\n').split('\n');
   const out = [];
   let block = null; // { type: 'p' | 'ul' | 'ol' | 'quote', items: [] }
@@ -52,10 +88,11 @@ export function renderMarkdown(source) {
     if (block.type === 'p') {
       out.push(`<p>${block.items.map(renderInline).join('<br>')}</p>`);
     } else if (block.type === 'quote') {
-      out.push(`<blockquote>${renderMarkdown(block.items.join('\n'))}</blockquote>`);
+      out.push(`<blockquote>${renderMarkdown(block.items.join('\n'), options)}</blockquote>`);
     } else {
-      const items = block.items.map((item) => `<li>${renderInline(item)}</li>`).join('');
-      out.push(`<${block.type}>${items}</${block.type}>`);
+      const items = block.items.map(listItem).join('');
+      const cls = block.items.some((item) => TASK_ITEM.test(item)) ? ' class="task-list"' : '';
+      out.push(`<${block.type}${cls}>${items}</${block.type}>`);
     }
     block = null;
   };
@@ -87,6 +124,12 @@ export function renderMarkdown(source) {
       continue;
     }
     let match;
+    if ((match = MEDIA_LINE.exec(line))) {
+      close();
+      const html = mediaHtml(match, options.media);
+      if (html) out.push(html);
+      continue;
+    }
     if ((match = /^(#{1,3})\s+(.*)$/.exec(line))) {
       close();
       const level = match[1].length;
@@ -117,12 +160,15 @@ export function renderMarkdown(source) {
   return out.join('\n');
 }
 
-/** Text with markup removed, used for word counts and search. */
+/** Text with markup removed, used for word counts and search. Pictures, sketches and checkboxes do not count as words. */
 export function plainText(source) {
   return String(source ?? '')
+    .replace(MEDIA_REF, ' ')
     .replace(/<[^>]*>/g, ' ')
     .replace(/```/g, ' ')
+    .replace(/\[([^\]\n]+)\]\([^)\s]*\)/g, '$1')
     .replace(/^\s{0,3}(#{1,3}|>|[-*+]|\d+[.)])\s+/gm, '')
+    .replace(/^\s*\[[ xX]\](?=\s|$)/gm, '')
     .replace(/[*_`[\]()!]/g, '')
     .replace(/\s+/g, ' ')
     .trim();
@@ -131,4 +177,9 @@ export function plainText(source) {
 export function wordCount(source) {
   const text = plainText(source);
   return text ? text.split(' ').length : 0;
+}
+
+/** Whole minutes to read `words`, at least one minute for any text. Zero for an empty entry. */
+export function readingMinutes(words) {
+  return words > 0 ? Math.max(1, Math.round(words / READING_WPM)) : 0;
 }

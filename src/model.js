@@ -38,6 +38,30 @@ const KIND_IDS = new Set(KINDS.map((kind) => kind.id));
 const MOOD_IDS = new Set(MOODS.map((mood) => mood.id));
 const WEATHER_IDS = new Set(WEATHERS.map((weather) => weather.id));
 const HEX = /^#[0-9a-f]{6}$/i;
+const DATA_IMAGE = /^data:image\/[a-z0-9.+-]+;base64,/i;
+const MAX_SKETCH_H = 4000;
+
+/** Pictures on an entry, keyed by id. Only data URLs for images are kept. */
+function normalizeImages(raw) {
+  const out = {};
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return out;
+  for (const [id, src] of Object.entries(raw)) {
+    if (typeof src === 'string' && DATA_IMAGE.test(src)) out[id] = src;
+  }
+  return out;
+}
+
+/** Inline sketches on an entry, keyed by id. Each has a height and the ops drawn on it. */
+function normalizeSketches(raw) {
+  const out = {};
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return out;
+  for (const [id, sketch] of Object.entries(raw)) {
+    if (!sketch || typeof sketch !== 'object') continue;
+    const h = Number.isFinite(sketch.h) ? Math.min(MAX_SKETCH_H, Math.max(60, sketch.h)) : 320;
+    out[id] = { h, ops: normalizeOps(sketch.ops) };
+  }
+  return out;
+}
 
 export function newId() {
   if (globalThis.crypto?.randomUUID) return globalThis.crypto.randomUUID();
@@ -89,6 +113,9 @@ export function normalizeEntry(raw = {}) {
     pinned: raw.pinned === true,
     favorite: raw.favorite === true,
     body: typeof raw.body === 'string' ? raw.body : '',
+    // Pictures and sketches are referenced from the body by id. Older entries have neither, so both default to empty.
+    images: normalizeImages(raw.images),
+    sketches: normalizeSketches(raw.sketches),
     pageColor: HEX.test(raw.pageColor ?? '') ? raw.pageColor.toLowerCase() : DEFAULT_PAGE_COLOR,
     ink: {
       ops: normalizeOps(raw.ink?.ops),

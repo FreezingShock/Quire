@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { applyEdit, colorEdit, enterEdit, toggleBlockEdit, wrapEdit } from '../src/textops.js';
+import { applyEdit, colorEdit, enterEdit, toggleBlockEdit, wrapEdit, blockInsertEdit } from '../src/textops.js';
 
 test('heading toggles on and off for the current line', () => {
   const on = toggleBlockEdit('Hello', 2, 2, 'h1');
@@ -59,4 +59,26 @@ test('color wraps each non-blank line separately so spans stay closed', () => {
 
 test('color does nothing without a selection', () => {
   assert.equal(colorEdit('abc', 1, 1, '#000000'), null);
+});
+
+test('checklist toggle adds and removes the box on each line', () => {
+  const on = toggleBlockEdit('buy milk', 0, 0, 'task');
+  assert.equal(on.insert, '- [ ] buy milk');
+  const off = toggleBlockEdit('- [ ] buy milk', 0, 0, 'task');
+  assert.equal(off.insert, 'buy milk');
+});
+
+test('enter continues a checklist as a new unchecked item, and an empty box ends it', () => {
+  assert.equal(enterEdit('- [x] eggs', 10).insert, '\n- [ ] ');
+  assert.equal(enterEdit('1. [ ] first', 13).insert, '\n2. [ ] ');
+  assert.equal(enterEdit('- [ ] ', 6).insert, '');
+});
+
+test('blockInsertEdit puts a block on its own line and leaves the caret after it', () => {
+  const end = blockInsertEdit('abc', 3, 3, 'X');
+  assert.equal(end.insert, '\nX\n');
+  assert.equal(end.selStart, 6);
+  const middle = blockInsertEdit('one\n\ntwo', 4, 4, '![p](quire-image:a)');
+  assert.equal(middle.insert, '![p](quire-image:a)');
+  assert.equal(middle.selStart, 4 + '![p](quire-image:a)'.length);
 });

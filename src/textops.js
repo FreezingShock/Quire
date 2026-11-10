@@ -4,8 +4,8 @@
  * behaviour can be unit tested and applied to the editor in one place.
  */
 
-const BLOCK_PREFIX = /^(?:#{1,3} |> |[-*+] |\d+[.)] )/;
-const MARKERS = { h1: '# ', h2: '## ', h3: '### ', quote: '> ', ul: '- ' };
+const BLOCK_PREFIX = /^(?:#{1,3} |> |[-*+] \[[ xX]\] |[-*+] |\d+[.)] )/;
+const MARKERS = { h1: '# ', h2: '## ', h3: '### ', quote: '> ', ul: '- ', task: '- [ ] ' };
 const PROBES = {
   h1: /^# /,
   h2: /^## /,
@@ -13,7 +13,10 @@ const PROBES = {
   quote: /^> /,
   ul: /^[-*+] /,
   ol: /^\d+[.)] /,
+  task: /^[-*+] \[[ xX]\] /,
 };
+/** The box at the start of a checklist item's text, with the spacing after it. */
+const TASK_START = /^\[[ xX]\](?:\s+|$)/;
 
 export function lineStart(text, pos) {
   if (pos <= 0) return 0;
@@ -73,6 +76,17 @@ export function dividerEdit(text, start, end) {
 }
 
 /**
+ * Puts `block` (one or more lines) in place of text[start:end], on lines of its
+ * own. The caret lands after it, on a new line when the block ends the text.
+ */
+export function blockInsertEdit(text, start, end, block) {
+  const before = start === 0 || text[start - 1] === '\n' ? '' : '\n';
+  const after = end >= text.length ? '\n' : text[end] === '\n' ? '' : '\n';
+  const caret = start + before.length + block.length + after.length;
+  return { from: start, to: end, insert: `${before}${block}${after}`, selStart: caret, selEnd: caret };
+}
+
+/**
  * Wrap each non-blank line of the selection in a color span. Wrapping per line
  * keeps every span closed inside its own paragraph, so the markup stays valid.
  */
@@ -100,12 +114,15 @@ export function enterEdit(text, caret) {
   const before = text.slice(from, caret);
   const match = /^(\s*)([-*+]|\d+[.)])\s+(.*)$/.exec(before);
   if (!match) return null;
-  if (!match[3].trim()) {
+  // A checklist item continues as a new unchecked item. An empty box ends the list like an empty bullet.
+  const task = TASK_START.exec(match[3]);
+  const rest = task ? match[3].slice(task[0].length) : match[3];
+  if (!rest.trim()) {
     return { from, to: caret, insert: '', selStart: from, selEnd: from };
   }
   const marker = /^\d/.test(match[2])
     ? `${parseInt(match[2], 10) + 1}${match[2].slice(-1)}`
     : match[2];
-  const insert = `\n${match[1]}${marker} `;
+  const insert = `\n${match[1]}${marker} ${task ? '[ ] ' : ''}`;
   return insertEdit(caret, caret, insert);
 }
