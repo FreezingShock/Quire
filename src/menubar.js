@@ -80,7 +80,10 @@ export function createMenuBar(root, menus) {
     button.setAttribute('aria-controls', panel.id);
     button.classList.add('is-open');
     root.append(panel);
-    panel.style.left = `${button.offsetLeft}px`;
+    // Keep the drop-down inside the bar. On a narrow window a menu opened from
+    // a title near the end (View, Skin, Help) would otherwise run off the screen.
+    const latestLeft = Math.max(0, root.clientWidth - panel.offsetWidth);
+    panel.style.left = `${Math.min(button.offsetLeft, latestLeft)}px`;
     open = { index, button, panel };
     if (focusFirst) focusItem('first');
   }
