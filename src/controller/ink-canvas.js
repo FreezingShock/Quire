@@ -140,7 +140,6 @@ export const inkCanvasMethods = {
   drawSelectionFrame(ctx) {
     const marquee = this.selDrag?.mode === 'marquee';
     if (!this.selection.size && !marquee) return;
-    const s = this.scale;
     const { bounds } = this.inkIndex();
     const dx = this.lifted?.dx ?? 0;
     const dy = this.lifted?.dy ?? 0;

@@ -58,7 +58,9 @@ export const mediaKey = (entryId, kind, id) => `${entryId}/${kind}/${id}`;
 
 /** The entry row as it is stored: everything except pictures and sketches. */
 export function rowOf(entry) {
-  const { images: _images, sketches: _sketches, ...row } = normalizeEntry(entry);
+  const row = { ...normalizeEntry(entry) };
+  delete row.images;
+  delete row.sketches;
   return row;
 }
 
