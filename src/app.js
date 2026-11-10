@@ -366,6 +366,15 @@ export class QuireApp {
     ink.addEventListener('pointerup', (event) => this.onPointerUp(event));
     ink.addEventListener('pointercancel', (event) => this.onPointerUp(event));
 
+    // Pageless: a click on the empty space under the text continues at the end, so a line break is always one Enter away.
+    sheet.addEventListener('mousedown', (event) => {
+      if (event.button !== 0 || this.tool !== 'write' || event.target.closest('#editor')) return;
+      event.preventDefault();
+      const end = this.dom.editor.value.length;
+      this.dom.editor.setSelectionRange(end, end);
+      this.dom.editor.focus({ preventScroll: true });
+    });
+
     new ResizeObserver(() => this.requestSync()).observe(sheet);
     document.addEventListener('keydown', (event) => this.onGlobalKeydown(event));
     document.addEventListener('visibilitychange', () => {
