@@ -13,6 +13,7 @@ Requires Node 18.17 or newer. No dependencies to install.
 ```sh
 npm start          # serves the app at http://localhost:4173
 npm test           # unit tests for the model, Markdown, text edits, drawing ops, and zip
+npm run test:e2e   # browser tests for the main flows (run `npm install` and `npx playwright install chromium` first)
 ```
 
 You can also open `index.html` through any static server.

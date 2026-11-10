@@ -147,6 +147,10 @@ textarea {
 .app {
   height: 100%;
   display: grid;
+  /* One column exactly as wide as the window. Without it the implicit track
+     grows to the widest child's min-content, so on a phone the whole app
+     pushes past the screen edge. */
+  grid-template-columns: minmax(0, 1fr);
   grid-template-rows: auto auto auto minmax(0, 1fr) auto auto;
   background: var(--panel-lo);
   border: 1px solid var(--frame);
