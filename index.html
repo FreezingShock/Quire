@@ -18,14 +18,16 @@
         <svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="8" fill="currentColor"/><path d="M9 22c2-7 4-11 9-13l2 2c-2 5-6 9-11 11z" fill="var(--paper-tone, #fffdf8)"/><circle cx="23" cy="9" r="2" fill="#f3d54a"/></svg>
         <span>Quire</span>
       </div>
-      <div class="titlebar-entry" id="window-title">Untitled</div>
+      <div class="titlebar-entry" id="titlebar-entry">
+        <button type="button" class="titlebar-name" id="window-title" title="Click to rename this entry">Untitled</button>
+        <input id="entry-title" class="entry-title" type="text" placeholder="Untitled" aria-label="Entry title" maxlength="120" autocomplete="off" spellcheck="false">
+      </div>
       <div class="titlebar-status" id="save-status" role="status" aria-live="polite"></div>
     </header>
 
     <nav class="menubar" id="menubar" aria-label="Application menu"></nav>
 
     <div class="entry-bar">
-      <input id="entry-title" class="entry-title" type="text" placeholder="Untitled" aria-label="Entry title" maxlength="120" autocomplete="off">
       <label class="field">
         <span>Date</span>
         <input id="entry-date" type="date" aria-label="Entry date">

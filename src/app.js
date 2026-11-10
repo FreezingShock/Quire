@@ -66,6 +66,7 @@ export class QuireApp {
   constructor() {
     this.dom = {
       windowTitle: $('#window-title'),
+      titleWrap: $('#titlebar-entry'),
       saveStatus: $('#save-status'),
       menubar: $('#menubar'),
       title: $('#entry-title'),
@@ -350,9 +351,21 @@ export class QuireApp {
   bindEvents() {
     const { editor, editorEl, title, date, kind, tags, ink, sheet } = this.dom;
     editorEl.addEventListener('keydown', (event) => this.onEditorKeydown(event));
+    this.dom.windowTitle.addEventListener('click', () => this.startRename());
+    // The rename field lives in the title bar. Its focus state drives the animation.
+    title.addEventListener('focus', () => {
+      this.renameStart = title.value;
+      this.dom.titleWrap.classList.add('is-renaming');
+    });
+    title.addEventListener('blur', () => this.dom.titleWrap.classList.remove('is-renaming'));
     title.addEventListener('keydown', (event) => {
       if (event.key === 'Enter') {
         event.preventDefault();
+        editor.focus();
+      } else if (event.key === 'Escape') {
+        event.preventDefault();
+        title.value = this.renameStart ?? title.value;
+        this.onFieldChanged();
         editor.focus();
       }
     });
@@ -405,6 +418,15 @@ export class QuireApp {
     for (const button of this.dom.toolbox.querySelectorAll('[data-size]')) {
       button.setAttribute('aria-checked', String(Number(button.dataset.size) === size));
     }
+  }
+
+  /** Clicking the entry name in the title bar swaps it for the rename field. */
+  startRename() {
+    if (!this.entry) return;
+    // The field is hidden until the class is set, so set it before focusing.
+    this.dom.titleWrap.classList.add('is-renaming');
+    this.dom.title.focus();
+    this.dom.title.select();
   }
 
   /** Switches to the Write tool so the text can take input. */
