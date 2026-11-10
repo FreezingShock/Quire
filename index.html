@@ -9,6 +9,7 @@
   <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="styles/app.css">
   <link rel="stylesheet" href="styles/reader.css">
+  <link rel="stylesheet" href="styles/live.css">
 </head>
 <body>
   <div class="app">
@@ -48,8 +49,7 @@
       <aside class="toolbox" id="toolbox" aria-label="Tools"></aside>
       <section class="desk" aria-label="Page">
         <div class="sheet" id="sheet">
-          <textarea id="editor" class="editor" aria-label="Entry text" spellcheck="true" placeholder="Start writing. Try # for a heading, > for a quote, or - for a list."></textarea>
-          <div id="reader" class="sheet-text reader" hidden></div>
+          <div id="editor" class="editor" contenteditable="true" role="textbox" aria-multiline="true" aria-label="Entry text" spellcheck="true" data-placeholder="Start writing. Try # for a heading, > for a quote, or - for a list." data-empty="true"></div>
           <canvas id="ink" class="ink" data-tool="write" aria-label="Drawing layer. Pick a drawing tool to draw on the page."></canvas>
         </div>
       </section>

@@ -1,7 +1,7 @@
 /**
  * Pure text-editing helpers. Each one returns an edit description
  * { from, to, insert, selStart, selEnd } instead of touching the DOM, so the
- * behaviour can be unit tested and applied to a textarea in one place.
+ * behaviour can be unit tested and applied to the editor in one place.
  */
 
 const BLOCK_PREFIX = /^(?:#{1,3} |> |[-*+] |\d+[.)] )/;

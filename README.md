@@ -20,8 +20,8 @@ You can also open `index.html` through any static server.
 ## What it does
 
 - **Entries:** title, date, kind (journal, poem, blog post, note), and tags. Open entries from the list with search and kind filters.
-- **Writing:** Markdown source with headings, quotes, lists, rules, code, bold, and italics. Enter continues lists. Select text and click a color to color it.
-- **Read view:** the rendered page, including colored text.
+- **Writing:** a live preview. Headings, quotes, lists, rules, code, bold, italics, links, and colors render as you type, and the Markdown markup shows only on the line you are editing. Enter continues lists. Select text and click a color to color it.
+- **Source mode:** the Source button (or View > Source mode) shows every Markdown marker. Formatting still applies right away.
 - **Drawing:** pencil, brush, highlighter, eraser, line, rectangle, ellipse, fill, and color picker. Stroke widths 1, 3, and 6. Undo and redo follow whichever surface you touched last. Right-click a swatch to change the page color.
 - **Export:** Markdown with front matter (a .zip with the drawing PNG when the entry has ink), drawing as PNG, print or save as PDF, and JSON backup and restore.
 - **Look:** serif, sans, or monospace writing font, plus a dark chrome option.
@@ -35,7 +35,8 @@ You can also open `index.html` through any static server.
 
 ## Known limits
 
-- The writing view shows Markdown source, so color spans appear as tags there. Colors show in Read view and in exports.
+- In Source mode, color spans appear as tags. Colors show in the live preview and in exports.
+- The live editor is a contenteditable that re-renders from the Markdown source on every change. Very long entries (tens of thousands of lines) may type more slowly.
 - Ink is pinned to the page, not to a line of text. If you edit text above a drawing, the ink does not move with it.
 - The print/PDF layout is close to the screen layout but can differ slightly.
 - There is no zoom or lasso selection yet.
@@ -45,13 +46,15 @@ You can also open `index.html` through any static server.
 ```
 index.html          app shell
 src/app.js          controller: editor, drawing layer, saving, menus
+src/livetext.js     live-preview editor (contenteditable over the Markdown source)
+src/livemarkup.js   pure line and inline model for the live view
 src/model.js        entry schema and helpers (no DOM)
 src/markdown.js     safe Markdown renderer
 src/textops.js      pure text edits (lists, headings, color spans)
 src/drawing.js      ops, undo stack, flood fill, rendering
 src/storage.js      IndexedDB and memory stores behind one interface
 src/export.js       Markdown, ZIP, PNG, print, backup
-styles/             app chrome and rendered-text styles
+styles/             app chrome, live editor, and rendered-text styles
 tests/              node:test unit tests
 scripts/serve.js    dependency-free static server
 ```

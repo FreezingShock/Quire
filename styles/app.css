@@ -431,7 +431,7 @@ textarea {
 .format-btn.is-bold { font-weight: 800; }
 .format-btn.is-italic { font-style: italic; font-family: Georgia, serif; font-weight: 400; }
 
-.read-btn {
+.source-btn {
   height: 28px;
   padding: 0 6px;
   border: 1px solid #7d96b6;
@@ -440,12 +440,12 @@ textarea {
   cursor: pointer;
 }
 
-.read-btn:hover {
+.source-btn:hover {
   border-color: var(--hover-edge);
   box-shadow: 0 0 0 1px rgba(92, 143, 204, 0.35) inset;
 }
 
-.read-btn[aria-pressed="true"] {
+.source-btn[aria-pressed="true"] {
   background: linear-gradient(to bottom, var(--accent-hi), var(--accent-lo));
   border-color: var(--accent);
   color: var(--accent-ink);
@@ -478,34 +478,7 @@ textarea {
   border-radius: 1px;
 }
 
-.editor {
-  display: block;
-  width: 100%;
-  min-height: 520px;
-  margin: 0;
-  padding: 0;
-  border: 0;
-  outline: none;
-  resize: none;
-  overflow: hidden;
-  background: transparent;
-  font-family: var(--page-font);
-  font-size: 17px;
-  line-height: 1.65;
-  color: #25221d;
-  white-space: pre-wrap;
-  overflow-wrap: break-word;
-  caret-color: var(--accent);
-}
-
-.editor::placeholder {
-  color: #8c96a6;
-  font-style: italic;
-}
-
-.editor:focus-visible { outline: none; }
-
-.reader { min-height: 520px; }
+/* The live-preview editor's own styles are in live.css. */
 
 .ink {
   position: absolute;
@@ -802,7 +775,7 @@ kbd {
   .size-row { flex-direction: row; flex: none; }
   .format-grid { grid-template-columns: repeat(9, 30px); flex: none; }
   .format-btn { width: 30px; }
-  .read-btn { flex: none; }
+  .source-btn { flex: none; }
 
   .desk { padding: 12px 8px 22px; }
 
