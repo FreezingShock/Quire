@@ -811,6 +811,18 @@ mark.hit {
   .home-search { flex-basis: 150px; }
   .home-search input { font-size: 16px; }
 
+  /* The command bar is one row that scrolls sideways, so the entry actions do not stack into three rows. */
+  .home-command {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding: 6px 8px;
+    scrollbar-width: thin;
+  }
+
+  .home-command > * { flex: none; }
+  .home-command .cmd-spacer { display: none; }
+
   .home-body {
     grid-template-columns: minmax(0, 1fr);
     grid-template-rows: auto minmax(0, 1fr);

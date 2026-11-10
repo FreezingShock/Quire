@@ -1356,6 +1356,15 @@ kbd {
   .titlebar-status { min-width: 0; }
 }
 
+/* Narrow phones (360 to 400 px): the menu titles and the drawing tools shrink to fit without scrolling. */
+@media (max-width: 400px) {
+  .menu-title { padding: 0 6px; }
+  .tool-grid { grid-template-columns: repeat(10, 31px); }
+  .tool-btn { width: 31px; height: 31px; }
+  .format-grid { grid-template-columns: repeat(10, 29px); }
+  .format-btn { width: 29px; height: 29px; }
+}
+
 /* Touch tablets get the same 16px inputs, since Safari zooms in on smaller fields at any width. */
 @media (pointer: coarse) {
   .field input,
