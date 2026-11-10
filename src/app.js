@@ -33,6 +33,7 @@ import {
 import { icon } from './icons.js';
 import { el } from './dom.js';
 import { loadPrefs, savePrefs } from './prefs.js';
+import { playSound } from './sound.js';
 import {
   downloadBlob,
   exportDrawingPng,
@@ -88,6 +89,7 @@ export class QuireApp {
       titleWrap: $('#titlebar-entry'),
       saveStatus: $('#save-status'),
       menubar: $('#menubar'),
+      ribbonToggle: $('#ribbon-toggle'),
       title: $('#entry-title'),
       date: $('#entry-date'),
       kind: $('#entry-kind'),
@@ -178,6 +180,14 @@ export class QuireApp {
     for (const button of document.querySelectorAll('[data-source]')) {
       button.setAttribute('aria-pressed', String(source));
     }
+    // Vista chrome: the Aero wallpaper, and the ribbon that can be minimized.
+    root.classList.toggle('has-wallpaper', Boolean(this.prefs.wallpaper));
+    const ribbonHidden = Boolean(this.prefs.ribbonHidden);
+    this.dom.app.dataset.ribbon = ribbonHidden ? 'minimized' : 'shown';
+    this.dom.ribbonToggle.innerHTML = icon(ribbonHidden ? 'chevronDown' : 'chevronUp');
+    this.dom.ribbonToggle.setAttribute('aria-expanded', String(!ribbonHidden));
+    this.dom.ribbonToggle.title = ribbonHidden ? 'Show the ribbon' : 'Minimize the ribbon';
+    this.dom.ribbonToggle.setAttribute('aria-label', this.dom.ribbonToggle.title);
   }
 
   setPref(patch) {
@@ -429,6 +439,19 @@ export class QuireApp {
           { label: 'Show grid', check: true, checked: Boolean(this.prefs.showGrid), action: () => this.setPref({ showGrid: !this.prefs.showGrid }) },
           { label: 'Snap to grid', check: true, checked: Boolean(this.prefs.snapGrid), action: () => this.setPref({ snapGrid: !this.prefs.snapGrid }) },
           { label: 'Snap lines to 15° angles', check: true, checked: Boolean(this.prefs.snapAngles), action: () => this.setPref({ snapAngles: !this.prefs.snapAngles }) },
+          'sep',
+          { label: 'Minimize ribbon', check: true, checked: Boolean(this.prefs.ribbonHidden), action: () => this.setPref({ ribbonHidden: !this.prefs.ribbonHidden }) },
+          { label: 'Aero wallpaper', check: true, checked: Boolean(this.prefs.wallpaper), action: () => this.setPref({ wallpaper: !this.prefs.wallpaper }) },
+          { label: 'Startup splash', check: true, checked: Boolean(this.prefs.splash), action: () => this.setPref({ splash: !this.prefs.splash }) },
+          {
+            label: 'Sound effects',
+            check: true,
+            checked: Boolean(this.prefs.sound),
+            action: () => {
+              this.setPref({ sound: !this.prefs.sound });
+              playSound('startup');
+            },
+          },
         ],
       },
       {
@@ -452,6 +475,7 @@ export class QuireApp {
 
   bindEvents() {
     const { editor, editorEl, title, date, kind, tags, ink, sheet } = this.dom;
+    this.dom.ribbonToggle.addEventListener('click', () => this.setPref({ ribbonHidden: !this.prefs.ribbonHidden }));
     editorEl.addEventListener('keydown', (event) => this.onEditorKeydown(event));
     this.dom.windowTitle.addEventListener('click', () => this.startRename());
     // The rename field lives in the title bar. Its focus state drives the animation.
@@ -913,6 +937,7 @@ export class QuireApp {
     await this.store.save(entry);
     await this.openEntry(entry.id);
     this.dom.title.focus();
+    playSound('newEntry');
   }
 
   showEntries() {
@@ -947,6 +972,7 @@ export class QuireApp {
     if (isCurrent) await this.showHome({ history: 'replace' });
     else await this.refreshHome();
     this.showStatus('Entry deleted');
+    playSound('delete');
   }
 
   // ---------- export, backup, restore ----------
@@ -955,6 +981,7 @@ export class QuireApp {
     if (!this.entry) return;
     await exportMarkdown(this.snapshot());
     this.showStatus('Exported Markdown');
+    playSound('export');
   }
 
   async exportDrawing() {
@@ -965,6 +992,7 @@ export class QuireApp {
     }
     await exportDrawingPng(this.snapshot());
     this.showStatus('Exported drawing');
+    playSound('export');
   }
 
   printPdf() {

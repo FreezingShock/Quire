@@ -12,6 +12,10 @@ const DEFAULTS = Object.freeze({
   showGrid: false,
   snapGrid: false,
   snapAngles: false,
+  ribbonHidden: false,
+  wallpaper: true,
+  splash: true,
+  sound: false,
 });
 
 export function loadPrefs() {
