@@ -7,6 +7,7 @@
  */
 
 import { createLocalStore } from './storage.js';
+import { lockNow, openPasscodeSettings, unlockStore } from './lock.js';
 import {
   DEFAULT_PAGE_COLOR,
   MOODS,
@@ -160,6 +161,7 @@ export class QuireApp {
     });
     this.prefs = loadPrefs();
     this.store = null;
+    this.passcodeOn = false; // whether the passcode lock is on; the File menu reads it
     this.entry = null;
     this.drawing = new Drawing();
     this.base = document.createElement('canvas');
@@ -229,6 +231,8 @@ export class QuireApp {
     if (this.store.kind === 'memory') {
       this.showStatus('Browser storage is unavailable. Entries will not survive a reload.', true);
     }
+    // Nothing is read until the passcode, if there is one, is typed.
+    this.passcodeOn = await unlockStore(this.store);
     startPwa({ onReady: () => this.showStatus('Quire is ready to work offline', false, 'saved') });
     startReminders({
       getReminder: () => this.prefs.reminder ?? REMINDER_DEFAULTS,
@@ -1702,6 +1706,17 @@ export class QuireApp {
       return;
     }
     if ((await promptInstall()) === 'accepted') this.showStatus('Quire is installing…', false, 'saved');
+  }
+
+  async passcodeSettings() {
+    await openPasscodeSettings({
+      store: this.store,
+      flush: () => this.persist(),
+      status: (text) => this.showStatus(text),
+      setOn: (on) => {
+        this.passcodeOn = on;
+      },
+    });
   }
 
   async backup() {

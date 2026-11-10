@@ -35,6 +35,7 @@ You can also open `index.html` through any static server.
 - **Export:** Markdown with front matter (a .zip with the drawing PNG when the entry has ink), drawing as PNG, print or save as PDF, and JSON backup and restore. Backups include version history.
 - **Version history:** Quire keeps a version every five minutes while you edit, when you leave an entry, and before a restore. Open File > Version history to preview a version's text, drawing and sketches, restore it, or delete it. Save version now keeps one by hand. The newest 30 versions are kept per entry. Pictures are kept with the entry until it is deleted, so every version can show its pictures.
 - **Save status:** the dot in the title bar shows whether changes are pending, saving, saved, or failed to save.
+- **Passcode lock:** File > Passcode lock turns on a passcode. While it is on, entries, their versions and their pictures are encrypted in the browser, and Quire asks for the passcode each time it opens. Change the passcode or turn the lock off from the same menu, and File > Lock Quire now locks it again. There is no way to recover a forgotten passcode. Forgot it? on the lock screen erases every entry.
 - **Look:** the Skin menu picks Aero (the default), Aero dark, Aero Basic, XP Luna, or Classic 98. View > Options (Ctrl+,) holds the rest in one tabbed dialog: the writing font, a custom accent color (which recolors the selection and the title bar), Window animations, the Aero wallpaper, grid and snap, sound effects, the startup splash, and the Home cards. Format holds the color swap and resets. Keyboard shortcuts (F1) lists every key.
 
 ## Design decisions
@@ -51,6 +52,8 @@ You can also open `index.html` through any static server.
 - Restoring a version puts back its sketch strokes, but a sketch that was added after that version is kept as it is.
 - The live editor is a contenteditable that re-renders from the Markdown source on every change. Very long entries (tens of thousands of lines) may type more slowly.
 - Ink is pinned to the page, not to a line of text. If you edit text above a drawing, the ink does not move with it.
+- The passcode lock covers what Quire stores in the browser. Backup files and Markdown or PNG exports are not encrypted, and the lock does not lock itself after a period of inactivity; use Lock Quire now.
+- The lock uses WebCrypto: PBKDF2-SHA-256 with 600,000 rounds to derive a key, and AES-GCM for each entry, picture, sketch, and version. Entry ids and version times stay readable so the store can index them.
 - The print/PDF layout is close to the screen layout but can differ slightly.
 - There is no zoom or lasso selection yet.
 - Each version keeps a full copy of the text, ink and sketch strokes, so a long entry with many versions takes more browser storage. Pictures are not copied into versions.
@@ -70,14 +73,16 @@ src/prompts.js      daily writing prompts (pure, no DOM)
 src/textops.js      pure text edits (lists, headings, color spans)
 src/drawing.js      ops, undo stack, flood fill, rendering
 src/keypen.js       keyboard pen: sends pointer events from arrow keys and Space to a drawing canvas
-src/storage.js      IndexedDB and memory stores behind one interface (entries, media, and versions)
+src/storage.js      IndexedDB and memory stores behind one interface (entries, media, versions, and the lock record); seals rows when a vault is set
+src/vault.js        passcode encryption: wrapped data key, AES-GCM rows, no DOM
+src/lock.js         passcode dialogs: unlock screen, turn on, change, turn off, lock now, erase
 src/export.js       Markdown, ZIP, PNG, print, backup
 src/versions.js     version rules: when a copy is kept and what it holds (no DOM)
 src/history.js      version history dialog
 src/skins.js        skin list, skin choice from saved prefs, and accent colors (no DOM)
 src/options.js      Options dialog: the tabbed settings that the View and Skin menus used to hold
-styles/             app chrome, live editor, rendered-text styles, Vista extras, and skins
-tests/              node:test unit tests
+styles/             app chrome, live editor, rendered-text styles, Vista extras, skins, and the lock dialogs
+tests/              node:test unit tests (including the passcode vault and the sealed store)
 scripts/serve.js    dependency-free static server
 ```
 

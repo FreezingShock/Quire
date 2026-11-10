@@ -99,6 +99,7 @@ test('backups carry versions, and older backups without them still parse', () =>
 test('memory store keeps the newest versions per entry and removes them with the entry', async () => {
   const store = await createLocalStore(); // no IndexedDB under node, so this is the memory store
   assert.equal(store.kind, 'memory');
+  store.setCipher(null); // plain rows; the store starts locked until the app decides
   const entry = written();
   await store.save(entry);
   const base = Date.parse('2026-11-10T10:00:00.000Z');

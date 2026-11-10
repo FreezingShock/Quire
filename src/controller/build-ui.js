@@ -5,6 +5,7 @@ import { prevent } from './helpers.js';
 import { showAbout, showShortcuts } from '../dialogs.js';
 import { el } from '../dom.js';
 import { hasInkOn } from '../drawing.js';
+import { lockNow } from '../lock.js';
 import { icon } from '../icons.js';
 import { attachKeyboardPen } from '../keypen.js';
 import { renderLayerPanel } from '../layers.js';
@@ -157,6 +158,9 @@ export const buildUiMethods = {
           { label: 'Back up all entries…', action: () => this.backup() },
           { label: 'Restore from backup…', action: () => this.restore() },
           ...(installState() === 'installed' ? [] : ['sep', { label: 'Install Quire…', action: () => this.installQuire() }]),
+          'sep',
+          { label: 'Passcode lock…', action: () => this.passcodeSettings() },
+          { label: 'Lock Quire now', disabled: !this.passcodeOn, action: () => lockNow(() => this.persist()) },
         ],
       },
       {
