@@ -39,6 +39,8 @@ export function contentKey(entry) {
     // Pictures are never edited once added, so their ids are enough to notice a new one.
     Object.keys(entry.images ?? {}).sort(),
     entry.sketches ?? {},
+    // Sealing and unsealing are edits too, so the change gets written.
+    entry.capsule ?? null,
   ]);
 }
 

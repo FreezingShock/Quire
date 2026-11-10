@@ -90,6 +90,24 @@ export function normalizeNotebook(value) {
   return name || null;
 }
 
+/** How far ahead a time capsule can be sealed. */
+export const CAPSULE_MAX_YEARS = 50;
+
+/**
+ * A time capsule: the day the entry opens, when it was sealed, and when it was
+ * first opened. `notified` is set once the arrival notice has gone out. Null
+ * for an ordinary entry, and for a record whose open day is missing or broken.
+ */
+export function normalizeCapsule(raw) {
+  if (!raw || typeof raw !== 'object' || !isISODate(raw.openOn)) return null;
+  return {
+    openOn: raw.openOn,
+    sealedAt: typeof raw.sealedAt === 'string' ? raw.sealedAt : new Date().toISOString(),
+    unsealedAt: typeof raw.unsealedAt === 'string' ? raw.unsealedAt : null,
+    notified: raw.notified === true,
+  };
+}
+
 /**
  * Coerce any stored or imported record into the current schema. Unknown or
  * broken fields fall back to safe defaults instead of throwing.
@@ -114,6 +132,8 @@ export function normalizeEntry(raw = {}) {
     favorite: raw.favorite === true,
     // The first-run sample entry is marked so streaks can skip it. Entries written by hand never set this.
     sample: raw.sample === true,
+    // A time capsule stays closed until its day. See capsule.js for the rules.
+    capsule: normalizeCapsule(raw.capsule),
     body: typeof raw.body === 'string' ? raw.body : '',
     // Pictures and sketches are referenced from the body by id. Older entries have neither, so both default to empty.
     images: normalizeImages(raw.images),
