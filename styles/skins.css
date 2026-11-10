@@ -821,15 +821,15 @@ html[data-skin="basic"][data-theme="dark"].has-wallpaper { background: #1f2d40; 
   transform: translate(0.2px, -0.6px);
 }
 
-/* Classic 98: pixel-style. One-pixel square-ended lines, no anti-aliasing, and gray faces in the shapes. */
-:root[data-skin="classic"] .qi-main {
-  stroke: var(--c-ink);
-  stroke-width: 1;
-  stroke-linecap: square;
-  stroke-linejoin: miter;
+/* Classic 98: pixel art. Each glyph is drawn on the 16 by 16 grid (see icon-pixels.js), in one ink
+   with no anti-aliasing, and the vector layers are hidden. */
+.qi-pixel { display: none; }
+:root[data-skin="classic"] :is(.qi-glow, .qi-main, .qi-shine) { display: none; }
+:root[data-skin="classic"] .qi-pixel {
+  display: block;
+  fill: var(--c-ink);
   shape-rendering: crispEdges;
 }
-:root[data-skin="classic"] .qi-main :is(rect, ellipse, circle) { fill: var(--c-face); }
 :root[data-skin="classic"] .tool-btn[data-tool-id] svg,
 :root[data-skin="classic"] .stamp-btn svg,
 :root[data-skin="classic"] .xform-btn svg { color: var(--c-ink); }
