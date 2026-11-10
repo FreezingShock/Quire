@@ -81,6 +81,7 @@ import { confirmDialog, entriesDialog, notebookDialog, showAbout, showShortcuts 
 import { showOptions } from './options.js';
 import { installState, promptInstall, showInstallHelp, startPwa, startReminders, REMINDER_DEFAULTS } from './pwa.js';
 import { HomeView } from './home.js';
+import { sampleEntry } from './onboarding.js';
 import { MAX_VERSIONS, makeVersion, shouldKeepVersion } from './versions.js';
 import { formatVersionTime, historyDialog } from './history.js';
 
@@ -228,11 +229,16 @@ export class QuireApp {
     this.buildMenus();
     this.home = new HomeView(this.dom.home, {
       view: this.prefs.homeView,
+      // applyPrefs runs before the view exists, so the saved card choices go in here too.
+      showPrompts: Boolean(this.prefs.showPrompts),
+      showOnThisDay: Boolean(this.prefs.showOnThisDay),
+      showTips: !this.prefs.tipsDismissed,
       onOpen: (id) => this.openEntry(id),
       onNew: (options) => this.newEntry(options),
       onToday: () => this.openToday(),
       onWritePrompt: (prompt) => this.openToday({ prompt }),
       onHidePrompts: () => this.setPref({ showPrompts: false }),
+      onDismissTips: () => this.setPref({ tipsDismissed: true }),
       onDelete: (id) => this.deleteEntry(id),
       onPatch: (id, fields) => this.patchEntry(id, fields),
       onViewChange: (view) => this.setPref({ homeView: view }),
@@ -249,7 +255,8 @@ export class QuireApp {
       saveReminder: (reminder) => this.setPref({ reminder }),
       hasEntryOn: async (day) => (await this.store.list()).some((entry) => entry.date === day),
     });
-    // The site opens on the entries list. A reload on an entry keeps that entry.
+    await this.seedSampleEntry();
+    // The site opens on the dashboard. A reload on an entry keeps that entry.
     const routed = routeEntryId(location.hash);
     const entries = await this.store.list();
     if (routed && entries.some((entry) => entry.id === routed)) {
@@ -257,6 +264,18 @@ export class QuireApp {
     } else {
       await this.showHome({ history: 'replace' });
     }
+  }
+
+  /**
+   * First run: a library with no entries gets one sample entry, once. The flag
+   * is set on the first start whatever happens, so a deleted sample stays
+   * deleted and a library that already has entries never gets one.
+   */
+  async seedSampleEntry() {
+    if (this.prefs.sampleSeeded) return;
+    this.prefs = savePrefs({ sampleSeeded: true });
+    if ((await this.store.list()).length) return;
+    await this.store.save(createEntry(sampleEntry(localISODate())));
   }
 
   // ---------- preferences and chrome ----------
@@ -284,6 +303,7 @@ export class QuireApp {
     this.home?.setStripOptions({
       showPrompts: Boolean(this.prefs.showPrompts),
       showOnThisDay: Boolean(this.prefs.showOnThisDay),
+      showTips: !this.prefs.tipsDismissed,
     });
     const ribbonHidden = Boolean(this.prefs.ribbonHidden);
     this.dom.app.dataset.ribbon = ribbonHidden ? 'minimized' : 'shown';
