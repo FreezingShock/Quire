@@ -30,6 +30,7 @@
   <link rel="stylesheet" href="styles/capsule.css">
   <link rel="stylesheet" href="styles/screensaver.css">
   <link rel="stylesheet" href="styles/print.css">
+  <link rel="stylesheet" href="styles/dropdown.css">
   <link rel="stylesheet" href="styles/touch.css">
 </head>
 <body>
@@ -67,23 +68,18 @@
         <span>Date</span>
         <input id="entry-date" type="date" aria-label="Entry date">
       </label>
-      <label class="field">
+      <div class="field">
         <span>Kind</span>
-        <select id="entry-kind" aria-label="Entry kind">
-          <option value="journal">Journal</option>
-          <option value="poem">Poem</option>
-          <option value="blog">Blog post</option>
-          <option value="note">Note</option>
-        </select>
-      </label>
-      <label class="field">
+        <div class="dd-slot" id="entry-kind"></div>
+      </div>
+      <div class="field">
         <span>Mood</span>
-        <select id="entry-mood" aria-label="Mood"></select>
-      </label>
-      <label class="field">
+        <div class="dd-slot" id="entry-mood"></div>
+      </div>
+      <div class="field">
         <span>Weather</span>
-        <select id="entry-weather" aria-label="Weather"></select>
-      </label>
+        <div class="dd-slot" id="entry-weather"></div>
+      </div>
       <label class="field field-tags">
         <span>Tags</span>
         <input id="entry-tags" type="text" placeholder="travel, winter" aria-label="Tags, comma separated" autocomplete="off">

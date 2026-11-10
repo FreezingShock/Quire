@@ -8,6 +8,7 @@
  */
 
 import { el } from './dom.js';
+import { createDropdown } from './dropdown.js';
 import './print-extras.js';
 import { showDialog } from './dialogs.js';
 import { renderInkCanvas } from './drawing.js';
@@ -108,19 +109,15 @@ export function openPrintDialog({ entries, current = null, fontStack, stylesheet
     },
   );
 
-  const notebookSelect = el(
-    'select',
-    {
-      class: 'dialog-select print-notebook',
-      'aria-label': 'Notebook',
-      onChange: () => {
-        state.notebook = notebookSelect.value;
-        update();
-      },
+  const notebookSelect = createDropdown({
+    label: 'Notebook',
+    className: 'dialog-dd print-notebook',
+    options: [{ value: '', label: 'All notebooks' }, ...notebooks.map((name) => ({ value: name, label: name }))],
+    onChange: () => {
+      state.notebook = notebookSelect.value;
+      update();
     },
-    el('option', { value: '' }, 'All notebooks'),
-    notebooks.map((name) => el('option', { value: name }, name)),
-  );
+  });
   notebookSelect.value = state.notebook;
 
   const dateField = (label, key) => {
@@ -158,18 +155,15 @@ export function openPrintDialog({ entries, current = null, fontStack, stylesheet
     state.options[kind.id] = values;
     const boxes = (kind.options ?? []).map((option) => {
       if (option.type === 'choice') {
-        const select = el(
-          'select',
-          {
-            class: 'dialog-select',
-            'aria-label': option.label,
-            onChange: () => {
-              state.options[kind.id] = { ...state.options[kind.id], [option.id]: select.value };
-              update();
-            },
+        const select = createDropdown({
+          label: option.label,
+          className: 'dialog-dd',
+          options: option.choices.map((choice) => ({ value: choice.id, label: choice.label })),
+          onChange: () => {
+            state.options[kind.id] = { ...state.options[kind.id], [option.id]: select.value };
+            update();
           },
-          option.choices.map((choice) => el('option', { value: choice.id }, choice.label)),
-        );
+        });
         select.value = values[option.id];
         return el('label', { class: 'options-field' }, el('span', {}, option.label), select);
       }
@@ -183,18 +177,15 @@ export function openPrintDialog({ entries, current = null, fontStack, stylesheet
     entriesGroup.disabled = kind.scope === 'current';
   }
 
-  const paperSelect = el(
-    'select',
-    {
-      class: 'dialog-select print-paper',
-      'aria-label': 'Paper size',
-      onChange: () => {
-        state.page.paper = paperSelect.value;
-        update();
-      },
+  const paperSelect = createDropdown({
+    label: 'Paper size',
+    className: 'dialog-dd print-paper',
+    options: PAPERS.map((paper) => ({ value: paper.id, label: paper.label })),
+    onChange: () => {
+      state.page.paper = paperSelect.value;
+      update();
     },
-    PAPERS.map((paper) => el('option', { value: paper.id }, paper.label)),
-  );
+  });
   paperSelect.value = state.page.paper;
 
   const orientation = radioGroup(

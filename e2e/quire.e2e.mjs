@@ -393,6 +393,13 @@ async function goHome(page) {
   await page.waitForFunction(() => document.querySelector('.app')?.dataset.view === 'home');
 }
 
+/** Picks an option from a drop-down by the mouse: open it, then click the option's name. */
+async function pickFromDropdown(page, label, option) {
+  await page.locator(`.dd-trigger[aria-label="${label}"]`).click();
+  // An empty value is the "No notebook" choice, which is named for what it means.
+  await page.getByRole('option', { name: option === '' ? 'No notebook' : option, exact: true }).click();
+}
+
 /** Moves the open entry into a notebook through File > Move to notebook. */
 async function moveOpenEntryTo(page, { existing = null, typed = null }) {
   await page.click('.menu-title:has-text("File")');
@@ -400,10 +407,10 @@ async function moveOpenEntryTo(page, { existing = null, typed = null }) {
   const dialog = page.locator('dialog[open]');
   await dialog.waitFor();
   if (typed !== null) {
-    await dialog.locator('select').selectOption('__new__');
+    await pickFromDropdown(page, 'Notebook', 'New notebook…');
     await dialog.locator('input').fill(typed);
   } else {
-    await dialog.locator('select').selectOption(existing);
+    await pickFromDropdown(page, 'Notebook', existing);
   }
   await dialog.locator('button[type="submit"]').click();
   await page.waitForSelector('dialog[open]', { state: 'detached' });
@@ -689,3 +696,93 @@ test('a downward swipe on a dialog title closes the dialog', async () => {
     await page.close();
   }
 });
+
+test('the mood drop-down works from the keyboard and keeps the choice after a reload', async () => {
+  const page = await freshPage();
+  try {
+    await openQuire(page);
+    await newEntry(page);
+    const mood = page.locator('#entry-mood');
+    await page.locator('#entry-mood .dd-trigger').focus();
+    await page.keyboard.press('ArrowDown');
+    assert.equal(await page.getAttribute('#entry-mood .dd-trigger', 'aria-expanded'), 'true', 'the list opens');
+    await page.keyboard.press('ArrowDown');
+    // Wait for the save this choice starts, so the "Saved" status we wait for is the one it produces.
+    const unsaved = page.waitForFunction(() => /Unsaved/.test(document.querySelector('#save-status')?.textContent ?? ''));
+    await page.keyboard.press('Enter');
+    assert.equal(await page.getAttribute('#entry-mood .dd-trigger', 'aria-expanded'), 'false', 'the list closes on a choice');
+    assert.equal(await mood.evaluate((node) => node.value), 'great');
+    assert.equal((await page.innerText('#entry-mood .dd-value')).trim(), 'Great');
+    await unsaved;
+    await waitForSaved(page);
+
+    await page.reload({ waitUntil: 'load' });
+    await page.waitForSelector('#splash', { state: 'detached', timeout: 15000 });
+    assert.equal(await page.locator('#entry-mood').evaluate((node) => node.value), 'great');
+    expectNoErrors(page);
+  } finally {
+    await page.close();
+  }
+});
+
+test('Escape closes a drop-down without choosing, and the dialog around it stays open', async () => {
+  const page = await freshPage();
+  try {
+    await openQuire(page);
+    await newEntry(page);
+    await page.locator('#entry-weather .dd-trigger').focus();
+    await page.keyboard.press('Enter');
+    await page.keyboard.press('ArrowDown');
+    await page.keyboard.press('Escape');
+    assert.equal(await page.getAttribute('#entry-weather .dd-trigger', 'aria-expanded'), 'false');
+    assert.equal(await page.locator('#entry-weather').evaluate((node) => node.value), '', 'nothing was chosen');
+    // Typing a letter with the list shut picks the first option that starts with it.
+    await page.keyboard.press('r');
+    assert.equal(await page.locator('#entry-weather').evaluate((node) => node.value), 'rain');
+    expectNoErrors(page);
+  } finally {
+    await page.close();
+  }
+});
+
+test('the library sidebar folds its sections, and the folds are remembered after a reload', async () => {
+  const page = await freshPage();
+  try {
+    await openQuire(page);
+    await page.waitForSelector('.home-nav');
+    const tags = page.locator('.nav-group-toggle', { hasText: 'Tags' });
+    assert.equal(await tags.getAttribute('aria-expanded'), 'false', 'Tags starts folded');
+    await tags.click();
+    assert.equal(await tags.getAttribute('aria-expanded'), 'true');
+    assert.equal(await page.locator('#nav-tags').isVisible(), true);
+
+    await page.reload({ waitUntil: 'load' });
+    await page.waitForSelector('.home-nav');
+    assert.equal(await page.locator('.nav-group-toggle', { hasText: 'Tags' }).getAttribute('aria-expanded'), 'true', 'still open after a reload');
+    await page.locator('.nav-group-toggle', { hasText: 'Library' }).click();
+    assert.equal(await page.locator('#nav-library').isHidden(), true, 'the Library list folds away');
+    expectNoErrors(page);
+  } finally {
+    await page.close();
+  }
+});
+
+test('the entry header drop-downs fit a phone and their lists stay on screen', async () => {
+  const page = await freshPage({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
+  try {
+    await openQuire(page);
+    await newEntry(page);
+    await page.locator('#entry-kind .dd-trigger').tap();
+    const list = page.locator('#entry-kind .dd-list');
+    await list.waitFor({ state: 'visible' });
+    const box = await list.boundingBox();
+    assert.ok(box.x >= 0 && box.x + box.width <= 390, 'the list fits the width of the phone');
+    await page.keyboard.press('Escape');
+    const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+    assert.ok(overflow <= 0, `no horizontal page scroll (overflow ${overflow}px)`);
+    expectNoErrors(page);
+  } finally {
+    await page.close();
+  }
+});
+

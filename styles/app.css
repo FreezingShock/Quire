@@ -192,6 +192,12 @@ textarea {
   border: 1px solid var(--frame);
 }
 
+/* The editor has the entry bar as its own row, so the 1fr row goes to the page. Without this the bar was squeezed
+   into the 1fr row, and its fields ran under the mixtape deck and the toolbox. Home has no bar, so its 1fr row stays. */
+.app[data-view="editor"] {
+  grid-template-rows: auto auto auto auto minmax(0, 1fr) auto auto;
+}
+
 /* ---------- title bar: glassy blue frame ---------- */
 
 .titlebar {
@@ -453,7 +459,6 @@ textarea {
 }
 
 .field input,
-.field select,
 .input {
   height: 28px;
   padding: 0 8px;
@@ -468,7 +473,6 @@ textarea {
 .field-tags input { width: 180px; }
 
 .field input:focus,
-.field select:focus,
 .input:focus {
   border-color: var(--accent);
   box-shadow: 0 0 0 2px rgba(127, 181, 236, 0.6), inset 0 1px 2px rgba(20, 40, 70, 0.12);
@@ -1331,7 +1335,6 @@ kbd {
 
   /* iOS zooms the page when a field under 16px gets focus, so phone inputs stay at 16px. */
   .field input,
-  .field select,
   .input,
   .entry-title { font-size: 16px; }
 
@@ -1371,7 +1374,6 @@ kbd {
 /* Touch tablets get the same 16px inputs, since Safari zooms in on smaller fields at any width. */
 @media (pointer: coarse) {
   .field input,
-  .field select,
   .input,
   .entry-title,
   .home-search input { font-size: 16px; }
