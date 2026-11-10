@@ -21,9 +21,21 @@ export function kindLabel(id) {
   return KIND_LABELS.get(id) ?? id;
 }
 
+/**
+ * The body without a first heading that repeats the entry's title. Cards and
+ * postcards already show the title, so the preview starts with the text.
+ */
+function bodyAfterTitle(entry) {
+  const body = String(entry.body ?? '');
+  const match = /^\s*#{1,3}[ \t]+([^\n]*)\n?/.exec(body);
+  if (!match) return body;
+  const heading = match[1].trim().toLowerCase();
+  return heading && heading === displayTitle(entry).trim().toLowerCase() ? body.slice(match[0].length) : body;
+}
+
 /** Plain-text preview of the body, cut at a word boundary when it runs long. */
 export function excerptOf(entry, max = 200) {
-  const text = plainText(entry.body);
+  const text = plainText(bodyAfterTitle(entry));
   if (text.length <= max) return text;
   const cut = text.slice(0, max);
   const space = cut.lastIndexOf(' ');

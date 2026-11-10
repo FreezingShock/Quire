@@ -92,6 +92,8 @@ export class MixtapeView {
   }
 
   render() {
+    // An empty side is a slim strip with one line, so a new entry is not crowded by a blank cassette.
+    this.root.classList.toggle('is-empty', !this.tracks.length);
     const current = this.current();
     const index = this.tracks.findIndex((track) => track.id === this.currentId);
     const full = this.tracks.length >= MAX_TRACKS;
