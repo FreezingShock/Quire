@@ -1,17 +1,25 @@
 /**
  * The screensaver. After a set time with no input, Quire covers the window with
  * a Vista-style scene: Memories drifts drawings and On this day entries past,
- * and Aurora and Bubbles are abstract. Any movement, click, key, or scroll
- * returns to the page. With the passcode lock on, Memories shows Aurora instead,
- * so no entry drifts past, and waking locks Quire again.
+ * Aurora and Bubbles are abstract, and a custom screensaver shows what its maker
+ * picked. Any movement, click, scroll, or key returns to the page. With the
+ * passcode lock on, Memories shows Aurora instead and a custom screensaver shows
+ * only its background and message, so no entry drifts past, and waking locks
+ * Quire again.
  */
 
 import { el } from './dom.js';
 import { isBlankEntry, localISODate } from './model.js';
 import { onThisDay } from './journal.js';
 import { createScene } from './screensaver-scenes.js';
+import {
+  customIdOf,
+  customKind,
+  normalizeCustoms,
+  pickCustom,
+} from './screensaver-custom.js';
 
-/** The screensavers Options offers. 'off' means none. */
+/** The built-in screensavers Options offers. 'off' means none. */
 export const SCREENSAVERS = Object.freeze([
   { id: 'off', label: 'None' },
   { id: 'memories', label: 'Memories' },
@@ -24,13 +32,25 @@ export const MAX_IDLE_MINUTES = 60;
 const DEFAULT_IDLE_MINUTES = 5;
 const MEMORY_POOL = 24; // recent entries that can drift past, besides On this day
 const CHECK_MS = 1000;
+const PHOTO_LOAD_MS = 4000; // a photo that will not decode in this long is left out
 // Pointer movement smaller than this many pixels does not count, so a jittery desk does not wake the screen.
 const MOVE_SLOP_PX = 6;
 
-const IDS = new Set(SCREENSAVERS.map((item) => item.id));
+/** Every screensaver the picker offers: the built-ins, then the custom ones by name. */
+export function screensaverOptions(customs = []) {
+  return [
+    ...SCREENSAVERS,
+    ...normalizeCustoms(customs).map((config) => ({ id: customKind(config.id), label: config.name })),
+  ];
+}
 
-export function normalizeScreensaver(id) {
-  return IDS.has(id) ? id : 'off';
+/** A screensaver id that is built in, or a custom one that is saved. Anything else reads as off. */
+export function normalizeScreensaver(id, customs = []) {
+  const custom = customIdOf(id);
+  if (custom !== null) {
+    return normalizeCustoms(customs).some((config) => config.id === custom) ? id : 'off';
+  }
+  return SCREENSAVERS.some((item) => item.id === id) ? id : 'off';
 }
 
 export function normalizeIdleMinutes(value) {
@@ -42,8 +62,11 @@ export function normalizeIdleMinutes(value) {
 /**
  * The scene that actually plays. Memories shows entries, so it is replaced by
  * Aurora while the passcode lock is on, and when there is nothing to remember yet.
+ * A custom screensaver stays a custom screensaver: under the lock it shows its
+ * background and message only.
  */
 export function sceneFor(kind, { locked, hasMemories }) {
+  if (customIdOf(kind) !== null) return 'custom';
   if (kind === 'memories') return locked || !hasMemories ? 'aurora' : 'memories';
   return kind;
 }
@@ -86,6 +109,34 @@ function clamp(value, low, high) {
   return Math.min(high, Math.max(low, value));
 }
 
+/**
+ * Decodes each photo before the screensaver starts, so a card never waits on
+ * one. Photos that fail or take too long are left out.
+ */
+async function loadPhotos(items) {
+  const ready = [];
+  await Promise.all(items.map(async (item) => {
+    if (item.kind !== 'photo') {
+      ready.push(item);
+      return;
+    }
+    const img = new Image();
+    img.src = item.src;
+    try {
+      await Promise.race([
+        img.decode(),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('slow')), PHOTO_LOAD_MS)),
+      ]);
+      item.image = img;
+      ready.push(item);
+    } catch {
+      // A photo that will not load is skipped.
+    }
+  }));
+  // Keep the pick's order, so a shuffled pool stays shuffled.
+  return items.filter((item) => ready.includes(item));
+}
+
 /** Something else owns the screen: the lock, an open dialog, or the startup splash. The screensaver waits. */
 function somethingOwnsScreen() {
   return (
@@ -96,16 +147,18 @@ function somethingOwnsScreen() {
 }
 
 /**
- * Starts the idle watch and returns { preview(), stop() }. `getPrefs()` returns
- * the saved prefs, `getEntries()` loads the entries for Memories, `isLocked()`
- * says whether the passcode lock is on, and `onWake()` runs when a locked
- * screensaver is dismissed, so Quire locks again.
+ * Starts the idle watch and returns { preview(draft?, onEnd?), stop() }.
+ * `getPrefs()` returns the saved prefs. `getEntries({ photos })` loads the
+ * entries, with their pictures when `photos` is true. `isLocked()` says whether
+ * the passcode lock is on. `onWake()` runs when a locked screensaver is
+ * dismissed, so Quire locks again.
  */
 export function startScreensaver({ getPrefs, getEntries, isLocked, onWake, now = () => Date.now() }) {
   let lastActivity = now();
   let showing = false;
   let session = 0; // bumps on every show and dismiss, so a slow load never shows a stale scene
   let teardown = null;
+  let afterDismiss = null;
   let swallowClick = false;
 
   const touch = () => {
@@ -145,25 +198,47 @@ export function startScreensaver({ getPrefs, getEntries, isLocked, onWake, now =
     lastActivity = now();
     // A locked Quire wakes to the passcode, not to the entries.
     if (isLocked()) onWake?.();
+    const after = afterDismiss;
+    afterDismiss = null;
+    after?.();
   }
 
-  async function show(kind) {
+  /** Shows `kind`. `config` is a custom screensaver's settings, which may be an unsaved draft. */
+  async function show(kind, { config = null, onEnd = null } = {}) {
     if (showing) return;
     showing = true;
+    afterDismiss = onEnd;
     const mine = ++session;
     const locked = Boolean(isLocked());
+    const customs = normalizeCustoms(getPrefs().screensavers);
+    const custom = customIdOf(kind) !== null ? (config ?? customs.find((item) => customKind(item.id) === kind) ?? null) : null;
+    if (customIdOf(kind) !== null && !custom) {
+      // A custom screensaver that was deleted while it was picked. Show the Memories instead.
+      kind = 'memories';
+    }
+
+    // Entries are read only when they can be shown. Under the lock, a custom screensaver shows nothing from them.
+    const wantsPhotos = Boolean(custom?.items.photos);
+    const needsEntries = !locked && (kind === 'memories' || Boolean(custom));
     let entries = [];
-    if (kind === 'memories' && !locked) {
+    if (needsEntries) {
       try {
-        entries = await getEntries();
+        entries = await getEntries({ photos: wantsPhotos });
       } catch {
         entries = [];
       }
     }
     if (mine !== session || !showing) return;
 
-    const pool = pickMemories(entries, localISODate());
-    const scene = sceneFor(kind, { locked, hasMemories: pool.list.length > 0 });
+    let list = [];
+    if (custom) {
+      list = locked ? [] : await loadPhotos(pickCustom(entries, custom));
+    } else if (kind === 'memories') {
+      list = pickMemories(entries, localISODate()).list;
+    }
+    if (mine !== session || !showing) return;
+
+    const scene = sceneFor(kind, { locked, hasMemories: list.length > 0 });
     const root = el('div', {
       class: 'screensaver',
       role: 'dialog',
@@ -176,7 +251,7 @@ export function startScreensaver({ getPrefs, getEntries, isLocked, onWake, now =
     requestAnimationFrame(() => root.classList.add('is-on'));
 
     const reduceMotion = Boolean(window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) || getPrefs().motion === false;
-    const painter = createScene(scene, { canvas, memories: pool.list, reduceMotion });
+    const painter = createScene(scene, { canvas, memories: list, config: custom, reduceMotion });
     const size = () => {
       const dpr = Math.min(2, window.devicePixelRatio || 1);
       painter.resize(window.innerWidth, window.innerHeight, dpr);
@@ -223,7 +298,7 @@ export function startScreensaver({ getPrefs, getEntries, isLocked, onWake, now =
   const timer = setInterval(() => {
     if (showing) return;
     const prefs = getPrefs();
-    const kind = normalizeScreensaver(prefs.screensaver);
+    const kind = normalizeScreensaver(prefs.screensaver, prefs.screensavers);
     if (kind === 'off' || document.hidden || somethingOwnsScreen()) return;
     if (idleReached(now(), lastActivity, normalizeIdleMinutes(prefs.screensaverMinutes))) {
       void show(kind);
@@ -231,10 +306,19 @@ export function startScreensaver({ getPrefs, getEntries, isLocked, onWake, now =
   }, CHECK_MS);
 
   return {
-    /** Options > Preview. Shows the chosen scene now, or Memories when the screensaver is set to None. */
-    preview() {
-      const kind = normalizeScreensaver(getPrefs().screensaver);
-      void show(kind === 'off' ? 'memories' : kind);
+    /**
+     * Options > Preview, and the custom screensaver editor's Preview. With a
+     * `draft`, that unsaved custom screensaver is shown. `onEnd` runs when the
+     * preview is dismissed, so the editor can open again.
+     */
+    preview(draft = null, onEnd = null) {
+      if (draft) {
+        void show(customKind(draft.id), { config: draft, onEnd });
+        return;
+      }
+      const prefs = getPrefs();
+      const kind = normalizeScreensaver(prefs.screensaver, prefs.screensavers);
+      void show(kind === 'off' ? 'memories' : kind, { onEnd });
     },
     stop() {
       clearInterval(timer);

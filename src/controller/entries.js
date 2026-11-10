@@ -1,6 +1,6 @@
 /** Entry actions for the Quire controller: opening, creating, patching, moving, and deleting entries. Mixed into QuireApp. */
 
-import { contentKey } from './helpers.js';
+import { contentKey, paintSheet } from './helpers.js';
 import { entryRoute } from './routes.js';
 import { confirmDialog, entriesDialog, notebookDialog } from '../dialogs.js';
 import { Drawing, normalizeLayers } from '../drawing.js';
@@ -15,6 +15,7 @@ import {
 import { isHidden, redactSealed, capsuleStatus, unsealedEntry } from '../capsule.js';
 import { unsealAnimation } from '../capsule-ui.js';
 import { playSound } from '../sound.js';
+import { pickRandomMemory } from '../memories.js';
 
 export const entryMethods = {
   // ---------- entries ----------
@@ -63,7 +64,7 @@ export const entryMethods = {
     this.selection = new Set();
     this.lifted = null;
     this.index = null;
-    this.dom.sheet.style.backgroundColor = next.pageColor;
+    paintSheet(this.dom.sheet, next.pageColor);
     this.lastSurface = 'text';
     this.setView('editor');
     this.writeRoute(entryRoute(id), mode);
@@ -98,6 +99,17 @@ export const entryMethods = {
     const existing = todaysJournal(open, today);
     if (existing) await this.openEntry(existing.id);
     else await this.newEntry({ date: today, kind: 'journal', body: prompt ? `> ${prompt}\n\n` : '' });
+  },
+
+  /** Opens one past entry at random. Sealed capsules, the sample and blank entries are never picked. */
+  async randomMemory() {
+    await this.persist();
+    const pick = pickRandomMemory(await this.store.list(), localISODate());
+    if (!pick) {
+      this.showStatus('Write a few entries first. Random memory picks from them.');
+      return;
+    }
+    await this.openEntry(pick.id);
   },
 
   showEntries() {

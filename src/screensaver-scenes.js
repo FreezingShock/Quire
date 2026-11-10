@@ -1,13 +1,15 @@
 /**
- * The scenes the screensaver paints on a canvas: Aurora, Bubbles, and Memories.
- * Each scene is created with `createScene(kind, { canvas, memories, reduceMotion })`
- * and returns `{ resize(width, height, dpr), frame(dt) }`, which screensaver.js
- * drives from one animation loop. Nothing here reads the page or the store.
+ * The scenes the screensaver paints on a canvas: Aurora, Bubbles, Memories, and
+ * custom screensavers. Each scene is created with
+ * `createScene(kind, { canvas, memories, config, reduceMotion })` and returns
+ * `{ resize(width, height, dpr), frame(dt) }`, which screensaver.js drives from
+ * one animation loop. Nothing here reads the page or the store.
  */
 
 import { paintInk, NORM_WIDTH } from './drawing.js';
 import { plainText } from './markdown.js';
 import { displayTitle, formatLongDate } from './model.js';
+import { speedFactor } from './screensaver-custom.js';
 
 const SERIF = "Georgia, 'Times New Roman', serif";
 const SANS = "'Segoe UI', system-ui, -apple-system, sans-serif";
@@ -211,11 +213,14 @@ function createBubbles(canvas, pace) {
   };
 }
 
-// ---------- Memories ----------
+// ---------- Cards and backgrounds (Memories and custom screensavers) ----------
 
-/** The card face for one memory: a paper print with the drawing, or the text on ruled paper. Drawn once and cached. */
+const INTRO_S = 0.9; // seconds a card takes to arrive, for the slide and zoom transitions
+
+/** The card face for one item: a paper print with a drawing or photo, or writing on ruled paper. Drawn once and cached. */
 function renderCard(memory, dpr) {
   const { entry, yearsAgo, otd } = memory;
+  const kind = memory.kind ?? (entry.ink?.ops?.length > 0 ? 'drawing' : 'text');
   const canvas = document.createElement('canvas');
   canvas.width = Math.round(CARD_W * dpr);
   canvas.height = Math.round(CARD_H * dpr);
@@ -255,7 +260,24 @@ function renderCard(memory, dpr) {
   const title = displayTitle(entry);
   ctx.textBaseline = 'alphabetic';
 
-  if (entry.ink?.ops?.length > 0) {
+  if (kind === 'photo' && memory.image?.naturalWidth) {
+    // A photo fills the picture area, cropped to cover it.
+    const img = memory.image;
+    const scale = Math.max(INK_W / img.naturalWidth, INK_H / img.naturalHeight);
+    const sw = INK_W / scale;
+    const sh = INK_H / scale;
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(INK_X, INK_Y, INK_W, INK_H);
+    ctx.clip();
+    ctx.drawImage(img, (img.naturalWidth - sw) / 2, (img.naturalHeight - sh) / 2, sw, sh, INK_X, INK_Y, INK_W, INK_H);
+    ctx.restore();
+    ctx.strokeStyle = 'rgba(0, 0, 0, 0.12)';
+    ctx.strokeRect(INK_X + 0.5, INK_Y + 0.5, INK_W - 1, INK_H - 1);
+    ctx.fillStyle = '#1b2430';
+    ctx.font = `600 12.5px ${SERIF}`;
+    ctx.fillText(fit(ctx, title, INK_W), INK_X, INK_Y + INK_H + 18);
+  } else if (kind === 'drawing') {
     // Drawings sit on the paper at their true width, cropped to the top of the page.
     const ink = document.createElement('canvas');
     ink.width = Math.round(INK_W * dpr);
@@ -271,7 +293,7 @@ function renderCard(memory, dpr) {
     ctx.font = `600 12.5px ${SERIF}`;
     ctx.fillText(fit(ctx, title, INK_W), INK_X, INK_Y + INK_H + 18);
   } else {
-    // Writing with no drawing: the title and the start of the text on ruled notepaper.
+    // Writing: the title and the start of the text on ruled notepaper.
     // Every line of text sits on one ruled row, so the words never cross a rule.
     const row = (k) => INK_Y + 22 + k * 18;
     ctx.strokeStyle = 'rgba(95, 127, 166, 0.22)';
@@ -304,23 +326,97 @@ function renderCard(memory, dpr) {
   return canvas;
 }
 
-function createMemories(canvas, memories, pace) {
+/** Paints one of the card backgrounds. 'aurora' is painted by its own scene instead. */
+function paintBackground(ctx, w, h, kind, color) {
+  if (kind === 'black') {
+    ctx.fillStyle = '#000000';
+    ctx.fillRect(0, 0, w, h);
+    return;
+  }
+  if (kind === 'midnight') {
+    const bg = ctx.createLinearGradient(0, 0, 0, h);
+    bg.addColorStop(0, '#050a1f');
+    bg.addColorStop(1, '#14264a');
+    ctx.fillStyle = bg;
+    ctx.fillRect(0, 0, w, h);
+    return;
+  }
+  if (kind === 'solid') {
+    ctx.fillStyle = color;
+    ctx.fillRect(0, 0, w, h);
+    const shade = ctx.createLinearGradient(0, 0, 0, h);
+    shade.addColorStop(0, 'rgba(0, 0, 0, 0)');
+    shade.addColorStop(1, 'rgba(0, 0, 0, 0.5)');
+    ctx.fillStyle = shade;
+    ctx.fillRect(0, 0, w, h);
+    return;
+  }
+  // The Vista blue, lit faintly from the top.
+  const bg = ctx.createLinearGradient(0, 0, 0, h);
+  bg.addColorStop(0, '#0d3266');
+  bg.addColorStop(1, '#041633');
+  ctx.fillStyle = bg;
+  ctx.fillRect(0, 0, w, h);
+  const glow = ctx.createRadialGradient(w / 2, 0, 0, w / 2, 0, Math.max(w, h) * 0.7);
+  glow.addColorStop(0, 'rgba(120, 180, 255, 0.18)');
+  glow.addColorStop(1, 'rgba(120, 180, 255, 0)');
+  ctx.fillStyle = glow;
+  ctx.fillRect(0, 0, w, h);
+}
+
+/**
+ * The 3D text marquee: the message scrolls right to left in a raised, extruded
+ * face, like the Vista 3D Text screensaver. `time` is seconds of animation.
+ */
+function paintMarquee(ctx, text, w, h, time, scale) {
+  const size = clamp(h * 0.13, 28, 130) * clamp(scale, 0.7, 1.4);
+  ctx.font = `800 ${size}px ${SANS}`;
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'alphabetic';
+  const width = ctx.measureText(text).width;
+  const span = width + w;
+  const x = w - ((time * 70 * scale) % span);
+  const y = h * 0.5 + size * 0.35 + Math.sin(time * 0.9) * size * 0.08;
+  const depth = Math.max(4, Math.round(size * 0.12));
+  // The sides of the letters, drawn behind the face to give it depth.
+  ctx.fillStyle = '#0a2a6b';
+  for (let d = depth; d >= 1; d--) ctx.fillText(text, x + d * 0.8, y + d * 0.8);
+  // The face: white at the top, fading to pale blue.
+  const face = ctx.createLinearGradient(0, y - size, 0, y);
+  face.addColorStop(0, '#ffffff');
+  face.addColorStop(1, '#8fd0ff');
+  ctx.fillStyle = face;
+  ctx.fillText(text, x, y);
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.6)';
+  ctx.lineWidth = 1;
+  ctx.strokeText(text, x, y);
+}
+
+/**
+ * A field of paper cards drifting over a background, with an optional 3D text
+ * message. `items` are the cards to draw (see pickMemories and pickCustom); with
+ * none, only the background and message are drawn. `opts` holds the pace,
+ * the transition for new cards, the background, its color, and the message.
+ */
+function createCardField(canvas, items, { pace, transition = 'fade', background = 'vista', color = '#0b2a57', message = '' }) {
   const s = surface(canvas);
   const images = new Map();
+  const aurora = background === 'aurora' ? createAurora(canvas, pace) : null;
   let cards = [];
   let cursor = 0;
   let scale = 1;
+  let time = 0;
 
   const imageFor = (memory) => {
-    const key = `${memory.entry.id}:${memory.otd ? memory.yearsAgo : 0}`;
+    const key = `${memory.kind ?? ''}:${memory.entry.id}:${memory.otd ? memory.yearsAgo : 0}`;
     if (!images.has(key)) images.set(key, renderCard(memory, s.view.dpr));
     return images.get(key);
   };
 
-  /** Gives a card the next memory, with a fresh place, drift, and lifetime. `anywhere` lets it start anywhere on screen. */
+  /** Gives a card the next item, with a fresh place, drift, and lifetime. `anywhere` lets it start anywhere on screen. */
   const respawn = (card, anywhere) => {
     const { w, h } = s.view;
-    const memory = memories[cursor % memories.length];
+    const memory = items[cursor % items.length];
     cursor += 1;
     const cw = CARD_W * scale;
     const ch = CARD_H * scale;
@@ -333,14 +429,16 @@ function createMemories(canvas, memories, pace) {
     card.vr = rand(-0.012, 0.012) * pace;
     card.life = 0;
     card.total = rand(10, 16);
+    card.intro = anywhere ? 1 : 0; // cards already on screen at the start do not slide or zoom in
   };
 
   return {
     resize(w, h, dpr) {
       s.resize(w, h, dpr);
+      aurora?.resize(w, h, dpr);
       scale = clamp(Math.min(w, h) / 640, 0.6, 1.6);
-      // Enough cards to fill the window without crowding it.
-      const count = clamp(Math.round((w * h) / (CARD_W * scale * CARD_H * scale * 3.2)), 2, 9);
+      // Enough cards to fill the window without crowding it. None when there are no items.
+      const count = items.length ? clamp(Math.round((w * h) / (CARD_W * scale * CARD_H * scale * 3.2)), 2, 9) : 0;
       while (cards.length < count) {
         const card = {};
         respawn(card, true);
@@ -349,53 +447,71 @@ function createMemories(canvas, memories, pace) {
       cards.length = count;
     },
     frame(dt) {
+      time += dt * pace;
       s.begin();
       const { ctx, view } = s;
       const { w, h } = view;
-      // A deep Vista-blue backdrop, lit faintly from the top.
-      const bg = ctx.createLinearGradient(0, 0, 0, h);
-      bg.addColorStop(0, '#0d3266');
-      bg.addColorStop(1, '#041633');
-      ctx.fillStyle = bg;
-      ctx.fillRect(0, 0, w, h);
-      const glow = ctx.createRadialGradient(w / 2, 0, 0, w / 2, 0, Math.max(w, h) * 0.7);
-      glow.addColorStop(0, 'rgba(120, 180, 255, 0.18)');
-      glow.addColorStop(1, 'rgba(120, 180, 255, 0)');
-      ctx.fillStyle = glow;
-      ctx.fillRect(0, 0, w, h);
+      if (aurora) aurora.frame(dt);
+      else paintBackground(ctx, w, h, background, color);
 
       const cw = CARD_W * scale;
       const ch = CARD_H * scale;
       for (const card of cards) {
         card.life += dt * pace;
         if (card.life >= card.total) respawn(card, false);
+        card.intro = Math.min(1, card.intro + (dt * pace) / INTRO_S);
         card.x += card.vx * dt;
         card.y += card.vy * dt;
         card.rot += card.vr * dt;
         // Each card fades in and out at the ends of its life.
         const alpha = clamp(Math.min(card.life / 1.2, (card.total - card.life) / 1.2), 0, 1);
+        // The transition eases a new card in: it slides from the right, or grows from half size.
+        const ease = 1 - (1 - card.intro) ** 3;
+        const dx = transition === 'slide' ? (1 - ease) * w * 0.35 : 0;
+        const grow = transition === 'zoom' ? 0.5 + 0.5 * ease : 1;
         ctx.save();
         ctx.globalAlpha = alpha;
         ctx.shadowColor = 'rgba(0, 0, 0, 0.45)';
         ctx.shadowBlur = 16 * scale;
         ctx.shadowOffsetY = 6 * scale;
-        ctx.translate(card.x + cw / 2, card.y + ch / 2);
+        ctx.translate(card.x + cw / 2 + dx, card.y + ch / 2);
         ctx.rotate(card.rot);
+        ctx.scale(grow, grow);
         ctx.drawImage(card.image, -cw / 2, -ch / 2, cw, ch);
+        ctx.restore();
+      }
+
+      if (message) {
+        ctx.save();
+        paintMarquee(ctx, message, w, h, time, scale);
         ctx.restore();
       }
     },
   };
 }
 
+function createMemories(canvas, memories, pace) {
+  return createCardField(canvas, memories, { pace, transition: 'fade', background: 'vista' });
+}
+
 /**
- * Builds a scene of `kind` ('aurora', 'bubbles', or 'memories') on `canvas`.
- * `memories` is the list from pickMemories(), and must not be empty for 'memories'.
- * `reduceMotion` slows every scene to a third of its pace.
+ * Builds a scene of `kind` on `canvas`: 'aurora', 'bubbles', 'memories', or
+ * 'custom'. `memories` is the pick for Memories, and for a custom screensaver
+ * it is the pick from pickCustom (empty while the lock is on). `config` is the
+ * custom screensaver's settings. `reduceMotion` slows every scene to a third.
  */
-export function createScene(kind, { canvas, memories = [], reduceMotion = false }) {
+export function createScene(kind, { canvas, memories = [], config = null, reduceMotion = false }) {
   const pace = reduceMotion ? 0.35 : 1;
   if (kind === 'bubbles') return createBubbles(canvas, pace);
+  if (kind === 'custom' && config) {
+    return createCardField(canvas, memories, {
+      pace: speedFactor(config) * pace,
+      transition: config.transition,
+      background: config.background,
+      color: config.color,
+      message: config.message,
+    });
+  }
   if (kind === 'memories' && memories.length) return createMemories(canvas, memories, pace);
   return createAurora(canvas, pace);
 }

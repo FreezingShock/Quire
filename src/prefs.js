@@ -21,6 +21,8 @@ const DEFAULTS = Object.freeze({
   // The Vista-style sidebar of gadgets beside the dashboard, and the gadgets it shows, in order.
   showGadgets: true,
   gadgets: ['clock', 'streak', 'mood', 'word', 'note', 'slides'],
+  // Saved searches in the entries sidebar: { id, name, query, filter } (see savedsearches.js).
+  savedSearches: [],
   // Getting-started tips on the dashboard. "Got it" sets this. Options (Home tab) brings them back.
   tipsDismissed: false,
   // The first-run sample entry is written once. Deleting it does not bring it back.
@@ -43,6 +45,8 @@ const DEFAULTS = Object.freeze({
   // Screensaver (see screensaver.js): the scene, or 'off', and the idle minutes before it starts.
   screensaver: 'off',
   screensaverMinutes: 5,
+  // Custom screensavers made in the editor (see screensaver-custom.js), up to six.
+  screensavers: [],
 });
 
 export function loadPrefs() {
