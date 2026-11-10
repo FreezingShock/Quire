@@ -110,6 +110,33 @@ test('startup reads the library once and is ready within budget', async (t) => {
   assert.deepEqual(page.errors, [], 'the page logged errors');
 });
 
+test('a drawing with 20,000 ops replays its ink on open, without errors', async (t) => {
+  const page = await seededPage(t);
+  await page.evaluate(async () => {
+    const storage = await import('/src/storage.js');
+    const model = await import('/src/model.js');
+    const store = await storage.createLocalStore();
+    store.setCipher(null);
+    const rnd = ((seed) => () => (seed = (seed * 16807) % 2147483647) / 2147483647)(7);
+    const ops = [];
+    for (let k = 0; k < 20000; k++) {
+      const x = rnd() * 1000;
+      const y = rnd() * 1250;
+      ops.push({ t: 'stroke', id: `big-${k}`, l: 'base', tool: 'pen', c: '#1b1b1b', w: 2, p: Array.from({ length: 12 }, (_, j) => [x + j * 2, y + Math.cos(j) * 9]) });
+    }
+    await store.save(model.createEntry({ id: 'big-drawing', title: 'Big drawing', date: '2024-05-01', body: 'Many strokes.', ink: { ops, h: 1250 } }));
+  });
+  await page.goto(`${BASE}#/entry/big-drawing`, { waitUntil: 'load' });
+  await page.waitForFunction(() => performance.getEntriesByName('quire:ink-ready').length > 0, null, { timeout: 30000 });
+  const replay = await page.evaluate(() =>
+    performance.getEntriesByName('quire:ink-ready')[0].startTime - performance.getEntriesByName('quire:ink-start')[0].startTime,
+  );
+  t.diagnostic(`replaying 20,000 ops took ${Math.round(replay)} ms`);
+  // Generous on purpose: this catches a replay that fails or stalls, not a small slowdown. The pixels are checked in tests/ink-replay.test.js.
+  assert.ok(replay < 1500, `the replay took ${Math.round(replay)} ms`);
+  assert.deepEqual(page.errors, [], 'the page logged errors');
+});
+
 test('the startup splash clears as soon as the library is ready', async (t) => {
   const page = await seededPage(t, undefined, { splash: true });
   await openHome(page);

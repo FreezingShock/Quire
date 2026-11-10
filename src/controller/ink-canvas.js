@@ -21,6 +21,7 @@ import {
 import { DEFAULT_PAGE_COLOR } from '../model.js';
 import { shapeEnd, snapToGrid } from '../snap.js';
 import { POINTER_TOOLS, SHAPE_TOOLS } from '../tools.js';
+import { mark } from '../perf.js';
 
 /** The ink color a dark default page shows. Stored colors never change; only what is drawn on screen does. */
 const DARK_PAGE_INK = '#e3eaf5';
@@ -50,7 +51,11 @@ export const inkCanvasMethods = {
 
   /** A stand-in for the layer stack that draws each op as it should look on screen. */
   screenStack() {
-    return { apply: (op, scale) => this.stack.apply(this.onScreen(op), scale) };
+    return {
+      apply: (op, scale) => this.stack.apply(this.onScreen(op), scale),
+      // Runs of pen strokes share a color, so mapping each op the same way keeps the run's color.
+      applyPenRun: (layer, ops, scale) => this.stack.applyPenRun(layer, ops.map((op) => this.onScreen(op)), scale),
+    };
   },
 
   requestSync() {
@@ -92,8 +97,10 @@ export const inkCanvasMethods = {
     if (!this.stack) return;
     this.stack.setLayers(this.layers.map((layer) => layer.id));
     this.stack.reset();
+    mark('quire:ink-start');
     replayInk(this.screenStack(), this.drawing.ops, this.scale, this.lifted?.ids ?? null);
     this.stack.composite(this.baseCtx, visibleLayerIds(this.layers));
+    mark('quire:ink-ready');
     this.redraw();
   },
 
