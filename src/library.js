@@ -185,6 +185,17 @@ export function countByNotebook(entries) {
     .map(([name, count]) => ({ name, count }));
 }
 
+/**
+ * The notebook name to store for one typed by hand. Whitespace is tidied, and a
+ * name that matches an existing notebook ignoring case becomes that notebook, so
+ * "work" and "Work" stay one notebook. Empty input gives ''.
+ */
+export function resolveNotebookName(typed, notebooks = []) {
+  const name = String(typed ?? '').trim().replace(/\s+/g, ' ');
+  if (!name) return '';
+  return notebooks.find((known) => known.toLowerCase() === name.toLowerCase()) ?? name;
+}
+
 /** { journal: 3, poem: 0, ... } for every kind, including empty ones. */
 export function countByKind(entries) {
   const counts = Object.fromEntries(KINDS.map((kind) => [kind.id, 0]));

@@ -384,3 +384,210 @@ test('the chosen skin is kept after a reload', async () => {
     await page.close();
   }
 });
+
+// ---------- second pass: notebooks, command palette, focus mode, sidebar gadgets ----------
+
+/** Goes back to the entries list from the editor, through the brand link. */
+async function goHome(page) {
+  await page.click('.brand');
+  await page.waitForFunction(() => document.querySelector('.app')?.dataset.view === 'home');
+}
+
+/** Moves the open entry into a notebook through File > Move to notebook. */
+async function moveOpenEntryTo(page, { existing = null, typed = null }) {
+  await page.click('.menu-title:has-text("File")');
+  await page.click('.menu-item:has-text("Move to notebook")');
+  const dialog = page.locator('dialog[open]');
+  await dialog.waitFor();
+  if (typed !== null) {
+    await dialog.locator('select').selectOption('__new__');
+    await dialog.locator('input').fill(typed);
+  } else {
+    await dialog.locator('select').selectOption(existing);
+  }
+  await dialog.locator('button[type="submit"]').click();
+  await page.waitForSelector('dialog[open]', { state: 'detached' });
+}
+
+/** The sidebar row for a notebook, found by its name. */
+function notebookRow(page, name) {
+  return page.locator('.home-nav .nav-item', { hasText: name });
+}
+
+test('a notebook typed in the Move dialog lists once, even when the case differs', async () => {
+  const page = await freshPage();
+  try {
+    await openQuire(page);
+    await newEntry(page);
+    await renameEntry(page, 'Quarterly plan');
+    await waitForSaved(page);
+    await moveOpenEntryTo(page, { typed: 'Work' });
+    await goHome(page);
+    assert.equal(await notebookRow(page, 'Work').count(), 1);
+
+    await newEntry(page);
+    await renameEntry(page, 'Standup notes');
+    await waitForSaved(page);
+    await moveOpenEntryTo(page, { typed: 'work' });
+    await goHome(page);
+    assert.equal(await page.locator('.home-nav .nav-item', { hasText: /work/i }).count(), 1, 'one notebook, not two');
+    assert.match(await notebookRow(page, 'Work').innerText(), /2/, 'the notebook holds both entries');
+    expectNoErrors(page);
+  } finally {
+    await page.close();
+  }
+});
+
+test('the command palette opens an entry by its title', async () => {
+  const page = await freshPage();
+  try {
+    await openQuire(page);
+    await newEntry(page);
+    await renameEntry(page, 'Harbor notes');
+    await waitForSaved(page);
+    await goHome(page);
+    await page.keyboard.press('Control+k');
+    await page.waitForSelector('.palette-option');
+    await page.keyboard.type('harbor');
+    await page.keyboard.press('Enter');
+    await page.waitForFunction(() => document.querySelector('.app')?.dataset.view === 'editor');
+    assert.equal((await page.textContent('#window-title')).trim(), 'Harbor notes');
+    expectNoErrors(page);
+  } finally {
+    await page.close();
+  }
+});
+
+test('the command palette runs a command on Enter, and Escape closes it without running anything', async () => {
+  const page = await freshPage();
+  try {
+    await openQuire(page);
+    const before = await page.locator('.home-nav .nav-item', { hasText: /^All entries/ }).innerText();
+    await page.keyboard.press('Control+k');
+    await page.waitForSelector('.palette-option');
+    await page.keyboard.type('new entry');
+    await page.keyboard.press('Escape');
+    assert.equal(await page.getAttribute('.app', 'data-view'), 'home', 'Escape leaves the list alone');
+    assert.equal(await page.locator('dialog[open]').count(), 0);
+
+    await page.keyboard.press('Control+k');
+    await page.waitForSelector('.palette-option');
+    await page.keyboard.type('new entry');
+    await page.keyboard.press('Enter');
+    await page.waitForFunction(() => document.querySelector('.app')?.dataset.view === 'editor');
+    assert.notEqual(await page.locator('.home-nav .nav-item', { hasText: /^All entries/ }).innerText(), before);
+    expectNoErrors(page);
+  } finally {
+    await page.close();
+  }
+});
+
+test('the command palette says when nothing matches', async () => {
+  const page = await freshPage();
+  try {
+    await openQuire(page);
+    await page.keyboard.press('Control+k');
+    await page.waitForSelector('.palette-option');
+    await page.keyboard.type('zzqxvj');
+    assert.equal(await page.locator('.palette-option').count(), 0);
+    assert.equal(await page.locator('.palette-empty').isHidden(), false);
+    expectNoErrors(page);
+  } finally {
+    await page.close();
+  }
+});
+
+test('focus mode hides the chrome, reaches the word goal, and exits on Escape', async () => {
+  const page = await freshPage();
+  try {
+    await openQuire(page);
+    await page.evaluate(() => {
+      const prefs = JSON.parse(localStorage.getItem('quire:prefs') ?? '{}');
+      localStorage.setItem('quire:prefs', JSON.stringify({ ...prefs, wordGoal: 3 }));
+    });
+    await page.reload({ waitUntil: 'load' });
+    await page.waitForSelector('#splash', { state: 'detached', timeout: 15000 });
+    await newEntry(page);
+    await page.keyboard.press('F11');
+    assert.equal(await page.getAttribute('html', 'data-focus'), 'on');
+    assert.equal(await page.isVisible('#menubar'), false, 'the menus are hidden');
+
+    await page.click('#editor');
+    await page.keyboard.type('one two three');
+    await page.waitForFunction(() => /Goal reached/.test(document.querySelector('#focus-count')?.textContent ?? ''));
+
+    await page.keyboard.press('Escape');
+    assert.equal(await page.getAttribute('html', 'data-focus'), 'off');
+    assert.equal(await page.isVisible('#menubar'), true, 'the menus come back');
+    expectNoErrors(page);
+  } finally {
+    await page.close();
+  }
+});
+
+test('a sticky note keeps its text after a reload', async () => {
+  const page = await freshPage();
+  try {
+    await openQuire(page);
+    await page.getByRole('button', { name: 'Dashboard view', exact: true }).click();
+    await page.fill('textarea[aria-label="Sticky note"]', 'Pick up the dry cleaning');
+    await page.waitForTimeout(400);
+    await page.reload({ waitUntil: 'load' });
+    await page.waitForSelector('#splash', { state: 'detached', timeout: 15000 });
+    await page.getByRole('button', { name: 'Dashboard view', exact: true }).click();
+    assert.equal(await page.inputValue('textarea[aria-label="Sticky note"]'), 'Pick up the dry cleaning');
+    expectNoErrors(page);
+  } finally {
+    await page.close();
+  }
+});
+
+test('a removed sidebar gadget stays off after a reload and comes back from Add gadget', async () => {
+  const page = await freshPage();
+  try {
+    await openQuire(page);
+    await page.getByRole('button', { name: 'Dashboard view', exact: true }).click();
+    await page.click('button[aria-label="Remove Sticky note"]');
+    assert.equal(await page.locator('[data-gadget-id="note"]').count(), 0);
+
+    await page.reload({ waitUntil: 'load' });
+    await page.waitForSelector('#splash', { state: 'detached', timeout: 15000 });
+    await page.getByRole('button', { name: 'Dashboard view', exact: true }).click();
+    assert.equal(await page.locator('[data-gadget-id="note"]').count(), 0, 'still removed after a reload');
+
+    await page.getByRole('button', { name: /Add gadget/ }).first().click();
+    await page.click('.gadget-add-item:has-text("Sticky note")');
+    assert.equal(await page.locator('[data-gadget-id="note"]').count(), 1, 'back on the sidebar');
+    expectNoErrors(page);
+  } finally {
+    await page.close();
+  }
+});
+
+test('moving the last entry out of a notebook returns the list to All entries', async () => {
+  const page = await freshPage();
+  try {
+    await openQuire(page);
+    await newEntry(page);
+    await renameEntry(page, 'Lone entry');
+    await waitForSaved(page);
+    await moveOpenEntryTo(page, { typed: 'Lab' });
+    await goHome(page);
+    await notebookRow(page, 'Lab').click();
+    assert.equal((await page.textContent('.home-crumb-current')).trim(), 'Lab');
+
+    await page.keyboard.press('Control+k');
+    await page.waitForSelector('.palette-option');
+    await page.keyboard.type('lone entry');
+    await page.keyboard.press('Enter');
+    await page.waitForFunction(() => document.querySelector('.app')?.dataset.view === 'editor');
+    await moveOpenEntryTo(page, { existing: '' });
+    await goHome(page);
+
+    assert.equal((await page.textContent('.home-crumb-current')).trim(), 'All entries', 'the filter does not stay on an empty notebook');
+    assert.equal(await notebookRow(page, 'Lab').count(), 0);
+    expectNoErrors(page);
+  } finally {
+    await page.close();
+  }
+});
