@@ -1,0 +1,910 @@
+/**
+ * Quire application controller. It wires the UI to the entry store, the drawing
+ * layer, and the text editor. Text lives in a textarea (Markdown source) and
+ * ink lives in a canvas laid over the sheet. The canvas has two layers: a base
+ * canvas with every committed op, and the display canvas, which adds the stroke
+ * in progress.
+ */
+
+import { createLocalStore } from './storage.js';
+import {
+  DEFAULT_PAGE_COLOR,
+  createEntry,
+  displayTitle,
+  formatLongDate,
+  isBlankEntry,
+  isISODate,
+  localISODate,
+  parseTags,
+} from './model.js';
+import { renderMarkdown, wordCount } from './markdown.js';
+import { Drawing, NORM_WIDTH, applyOp, inkExtent, paintOps, sampleColor, strokeWidth } from './drawing.js';
+import { FORMAT_BUTTONS, PALETTE, POINTER_TOOLS, SHAPE_TOOLS, STROKE_SIZES, TOOLS, TOOL_BY_KEY } from './tools.js';
+import {
+  colorEdit,
+  dividerEdit,
+  enterEdit,
+  insertEdit,
+  toggleBlockEdit,
+  wrapEdit,
+} from './textops.js';
+import { icon } from './icons.js';
+import { el } from './dom.js';
+import { loadPrefs, savePrefs } from './prefs.js';
+import {
+  downloadBlob,
+  exportDrawingPng,
+  exportMarkdown,
+  makeBackup,
+  parseBackup,
+  printEntry,
+} from './export.js';
+import { createMenuBar } from './menubar.js';
+import { confirmDialog, entriesDialog, showAbout, showShortcuts } from './dialogs.js';
+
+const SAVE_DELAY_MS = 400;
+const FONT_STACKS = {
+  serif: '"Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif',
+  sans: 'system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
+  mono: 'ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace',
+};
+const FONT_LABELS = { serif: 'Serif', sans: 'Sans', mono: 'Monospace' };
+
+const $ = (selector) => document.querySelector(selector);
+const prevent = (event) => event.preventDefault();
+
+function isTextTarget(node) {
+  return Boolean(node) && (node.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(node.tagName));
+}
+
+function formatTime(date) {
+  return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+}
+
+export class QuireApp {
+  constructor() {
+    this.dom = {
+      windowTitle: $('#window-title'),
+      saveStatus: $('#save-status'),
+      menubar: $('#menubar'),
+      title: $('#entry-title'),
+      date: $('#entry-date'),
+      kind: $('#entry-kind'),
+      tags: $('#entry-tags'),
+      sheet: $('#sheet'),
+      editor: $('#editor'),
+      reader: $('#reader'),
+      ink: $('#ink'),
+      toolbox: $('#toolbox'),
+      swatches: $('#swatches'),
+      inkChip: $('#ink-chip'),
+      hint: $('#hint'),
+      words: $('#status-words'),
+      mode: $('#status-mode'),
+      statusDate: $('#status-date'),
+    };
+    this.prefs = loadPrefs();
+    this.store = null;
+    this.entry = null;
+    this.drawing = new Drawing();
+    this.base = document.createElement('canvas');
+    this.baseCtx = this.base.getContext('2d');
+    this.inkCtx = this.dom.ink.getContext('2d');
+    this.scale = 1;
+    this.tool = 'write';
+    this.size = 3;
+    this.fg = PALETTE[0];
+    this.reading = false;
+    this.live = null;
+    this.pointerId = null;
+    this.lastSurface = 'text';
+    this.saveTimer = 0;
+    this.saveChain = Promise.resolve();
+    this.frame = 0;
+    this.syncFrame = 0;
+    this.menubar = null;
+  }
+
+  async start() {
+    this.applyPrefs();
+    this.buildToolbox();
+    this.buildSwatches();
+    this.buildMenus();
+    this.bindEvents();
+    this.setTool('write');
+    this.store = await createLocalStore();
+    if (this.store.kind === 'memory') {
+      this.showStatus('Browser storage is unavailable. Entries will not survive a reload.', true);
+    }
+    const entries = await this.store.list();
+    const target = entries.find((entry) => entry.id === this.prefs.lastEntryId) ?? entries[0];
+    if (target) await this.openEntry(target.id);
+    else await this.newEntry();
+  }
+
+  // ---------- preferences and chrome ----------
+
+  applyPrefs() {
+    const root = document.documentElement;
+    root.dataset.theme = this.prefs.dark ? 'dark' : 'light';
+    root.style.setProperty('--page-font', FONT_STACKS[this.prefs.font] ?? FONT_STACKS.serif);
+  }
+
+  setPref(patch) {
+    this.prefs = savePrefs(patch);
+    this.applyPrefs();
+    if (this.entry) this.fitEditor();
+    this.requestSync();
+  }
+
+  showStatus(text, isError = false) {
+    this.dom.saveStatus.textContent = text;
+    this.dom.saveStatus.classList.toggle('is-error', isError);
+  }
+
+  updateChrome() {
+    const title = displayTitle({ title: this.dom.title.value.trim(), body: this.dom.editor.value });
+    this.dom.windowTitle.textContent = title;
+    document.title = `${title} · Quire`;
+    this.dom.statusDate.textContent = this.entry ? formatLongDate(this.entry.date) : '';
+    this.dom.words.textContent = `${wordCount(this.dom.editor.value)} words`;
+  }
+
+  renderInkChip() {
+    this.dom.inkChip.style.setProperty('--fg', this.fg);
+    this.dom.inkChip.style.setProperty('--bg', this.entry?.pageColor ?? DEFAULT_PAGE_COLOR);
+  }
+
+  // ---------- building the UI ----------
+
+  toolButton(tool) {
+    const button = el('button', {
+      class: 'tool-btn',
+      type: 'button',
+      'data-tool-id': tool.id,
+      title: `${tool.label} (${tool.key})`,
+      'aria-label': tool.label,
+      'aria-pressed': 'false',
+      onMousedown: prevent,
+      onClick: () => this.setTool(tool.id),
+    });
+    button.innerHTML = icon(tool.icon);
+    return button;
+  }
+
+  buildToolbox() {
+    const tools = el('div', { class: 'tool-grid', role: 'group', 'aria-label': 'Tools' }, TOOLS.map((tool) => this.toolButton(tool)));
+    const sizes = el(
+      'div',
+      { class: 'size-row', role: 'radiogroup', 'aria-label': 'Stroke width' },
+      STROKE_SIZES.map((size) =>
+        el(
+          'button',
+          {
+            class: 'size-btn',
+            type: 'button',
+            role: 'radio',
+            'aria-label': `Stroke ${size}`,
+            'aria-checked': String(size === this.size),
+            'data-size': size,
+            onMousedown: prevent,
+            onClick: () => this.setSize(size),
+          },
+          el('span', { style: `height: ${size}px` }),
+        ),
+      ),
+    );
+    const format = el(
+      'div',
+      { class: 'format-grid', role: 'group', 'aria-label': 'Text formatting' },
+      FORMAT_BUTTONS.map((item) =>
+        el(
+          'button',
+          {
+            class: `format-btn ${item.cls ?? ''}`.trim(),
+            type: 'button',
+            title: item.label,
+            'aria-label': item.label,
+            onMousedown: prevent,
+            onClick: () => this.applyFormat(item.id),
+          },
+          item.text,
+        ),
+      ),
+    );
+    const read = el(
+      'button',
+      {
+        class: 'read-btn',
+        type: 'button',
+        'data-read': '',
+        'aria-pressed': 'false',
+        title: 'Read view',
+        onMousedown: prevent,
+        onClick: () => this.setReading(!this.reading),
+      },
+      'Read',
+    );
+    this.dom.toolbox.replaceChildren(tools, sizes, format, read);
+  }
+
+  buildSwatches() {
+    this.dom.swatches.replaceChildren(
+      ...PALETTE.map((hex) =>
+        el('button', {
+          class: 'swatch',
+          type: 'button',
+          title: `${hex}: click for ink, right-click for page color`,
+          'aria-label': `Color ${hex}`,
+          style: `background: ${hex}`,
+          onMousedown: prevent,
+          onClick: () => this.pickColor(hex),
+          onContextmenu: (event) => {
+            event.preventDefault();
+            this.setPageColor(hex);
+          },
+        }),
+      ),
+    );
+  }
+
+  buildMenus() {
+    const menus = [
+      {
+        label: 'File',
+        items: () => [
+          { label: 'New entry', shortcut: 'Ctrl+N', action: () => this.newEntry() },
+          { label: 'Open entry…', shortcut: 'Ctrl+O', action: () => this.showEntries() },
+          { label: 'Delete entry…', disabled: !this.entry, action: () => this.entry && this.deleteEntry(this.entry.id) },
+          'sep',
+          { label: 'Save now', shortcut: 'Ctrl+S', action: () => this.persist() },
+          { label: 'Export as Markdown…', shortcut: 'Ctrl+E', action: () => this.exportMarkdown() },
+          { label: 'Export drawing as PNG…', disabled: this.drawing.isEmpty, action: () => this.exportDrawing() },
+          { label: 'Print or save as PDF…', shortcut: 'Ctrl+P', action: () => this.printPdf() },
+          'sep',
+          { label: 'Back up all entries…', action: () => this.backup() },
+          { label: 'Restore from backup…', action: () => this.restore() },
+        ],
+      },
+      {
+        label: 'Edit',
+        items: () => [
+          { label: 'Undo', shortcut: 'Ctrl+Z', action: () => this.undo() },
+          { label: 'Redo', shortcut: 'Ctrl+Shift+Z', action: () => this.redo() },
+          'sep',
+          {
+            label: 'Select all text',
+            shortcut: 'Ctrl+A',
+            action: () => {
+              this.prepareEditing();
+              this.dom.editor.select();
+            },
+          },
+          { label: 'Clear drawing', disabled: this.drawing.isEmpty, action: () => this.clearInk() },
+        ],
+      },
+      {
+        label: 'Format',
+        items: () => [
+          { label: 'Heading 1', action: () => this.applyFormat('h1') },
+          { label: 'Heading 2', action: () => this.applyFormat('h2') },
+          { label: 'Heading 3', action: () => this.applyFormat('h3') },
+          { label: 'Quote', action: () => this.applyFormat('quote') },
+          { label: 'Bulleted list', action: () => this.applyFormat('ul') },
+          { label: 'Numbered list', action: () => this.applyFormat('ol') },
+          { label: 'Divider', action: () => this.applyFormat('divider') },
+          'sep',
+          { label: 'Bold', shortcut: 'Ctrl+B', action: () => this.applyFormat('bold') },
+          { label: 'Italic', shortcut: 'Ctrl+I', action: () => this.applyFormat('italic') },
+        ],
+      },
+      {
+        label: 'Insert',
+        items: () => [
+          { label: 'Today’s date', action: () => this.insertText(formatLongDate(localISODate())) },
+          { label: 'Current time', action: () => this.insertText(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })) },
+        ],
+      },
+      {
+        label: 'View',
+        items: () => [
+          { label: 'Read view', check: true, checked: this.reading, action: () => this.setReading(!this.reading) },
+          'sep',
+          ...Object.keys(FONT_STACKS).map((id) => ({
+            label: `${FONT_LABELS[id]} writing font`,
+            check: true,
+            checked: this.prefs.font === id,
+            action: () => this.setPref({ font: id }),
+          })),
+          'sep',
+          { label: 'Dark chrome', check: true, checked: this.prefs.dark, action: () => this.setPref({ dark: !this.prefs.dark }) },
+        ],
+      },
+      {
+        label: 'Colors',
+        items: () => [
+          { label: 'Swap ink and page color', action: () => this.swapInkAndPage() },
+          { label: 'Reset page color', action: () => this.setPageColor(DEFAULT_PAGE_COLOR) },
+          { label: 'Reset ink color', action: () => this.setInk(PALETTE[0]) },
+        ],
+      },
+      {
+        label: 'Help',
+        items: () => [
+          { label: 'Keyboard shortcuts', shortcut: 'F1', action: () => showShortcuts() },
+          { label: 'About Quire', action: () => showAbout() },
+        ],
+      },
+    ];
+    this.menubar = createMenuBar(this.dom.menubar, menus);
+  }
+
+  bindEvents() {
+    const { editor, title, date, kind, tags, ink, sheet } = this.dom;
+    editor.addEventListener('input', () => this.onEditorChanged());
+    editor.addEventListener('keydown', (event) => this.onEditorKeydown(event));
+    title.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter') {
+        event.preventDefault();
+        editor.focus();
+      }
+    });
+    title.addEventListener('input', () => this.onFieldChanged());
+    date.addEventListener('input', () => this.onFieldChanged());
+    kind.addEventListener('change', () => this.onFieldChanged());
+    tags.addEventListener('input', () => this.onFieldChanged());
+
+    ink.addEventListener('pointerdown', (event) => this.onPointerDown(event));
+    ink.addEventListener('pointermove', (event) => this.onPointerMove(event));
+    ink.addEventListener('pointerup', (event) => this.onPointerUp(event));
+    ink.addEventListener('pointercancel', (event) => this.onPointerUp(event));
+
+    new ResizeObserver(() => this.requestSync()).observe(sheet);
+    document.addEventListener('keydown', (event) => this.onGlobalKeydown(event));
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) this.persist();
+    });
+    window.addEventListener('pagehide', () => this.persist());
+    window.addEventListener('unhandledrejection', (event) => {
+      console.error(event.reason);
+      this.showStatus(`Something went wrong: ${event.reason?.message ?? event.reason}`, true);
+    });
+  }
+
+  // ---------- tools and modes ----------
+
+  setTool(id) {
+    if (id === 'write' && this.reading) this.setReading(false);
+    this.tool = id;
+    this.dom.ink.dataset.tool = id;
+    for (const button of this.dom.toolbox.querySelectorAll('[data-tool-id]')) {
+      button.setAttribute('aria-pressed', String(button.dataset.toolId === id));
+    }
+    const tool = TOOLS.find((item) => item.id === id);
+    this.dom.hint.textContent = tool?.hint ?? '';
+    if (id === 'write') this.dom.editor.focus({ preventScroll: true });
+  }
+
+  setSize(size) {
+    this.size = size;
+    for (const button of this.dom.toolbox.querySelectorAll('[data-size]')) {
+      button.setAttribute('aria-checked', String(Number(button.dataset.size) === size));
+    }
+  }
+
+  setReading(on) {
+    this.reading = on;
+    if (on) this.dom.reader.innerHTML = renderMarkdown(this.dom.editor.value);
+    this.dom.editor.hidden = on;
+    this.dom.reader.hidden = !on;
+    this.dom.mode.textContent = on ? 'Read view' : 'Markdown';
+    for (const button of this.dom.toolbox.querySelectorAll('[data-read]')) {
+      button.setAttribute('aria-pressed', String(on));
+    }
+    if (!on) {
+      this.fitEditor();
+      if (this.tool === 'write') this.dom.editor.focus({ preventScroll: true });
+    }
+    this.requestSync();
+  }
+
+  /** Leaves read view and switches to the Write tool so text can be edited. */
+  prepareEditing() {
+    if (this.reading) this.setReading(false);
+    this.setTool('write');
+  }
+
+  setInk(hex) {
+    this.fg = hex;
+    this.renderInkChip();
+  }
+
+  setPageColor(hex) {
+    if (!this.entry) return;
+    this.entry.pageColor = hex;
+    this.dom.sheet.style.backgroundColor = hex;
+    this.renderInkChip();
+    this.scheduleSave();
+  }
+
+  swapInkAndPage() {
+    if (!this.entry) return;
+    const oldPage = this.entry.pageColor;
+    this.setPageColor(this.fg);
+    this.setInk(oldPage);
+  }
+
+  /** Swatch click: colors the selected text if there is any, and sets the ink. */
+  pickColor(hex) {
+    const ta = this.dom.editor;
+    if (this.tool === 'write' && !this.reading && ta.selectionStart !== ta.selectionEnd) {
+      const edit = colorEdit(ta.value, ta.selectionStart, ta.selectionEnd, hex);
+      if (edit) this.applyEdit(edit);
+    }
+    this.setInk(hex);
+  }
+
+  // ---------- text editing ----------
+
+  /** Applies an edit description from textops.js. execCommand keeps native undo working. */
+  applyEdit({ from, to, insert, selStart, selEnd }) {
+    const ta = this.dom.editor;
+    ta.focus({ preventScroll: true });
+    ta.setSelectionRange(from, to);
+    let done = false;
+    if (typeof document.execCommand === 'function') {
+      try {
+        done = document.execCommand('insertText', false, insert);
+      } catch {
+        done = false;
+      }
+    }
+    if (!done) ta.setRangeText(insert, from, to, 'end');
+    ta.setSelectionRange(selStart, selEnd);
+    this.onEditorChanged();
+  }
+
+  applyFormat(kind) {
+    this.prepareEditing();
+    const ta = this.dom.editor;
+    const { value, selectionStart: s, selectionEnd: e } = ta;
+    let edit;
+    if (kind === 'bold') edit = wrapEdit(value, s, e, '**', '**');
+    else if (kind === 'italic') edit = wrapEdit(value, s, e, '*', '*');
+    else if (kind === 'divider') edit = dividerEdit(value, s, e);
+    else edit = toggleBlockEdit(value, s, e, kind);
+    this.applyEdit(edit);
+  }
+
+  insertText(text) {
+    this.prepareEditing();
+    const ta = this.dom.editor;
+    this.applyEdit(insertEdit(ta.selectionStart, ta.selectionEnd, text));
+  }
+
+  onEditorChanged() {
+    this.lastSurface = 'text';
+    this.fitEditor();
+    this.updateChrome();
+    this.scheduleSave();
+  }
+
+  fitEditor() {
+    const ta = this.dom.editor;
+    ta.style.height = 'auto';
+    ta.style.height = `${ta.scrollHeight}px`;
+  }
+
+  onEditorKeydown(event) {
+    const ta = event.currentTarget;
+    if (event.key === 'Enter' && !event.shiftKey && !event.isComposing && ta.selectionStart === ta.selectionEnd) {
+      const edit = enterEdit(ta.value, ta.selectionStart);
+      if (edit) {
+        event.preventDefault();
+        this.applyEdit(edit);
+      }
+      return;
+    }
+    if ((event.ctrlKey || event.metaKey) && !event.altKey) {
+      const key = event.key.toLowerCase();
+      if (key === 'b' || key === 'i') {
+        event.preventDefault();
+        this.applyFormat(key === 'b' ? 'bold' : 'italic');
+      }
+    }
+  }
+
+  onFieldChanged() {
+    if (!this.entry) return;
+    this.entry.title = this.dom.title.value.slice(0, 120);
+    if (isISODate(this.dom.date.value)) this.entry.date = this.dom.date.value;
+    this.entry.kind = this.dom.kind.value;
+    this.entry.tags = parseTags(this.dom.tags.value);
+    this.updateChrome();
+    this.scheduleSave();
+  }
+
+  // ---------- drawing ----------
+
+  requestSync() {
+    if (this.syncFrame) return;
+    this.syncFrame = requestAnimationFrame(() => {
+      this.syncFrame = 0;
+      this.syncCanvas();
+    });
+  }
+
+  /** Resize both canvases to the sheet. A size change rebuilds the base from the ops. */
+  syncCanvas() {
+    const { sheet, ink } = this.dom;
+    const cssW = sheet.clientWidth;
+    const cssH = sheet.clientHeight;
+    if (!cssW || !cssH) return;
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const w = Math.round(cssW * dpr);
+    const h = Math.round(cssH * dpr);
+    const resized = this.base.width !== w || this.base.height !== h;
+    if (resized) {
+      this.base.width = w;
+      this.base.height = h;
+      ink.width = w;
+      ink.height = h;
+    }
+    this.scale = w / NORM_WIDTH;
+    if (resized) paintOps(this.baseCtx, this.drawing.ops, this.scale);
+    this.redraw();
+  }
+
+  redraw() {
+    const ctx = this.inkCtx;
+    ctx.clearRect(0, 0, this.dom.ink.width, this.dom.ink.height);
+    ctx.drawImage(this.base, 0, 0);
+    if (this.live) applyOp(ctx, this.live, this.scale);
+  }
+
+  requestRedraw() {
+    if (this.frame) return;
+    this.frame = requestAnimationFrame(() => {
+      this.frame = 0;
+      this.redraw();
+    });
+  }
+
+  commit(op) {
+    this.drawing.commit(op);
+    this.lastSurface = 'ink';
+    applyOp(this.baseCtx, op, this.scale);
+    this.redraw();
+    this.scheduleSave();
+  }
+
+  undoInk() {
+    if (!this.drawing.undo()) return;
+    paintOps(this.baseCtx, this.drawing.ops, this.scale);
+    this.redraw();
+    this.scheduleSave();
+  }
+
+  redoInk() {
+    const op = this.drawing.redo();
+    if (!op) return;
+    applyOp(this.baseCtx, op, this.scale);
+    this.redraw();
+    this.scheduleSave();
+  }
+
+  clearInk() {
+    if (this.drawing.clear()) {
+      this.lastSurface = 'ink';
+      paintOps(this.baseCtx, this.drawing.ops, this.scale);
+      this.redraw();
+      this.scheduleSave();
+    }
+  }
+
+  /** Undo follows the surface you touched last: ink or text. */
+  undo() {
+    if (this.lastSurface === 'ink' && this.drawing.canUndo) {
+      this.undoInk();
+      return;
+    }
+    this.dom.editor.focus({ preventScroll: true });
+    document.execCommand('undo');
+  }
+
+  redo() {
+    if (this.lastSurface === 'ink' && this.drawing.canRedo) {
+      this.redoInk();
+      return;
+    }
+    this.dom.editor.focus({ preventScroll: true });
+    document.execCommand('redo');
+  }
+
+  pointFromEvent(event) {
+    const rect = this.dom.ink.getBoundingClientRect();
+    const f = NORM_WIDTH / rect.width;
+    return {
+      x: Math.round((event.clientX - rect.left) * f * 10) / 10,
+      y: Math.round((event.clientY - rect.top) * f * 10) / 10,
+    };
+  }
+
+  onPointerDown(event) {
+    if (event.button !== 0 || !POINTER_TOOLS.has(this.tool)) return;
+    const p = this.pointFromEvent(event);
+    if (this.tool === 'pick') {
+      const hex = sampleColor(this.baseCtx, p.x * this.scale, p.y * this.scale) ?? this.entry?.pageColor ?? DEFAULT_PAGE_COLOR;
+      this.setInk(hex);
+      return;
+    }
+    if (this.tool === 'fill') {
+      this.commit({ t: 'fill', c: this.fg, at: [p.x, p.y] });
+      return;
+    }
+    try {
+      this.dom.ink.setPointerCapture(event.pointerId);
+    } catch {
+      // Capture is a nicety; drawing still works without it.
+    }
+    this.pointerId = event.pointerId;
+    const w = Math.round(strokeWidth(this.tool, this.size) * 100) / 100;
+    this.live = SHAPE_TOOLS.has(this.tool)
+      ? { t: this.tool, c: this.fg, w, a: [p.x, p.y], b: [p.x, p.y] }
+      : { t: 'stroke', tool: this.tool, c: this.fg, w, p: [[p.x, p.y]] };
+    this.requestRedraw();
+  }
+
+  onPointerMove(event) {
+    if (!this.live || event.pointerId !== this.pointerId) return;
+    if (this.live.t === 'stroke') {
+      const pts = this.live.p;
+      for (const sample of event.getCoalescedEvents?.() ?? [event]) {
+        const p = this.pointFromEvent(sample);
+        const last = pts[pts.length - 1];
+        if (Math.hypot(p.x - last[0], p.y - last[1]) >= 0.5) pts.push([p.x, p.y]);
+      }
+    } else {
+      const p = this.pointFromEvent(event);
+      this.live.b = [p.x, p.y];
+    }
+    this.requestRedraw();
+  }
+
+  onPointerUp(event) {
+    if (!this.live || event.pointerId !== this.pointerId) return;
+    const op = this.live;
+    this.live = null;
+    this.pointerId = null;
+    try {
+      if (this.dom.ink.hasPointerCapture(event.pointerId)) this.dom.ink.releasePointerCapture(event.pointerId);
+    } catch {
+      // Ignore: the pointer was already released.
+    }
+    if (op.t !== 'stroke' && op.a[0] === op.b[0] && op.a[1] === op.b[1]) {
+      this.redraw();
+      return;
+    }
+    this.commit(op);
+  }
+
+  // ---------- saving ----------
+
+  /** Current entry with the live text and ink, cloned so async work never shares mutable state. */
+  snapshot() {
+    const { sheet } = this.dom;
+    const ratio = sheet.clientWidth ? sheet.clientHeight / sheet.clientWidth : 0.8;
+    const h = Math.round(Math.max(ratio * NORM_WIDTH, inkExtent(this.drawing.ops) + 20));
+    return structuredClone({
+      ...this.entry,
+      body: this.dom.editor.value,
+      ink: { ops: this.drawing.ops, h },
+    });
+  }
+
+  scheduleSave() {
+    clearTimeout(this.saveTimer);
+    this.showStatus('Unsaved changes…');
+    this.saveTimer = setTimeout(() => this.persist(), SAVE_DELAY_MS);
+  }
+
+  persist() {
+    clearTimeout(this.saveTimer);
+    this.saveTimer = 0;
+    if (!this.entry) return this.saveChain;
+    const entry = this.snapshot();
+    entry.updatedAt = new Date().toISOString();
+    this.saveChain = this.saveChain
+      .then(() => {
+        this.showStatus('Saving…');
+        return this.store.save(entry);
+      })
+      .then(() => this.showStatus(`Saved at ${formatTime(new Date())}`))
+      .catch((error) => {
+        console.error(error);
+        this.showStatus(`Could not save: ${error.message}`, true);
+      });
+    return this.saveChain;
+  }
+
+  // ---------- entries ----------
+
+  async openEntry(id) {
+    if (this.entry?.id === id) return;
+    await this.persist();
+    if (this.entry && isBlankEntry(this.snapshot())) {
+      await this.store.remove(this.entry.id);
+    }
+    const next = await this.store.get(id);
+    if (!next) {
+      this.showStatus('That entry no longer exists.', true);
+      return;
+    }
+    this.entry = next;
+    this.dom.editor.value = next.body;
+    this.dom.title.value = next.title;
+    this.dom.date.value = next.date;
+    this.dom.kind.value = next.kind;
+    this.dom.tags.value = next.tags.join(', ');
+    this.drawing = new Drawing(next.ink.ops);
+    this.dom.sheet.style.backgroundColor = next.pageColor;
+    this.lastSurface = 'text';
+    this.setReading(false);
+    this.fitEditor();
+    this.syncCanvas();
+    this.renderInkChip();
+    this.updateChrome();
+    this.setPref({ lastEntryId: id });
+    this.showStatus('');
+  }
+
+  async newEntry() {
+    const entry = createEntry();
+    await this.store.save(entry);
+    await this.openEntry(entry.id);
+    this.dom.title.focus();
+  }
+
+  showEntries() {
+    entriesDialog({
+      load: async () => {
+        await this.persist();
+        return this.store.list();
+      },
+      currentId: this.entry?.id,
+      onOpen: (id) => this.openEntry(id),
+      onNew: () => this.newEntry(),
+      onDelete: (id) => this.deleteEntry(id),
+    });
+  }
+
+  async deleteEntry(id) {
+    const target = await this.store.get(id);
+    if (!target) return;
+    const ok = await confirmDialog({
+      title: 'Delete this entry?',
+      message: `“${displayTitle(target)}” and its drawing will be removed from this browser. This cannot be undone.`,
+      confirmLabel: 'Delete',
+      danger: true,
+    });
+    if (!ok) return;
+    await this.saveChain;
+    clearTimeout(this.saveTimer);
+    this.saveTimer = 0;
+    const isCurrent = this.entry?.id === id;
+    if (isCurrent) this.entry = null;
+    await this.store.remove(id);
+    if (isCurrent) {
+      const rest = await this.store.list();
+      if (rest.length) await this.openEntry(rest[0].id);
+      else await this.newEntry();
+    }
+    this.showStatus('Entry deleted');
+  }
+
+  // ---------- export, backup, restore ----------
+
+  async exportMarkdown() {
+    await exportMarkdown(this.snapshot());
+    this.showStatus('Exported Markdown');
+  }
+
+  async exportDrawing() {
+    if (this.drawing.isEmpty) {
+      this.showStatus('Nothing drawn yet');
+      return;
+    }
+    await exportDrawingPng(this.snapshot());
+    this.showStatus('Exported drawing');
+  }
+
+  printPdf() {
+    printEntry(this.snapshot(), { fontStack: FONT_STACKS[this.prefs.font] ?? FONT_STACKS.serif });
+  }
+
+  async backup() {
+    await this.persist();
+    const entries = await this.store.list();
+    downloadBlob(makeBackup(entries), `quire-backup-${localISODate()}.json`);
+    this.showStatus(`Backed up ${entries.length} entries`);
+  }
+
+  restore() {
+    const input = el('input', { type: 'file', accept: '.json,application/json', hidden: true });
+    input.addEventListener('change', async () => {
+      const file = input.files?.[0];
+      input.remove();
+      if (file) await this.restoreFrom(file);
+    });
+    document.body.append(input);
+    input.click();
+  }
+
+  async restoreFrom(file) {
+    const entries = parseBackup(await file.text());
+    await this.persist();
+    const currentId = this.entry?.id ?? null;
+    this.entry = null;
+    for (const entry of entries) await this.store.save(entry);
+    const all = await this.store.list();
+    const target = all.find((entry) => entry.id === currentId) ?? all[0];
+    if (target) await this.openEntry(target.id);
+    else await this.newEntry();
+    this.showStatus(`Restored ${entries.length} entries`);
+  }
+
+  // ---------- keyboard ----------
+
+  onGlobalKeydown(event) {
+    if (document.querySelector('dialog[open]')) return;
+    const typing = isTextTarget(event.target);
+    const key = event.key.toLowerCase();
+
+    if (event.key === 'F1') {
+      event.preventDefault();
+      showShortcuts();
+      return;
+    }
+    if (event.ctrlKey || event.metaKey) {
+      switch (key) {
+        case 'n':
+          event.preventDefault();
+          this.newEntry();
+          break;
+        case 'o':
+          event.preventDefault();
+          this.showEntries();
+          break;
+        case 's':
+          event.preventDefault();
+          this.persist();
+          break;
+        case 'e':
+          event.preventDefault();
+          this.exportMarkdown();
+          break;
+        case 'p':
+          event.preventDefault();
+          this.printPdf();
+          break;
+        case 'z':
+        case 'y': {
+          if (typing && this.lastSurface === 'text') break; // native text undo
+          event.preventDefault();
+          if (key === 'y' || event.shiftKey) this.redo();
+          else this.undo();
+          break;
+        }
+        default:
+          break;
+      }
+      return;
+    }
+    if (typing || event.altKey) return;
+    const toolId = TOOL_BY_KEY[key];
+    if (toolId) {
+      event.preventDefault();
+      this.setTool(toolId);
+    }
+  }
+}
