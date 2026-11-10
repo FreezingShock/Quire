@@ -45,12 +45,12 @@ after(async () => {
 });
 
 /** A fresh browser context whose library holds COUNT generated entries. The first entry with ink is `ink-0`. */
-async function seededPage(t, viewport = { width: 1280, height: 800 }) {
+async function seededPage(t, viewport = { width: 1280, height: 800 }, { splash = false } = {}) {
   const context = await browser.newContext({ viewport });
   t.after(() => context.close());
-  await context.addInitScript(() => {
-    localStorage.setItem('quire:prefs', JSON.stringify({ sampleSeeded: true, homeView: 'details', splash: false }));
-  });
+  await context.addInitScript((showSplash) => {
+    localStorage.setItem('quire:prefs', JSON.stringify({ sampleSeeded: true, homeView: 'details', splash: showSplash }));
+  }, splash);
   // The seeding page is a stylesheet, not HTML, so Chrome asks for /favicon.ico. Quire links its own icon; answer with none.
   await context.route('**/favicon.ico', (route) => route.fulfill({ status: 204 }));
   const page = await context.newPage();
@@ -107,6 +107,17 @@ test('startup reads the library once and is ready within budget', async (t) => {
   t.diagnostic(`store open ${Math.round(marks['quire:store-open'])} ms, list on screen ${Math.round(marks['quire:home-ready'])} ms`);
   // Generous: a CI runner is slower than a laptop. The point is to catch a regression to several seconds.
   assert.ok(marks['quire:ready'] < 4000, `startup took ${Math.round(marks['quire:ready'])} ms`);
+  assert.deepEqual(page.errors, [], 'the page logged errors');
+});
+
+test('the startup splash clears as soon as the library is ready', async (t) => {
+  const page = await seededPage(t, undefined, { splash: true });
+  await openHome(page);
+  // The splash has no minimum time on screen. It should go within a moment of the library being ready (a short fade).
+  await page.waitForFunction(() => !document.getElementById('splash'), null, { timeout: 5000 });
+  const lag = await page.evaluate(() => performance.now() - performance.getEntriesByName('quire:ready')[0].startTime);
+  t.diagnostic(`splash cleared ${Math.round(lag)} ms after the library was ready`);
+  assert.ok(lag < 1000, `the splash stayed ${Math.round(lag)} ms after the library was ready`);
   assert.deepEqual(page.errors, [], 'the page logged errors');
 });
 

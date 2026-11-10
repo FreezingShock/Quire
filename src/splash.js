@@ -1,19 +1,20 @@
 /**
  * Startup splash: the Quire mark settles in and a glass bar slides while the
- * entries load. A full load keeps it for at least MIN_MS so it never flashes.
- * A reload gets a brief version (just the mark and the bar), since the page
- * was already open a moment ago. It gives up after MAX_MS even if startup
- * stalls. View > Startup splash turns it off.
+ * entries load. It clears as soon as the library is ready, with a short fade,
+ * so startup is never held back for the splash's own animation. A reload gets
+ * a brief version (just the mark and the bar). It gives up after MAX_MS even if
+ * startup stalls. View > Startup splash turns it off.
  */
 
 import { loadPrefs } from './prefs.js';
 import { playSound } from './sound.js';
 
-const MIN_MS = 1400;
-const MIN_RELOAD_MS = 450;
+// No minimum on show: the splash goes as soon as startup is ready.
+const MIN_MS = 0;
+const MIN_RELOAD_MS = 0;
 const MAX_MS = 6000;
-const FADE_MS = 700;
-const FADE_RELOAD_MS = 350;
+const FADE_MS = 300;
+const FADE_RELOAD_MS = 200;
 
 /** True when this page load is a browser reload, read from the Navigation Timing entry. */
 export function isReload() {
