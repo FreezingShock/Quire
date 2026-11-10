@@ -125,6 +125,15 @@ export function confirmDialog({ title, message, confirmLabel = 'OK', danger = fa
   });
 }
 
+/** A recap as label and value pairs, two columns. Used by Year in review. */
+export function recapList(lines) {
+  return el(
+    'dl',
+    { class: 'recap-list' },
+    lines.flatMap(([label, value]) => [el('dt', { class: 'recap-label' }, label), el('dd', { class: 'recap-value' }, value)]),
+  );
+}
+
 export function infoDialog(title, content) {
   const dialog = el(
     'dialog',

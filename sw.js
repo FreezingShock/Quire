@@ -112,6 +112,7 @@ const SHELL = [
   './src/printing.js',
   './src/prompts.js',
   './src/pwa.js',
+  './src/recap.js',
   './src/savedsearches.js',
   './src/screensaver-custom.js',
   './src/screensaver-editor.js',

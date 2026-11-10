@@ -3,7 +3,7 @@
 import { el } from '../dom.js';
 import { contentKey, paintSheet } from './helpers.js';
 import { entryRoute } from './routes.js';
-import { confirmDialog, entriesDialog, notebookDialog } from '../dialogs.js';
+import { confirmDialog, entriesDialog, infoDialog, notebookDialog, recapList } from '../dialogs.js';
 import { Drawing, normalizeLayers } from '../drawing.js';
 import { todaysJournal } from '../journal.js';
 import { countByNotebook, sortEntries } from '../library.js';
@@ -20,6 +20,7 @@ import { unsealAnimation } from '../capsule-ui.js';
 import { playSound } from '../sound.js';
 import { pickRandomMemory } from '../memories.js';
 import { findLinkTarget, linkedFrom } from '../wikilinks.js';
+import { recapLines, yearRecap } from '../recap.js';
 
 export const entryMethods = {
   // ---------- entries ----------
@@ -144,6 +145,14 @@ export const entryMethods = {
         ),
       ),
     );
+  },
+
+  /** View > Year in review: a recap of this calendar year, counting only days so far. */
+  async showYearRecap() {
+    await this.persist();
+    const today = localISODate();
+    const recap = yearRecap(await this.store.list(), Number(today.slice(0, 4)), today);
+    infoDialog(`Year in review, ${recap.year}`, recapList(recapLines(recap)));
   },
 
   /** Opens one past entry at random. Sealed capsules, the sample and blank entries are never picked. */
