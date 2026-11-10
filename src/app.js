@@ -9,6 +9,8 @@
 import { createLocalStore } from './storage.js';
 import {
   DEFAULT_PAGE_COLOR,
+  MOODS,
+  WEATHERS,
   createEntry,
   displayTitle,
   formatLongDate,
@@ -17,6 +19,7 @@ import {
   localISODate,
   parseTags,
 } from './model.js';
+import { todaysJournal } from './journal.js';
 import { wordCount } from './markdown.js';
 import { LiveEditor } from './livetext.js';
 import {
@@ -71,6 +74,8 @@ import {
 import { createMenuBar } from './menubar.js';
 import { confirmDialog, entriesDialog, showAbout, showShortcuts } from './dialogs.js';
 import { HomeView } from './home.js';
+import { MAX_VERSIONS, makeVersion, shouldKeepVersion } from './versions.js';
+import { formatVersionTime, historyDialog } from './history.js';
 
 const SAVE_DELAY_MS = 400;
 const FONT_STACKS = TEXT_FONTS;
@@ -100,6 +105,14 @@ function routeEntryId(hash) {
   } catch {
     return null;
   }
+}
+
+/** Fills a select with an empty "not set" option followed by each { id, label }. */
+function fillSelect(select, options, emptyLabel) {
+  select.replaceChildren(
+    el('option', { value: '' }, emptyLabel),
+    ...options.map((option) => el('option', { value: option.id }, option.label)),
+  );
 }
 
 function isTextTarget(node) {
@@ -135,6 +148,8 @@ export class QuireApp {
       title: $('#entry-title'),
       date: $('#entry-date'),
       kind: $('#entry-kind'),
+      mood: $('#entry-mood'),
+      weather: $('#entry-weather'),
       tags: $('#entry-tags'),
       sheet: $('#sheet'),
       editorEl: $('#editor'),
@@ -192,6 +207,8 @@ export class QuireApp {
   }
 
   async start() {
+    fillSelect(this.dom.mood, MOODS, 'Not set');
+    fillSelect(this.dom.weather, WEATHERS, 'Not set');
     this.applyPrefs();
     this.buildToolbox();
     this.buildSwatches();
@@ -199,7 +216,8 @@ export class QuireApp {
     this.home = new HomeView(this.dom.home, {
       view: this.prefs.homeView,
       onOpen: (id) => this.openEntry(id),
-      onNew: () => this.newEntry(),
+      onNew: (options) => this.newEntry(options),
+      onToday: () => this.openToday(),
       onDelete: (id) => this.deleteEntry(id),
       onViewChange: (view) => this.setPref({ homeView: view }),
     });
@@ -248,9 +266,11 @@ export class QuireApp {
     this.requestSync();
   }
 
-  showStatus(text, isError = false) {
+  /** `state` drives the dot in the title bar: 'pending', 'saving', 'saved', 'error', or '' for a plain message. */
+  showStatus(text, isError = false, state = isError ? 'error' : '') {
     this.dom.saveStatus.textContent = text;
     this.dom.saveStatus.classList.toggle('is-error', isError);
+    this.dom.saveStatus.dataset.state = state;
   }
 
   updateChrome() {
@@ -272,7 +292,7 @@ export class QuireApp {
   /** Saves the open entry, drops it if it is blank, and shows the entries list. */
   async showHome({ history: mode = 'push' } = {}) {
     this.commitTextDraft();
-    await this.persist();
+    await this.persist('leave');
     if (this.entry && isBlankEntry(this.snapshot())) {
       await this.store.remove(this.entry.id);
     }
@@ -443,10 +463,14 @@ export class QuireApp {
           { label: 'All entries', shortcut: 'Ctrl+Shift+H', action: () => this.showHome() },
           'sep',
           { label: 'New entry', shortcut: 'Ctrl+N', action: () => this.newEntry() },
+          { label: "Today's entry", shortcut: 'Alt+T', action: () => this.openToday() },
           { label: 'Open entry…', shortcut: 'Ctrl+O', action: () => this.showEntries() },
           { label: 'Delete entry…', disabled: !this.entry, action: () => this.entry && this.deleteEntry(this.entry.id) },
           'sep',
           { label: 'Save now', shortcut: 'Ctrl+S', action: () => this.persist() },
+          { label: 'Save version now', disabled: !this.entry, action: () => this.saveVersionNow() },
+          { label: 'Version history…', disabled: !this.entry, action: () => this.showVersions() },
+          'sep',
           { label: 'Export as Markdown…', shortcut: 'Ctrl+E', disabled: !this.entry, action: () => this.exportMarkdown() },
           { label: 'Export drawing as PNG…', disabled: !this.entry || this.drawing.isEmpty, action: () => this.exportDrawing() },
           { label: 'Print or save as PDF…', shortcut: 'Ctrl+P', disabled: !this.entry, action: () => this.printPdf() },
@@ -549,7 +573,7 @@ export class QuireApp {
   }
 
   bindEvents() {
-    const { editor, editorEl, title, date, kind, tags, ink, sheet } = this.dom;
+    const { editor, editorEl, title, date, kind, mood, weather, tags, ink, sheet } = this.dom;
     this.dom.ribbonToggle.addEventListener('click', () => this.setPref({ ribbonHidden: !this.prefs.ribbonHidden }));
     editorEl.addEventListener('keydown', (event) => this.onEditorKeydown(event));
     this.dom.windowTitle.addEventListener('click', () => this.startRename());
@@ -573,6 +597,8 @@ export class QuireApp {
     title.addEventListener('input', () => this.onFieldChanged());
     date.addEventListener('input', () => this.onFieldChanged());
     kind.addEventListener('change', () => this.onFieldChanged());
+    mood.addEventListener('change', () => this.onFieldChanged());
+    weather.addEventListener('change', () => this.onFieldChanged());
     tags.addEventListener('input', () => this.onFieldChanged());
 
     ink.addEventListener('pointerdown', (event) => this.onPointerDown(event));
@@ -768,6 +794,8 @@ export class QuireApp {
     this.entry.title = this.dom.title.value.slice(0, 120);
     if (isISODate(this.dom.date.value)) this.entry.date = this.dom.date.value;
     this.entry.kind = this.dom.kind.value;
+    this.entry.mood = this.dom.mood.value || null;
+    this.entry.weather = this.dom.weather.value || null;
     this.entry.tags = parseTags(this.dom.tags.value);
     this.updateChrome();
     this.scheduleSave();
@@ -1372,35 +1400,62 @@ export class QuireApp {
 
   scheduleSave() {
     clearTimeout(this.saveTimer);
-    this.showStatus('Unsaved changes…');
+    this.showStatus('Unsaved changes…', false, 'pending');
     this.saveTimer = setTimeout(() => this.persist(), SAVE_DELAY_MS);
   }
 
-  persist() {
+  /**
+   * Saves the open entry and keeps a version when the rules in versions.js say
+   * so. `reason` is 'auto' (after a pause in editing), 'leave' (before switching
+   * entries), or 'manual'. Resolves true when a version was kept.
+   */
+  persist(reason = 'auto') {
     clearTimeout(this.saveTimer);
     this.saveTimer = 0;
     if (!this.entry) return this.saveChain;
     const entry = this.snapshot();
     const key = contentKey(entry);
-    // Nothing changed since the last write, so skip it. That keeps "Modified" meaning "last edited".
+    // Nothing changed since the last write, so skip the write. That keeps "Modified" meaning "last edited".
+    // A leave or manual save can still keep a version of this content, so the version rules run.
     if (key === this.savedKey) {
-      this.saveChain = this.saveChain.then(() => this.showStatus(`Saved at ${formatTime(new Date())}`));
+      this.saveChain = this.saveChain
+        .then(() => this.keepVersion(entry, reason))
+        .then((kept) => {
+          this.showStatus(`Saved at ${formatTime(new Date())}${kept ? ' · version kept' : ''}`, false, 'saved');
+          return kept;
+        })
+        .catch((error) => {
+          console.error(error);
+          this.showStatus(`Could not save: ${error.message}`, true);
+          return false;
+        });
       return this.saveChain;
     }
     this.savedKey = key;
     entry.updatedAt = new Date().toISOString();
     this.saveChain = this.saveChain
-      .then(() => {
-        this.showStatus('Saving…');
-        return this.store.save(entry);
+      .then(async () => {
+        this.showStatus('Saving…', false, 'saving');
+        await this.store.save(entry);
+        const kept = await this.keepVersion(entry, reason);
+        this.showStatus(`Saved at ${formatTime(new Date())}${kept ? ' · version kept' : ''}`, false, 'saved');
+        return kept;
       })
-      .then(() => this.showStatus(`Saved at ${formatTime(new Date())}`))
       .catch((error) => {
         console.error(error);
         this.savedKey = null; // The write failed, so the next save must try again.
         this.showStatus(`Could not save: ${error.message}`, true);
+        return false;
       });
     return this.saveChain;
+  }
+
+  /** Stores a version of `entry` if the rules call for one. Returns true when one was kept. */
+  async keepVersion(entry, reason) {
+    const latest = await this.store.latestVersion(entry.id);
+    if (!shouldKeepVersion({ entry, latest, reason })) return false;
+    await this.store.saveVersion(makeVersion(entry, reason), MAX_VERSIONS);
+    return true;
   }
 
   // ---------- entries ----------
@@ -1408,7 +1463,7 @@ export class QuireApp {
   async openEntry(id, { history: mode = 'push' } = {}) {
     if (this.entry?.id === id && this.view === 'editor') return;
     this.commitTextDraft();
-    await this.persist();
+    await this.persist('leave');
     if (this.entry && isBlankEntry(this.snapshot())) {
       await this.store.remove(this.entry.id);
     }
@@ -1423,6 +1478,8 @@ export class QuireApp {
     this.dom.title.value = next.title;
     this.dom.date.value = next.date;
     this.dom.kind.value = next.kind;
+    this.dom.mood.value = next.mood ?? '';
+    this.dom.weather.value = next.weather ?? '';
     this.dom.tags.value = next.tags.join(', ');
     this.drawing = new Drawing(next.ink.ops);
     this.layers = normalizeLayers(next.ink.layers);
@@ -1445,12 +1502,22 @@ export class QuireApp {
     this.dom.editor.focus({ preventScroll: true });
   }
 
-  async newEntry() {
-    const entry = createEntry();
+  /** Starts a blank entry. `fields` can set the date, e.g. when a calendar day is picked. */
+  async newEntry(fields = {}) {
+    const entry = createEntry(fields);
     await this.store.save(entry);
     await this.openEntry(entry.id);
     this.dom.title.focus();
     playSound('newEntry');
+  }
+
+  /** Opens today's most recently edited journal entry, or starts a new journal for today. */
+  async openToday() {
+    await this.persist();
+    const today = localISODate();
+    const existing = todaysJournal(await this.store.list(), today);
+    if (existing) await this.openEntry(existing.id);
+    else await this.newEntry({ date: today, kind: 'journal' });
   }
 
   showEntries() {
@@ -1489,6 +1556,66 @@ export class QuireApp {
     playSound('delete');
   }
 
+  // ---------- version history ----------
+
+  /** Keeps a version now, even inside the autosave interval. Returns the message to show. */
+  async saveVersionNow() {
+    if (!this.entry) return '';
+    if (isBlankEntry(this.snapshot())) return 'Nothing to save as a version yet.';
+    const kept = await this.persist('manual');
+    const message = kept ? 'Version saved.' : 'No changes since the last version.';
+    this.showStatus(message, false, 'saved');
+    return message;
+  }
+
+  async showVersions() {
+    if (!this.entry) return;
+    await this.persist();
+    const { id } = this.entry;
+    historyDialog({
+      load: () => this.store.listVersions(id),
+      onRestore: (version) => this.restoreVersion(version),
+      onSaveNow: () => this.saveVersionNow(),
+      onDelete: (version) => this.deleteVersion(version),
+    });
+  }
+
+  /** Puts a version's content back into the open entry. What was there is kept as a version first, so the restore can be undone. */
+  async restoreVersion(version) {
+    if (!this.entry || version.entryId !== this.entry.id) return;
+    await this.persist();
+    await this.keepVersion(this.snapshot(), 'restore');
+
+    const c = structuredClone(version.content);
+    Object.assign(this.entry, { title: c.title, date: c.date, kind: c.kind, tags: c.tags, pageColor: c.pageColor });
+    this.dom.editor.value = c.body;
+    this.dom.title.value = c.title;
+    this.dom.date.value = c.date;
+    this.dom.kind.value = c.kind;
+    this.dom.tags.value = c.tags.join(', ');
+    this.drawing = new Drawing(c.ink.ops);
+    this.dom.sheet.style.backgroundColor = c.pageColor;
+    this.lastSurface = 'text';
+    this.renderInkChip();
+    this.syncCanvas();
+    this.updateChrome();
+    await this.persist();
+    this.showStatus(`Restored the version from ${formatVersionTime(version.savedAt)}`, false, 'saved');
+  }
+
+  async deleteVersion(version) {
+    const ok = await confirmDialog({
+      title: 'Delete this version?',
+      message: `The copy from ${formatVersionTime(version.savedAt)} is removed from this browser. The entry itself is not changed.`,
+      confirmLabel: 'Delete',
+      danger: true,
+    });
+    if (!ok) return false;
+    await this.store.removeVersion(version.id);
+    this.showStatus('Version deleted');
+    return true;
+  }
+
   // ---------- export, backup, restore ----------
 
   async exportMarkdown() {
@@ -1517,8 +1644,9 @@ export class QuireApp {
   async backup() {
     await this.persist();
     const entries = await this.store.list();
-    downloadBlob(makeBackup(entries), `quire-backup-${localISODate()}.json`);
-    this.showStatus(`Backed up ${entries.length} entries`);
+    const versions = await this.store.listAllVersions();
+    downloadBlob(makeBackup(entries, versions), `quire-backup-${localISODate()}.json`);
+    this.showStatus(`Backed up ${entries.length} entries and ${versions.length} versions`);
   }
 
   restore() {
@@ -1533,13 +1661,17 @@ export class QuireApp {
   }
 
   async restoreFrom(file) {
-    const entries = parseBackup(await file.text());
+    const { entries, versions } = parseBackup(await file.text());
     await this.persist();
     // Drop the in-memory entry first, so a stale copy cannot overwrite the restored one.
     this.entry = null;
     for (const entry of entries) await this.store.save(entry);
+    // Only versions whose entry is in this backup are restored. Same ids overwrite, so restoring twice adds nothing.
+    const restored = new Set(entries.map((entry) => entry.id));
+    const usable = versions.filter((version) => restored.has(version.entryId));
+    for (const version of usable) await this.store.saveVersion(version, MAX_VERSIONS);
     await this.showHome();
-    this.showStatus(`Restored ${entries.length} entries`);
+    this.showStatus(`Restored ${entries.length} entries and ${usable.length} versions`);
   }
 
   // ---------- keyboard ----------
@@ -1552,6 +1684,11 @@ export class QuireApp {
     if (event.key === 'F1') {
       event.preventDefault();
       showShortcuts();
+      return;
+    }
+    if (event.altKey && !event.ctrlKey && !event.metaKey && key === 't') {
+      event.preventDefault();
+      this.openToday();
       return;
     }
     if (event.ctrlKey || event.metaKey) {

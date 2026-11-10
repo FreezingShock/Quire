@@ -1,37 +1,50 @@
 /**
  * Home view: the landing page with every entry. It is laid out like an
- * Explorer window: an address bar, a command bar, a navigation pane with kinds
- * and tags, and either a details list or a row of page tiles. HomeView renders
- * and reports what the user asks for through callbacks. The app owns storage
- * and routing.
+ * Explorer window: an address bar, a command bar, a navigation pane with kinds,
+ * tags, moods and weather, and one of three views: a details list, a row of
+ * page tiles, or a month calendar. HomeView renders and reports what the user
+ * asks for through callbacks. The app owns storage and routing.
  */
 
 import { el } from './dom.js';
-import { KINDS, displayTitle, formatShortDate } from './model.js';
+import { KINDS, MOODS, WEATHERS, displayTitle, formatLongDate, formatShortDate, labelFor, localISODate } from './model.js';
 import { wordCount } from './markdown.js';
 import { NORM_WIDTH, paintInk } from './drawing.js';
 import { icon } from './icons.js';
 import {
   SORTS,
   countByKind,
+  countByMood,
   countByTag,
+  countByWeather,
   excerptOf,
   filterEntries,
   kindLabel,
   sortEntries,
 } from './library.js';
+import { dayStreaks, monthGrid, monthOf, shiftISODate, summarizeDays } from './journal.js';
 
 const PAGE_RATIO = 1.25; // sheet height relative to its width, as on the writing page
 const THUMB_PX = 352; // 2x the tile page width, so ink stays sharp on high-DPI screens
+const VIEWS = ['details', 'tiles', 'calendar'];
 
 const COLUMNS = [
   { label: 'Title', key: 'title', cls: 'col-title' },
   { label: 'Date', key: 'date', cls: 'col-date' },
   { label: 'Kind', key: 'kind', cls: 'col-kind' },
   { label: 'Tags', key: null, cls: 'col-tags' },
+  { label: 'Mood', key: null, cls: 'col-feel' },
   { label: 'Words', key: 'words', cls: 'col-words num' },
   { label: 'Modified', key: 'updatedAt', cls: 'col-modified' },
 ];
+
+/** Column headers for the calendar, starting on Sunday to match monthGrid. */
+const WEEKDAYS = Array.from({ length: 7 }, (_, i) =>
+  new Date(Date.UTC(2024, 0, 7 + i)).toLocaleDateString(undefined, { weekday: 'short', timeZone: 'UTC' }),
+);
+
+/** Step for each arrow key on the calendar: a day left or right, a week up or down. */
+const DAY_STEPS = { ArrowLeft: -1, ArrowRight: 1, ArrowUp: -7, ArrowDown: 7 };
 
 function iconNode(name, cls = '') {
   const span = el('span', { class: `icon ${cls}`.trim(), 'aria-hidden': 'true' });
@@ -57,21 +70,44 @@ function modifiedLabel(iso) {
   return date.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
 }
 
+/** "Good · Rain", or an empty string when neither is set. */
+function feelText(entry) {
+  return [labelFor(MOODS, entry.mood), labelFor(WEATHERS, entry.weather)].filter(Boolean).join(' · ');
+}
+
+function monthTitle({ year, month }) {
+  return new Date(Date.UTC(year, month, 1)).toLocaleDateString(undefined, {
+    month: 'long',
+    year: 'numeric',
+    timeZone: 'UTC',
+  });
+}
+
+function streakText({ current, longest, todayDone }) {
+  if (current > 0 && todayDone) return `${current}-day streak`;
+  if (current > 0) return `${current}-day streak · write today to keep it`;
+  return longest ? `Best streak: ${longest} ${longest === 1 ? 'day' : 'days'}` : 'No streak yet';
+}
+
 export class HomeView {
   /**
-   * `view` is 'details' or 'tiles'. Callbacks: onOpen(id), onNew(), onDelete(id),
-   * onViewChange(view).
+   * `view` is 'details', 'tiles', or 'calendar'. Callbacks: onOpen(id),
+   * onNew(options), onToday(), onDelete(id), onViewChange(view).
    */
-  constructor(root, { view = 'details', onOpen, onNew, onDelete, onViewChange } = {}) {
+  constructor(root, { view = 'details', onOpen, onNew, onToday, onDelete, onViewChange } = {}) {
     this.root = root;
-    this.callbacks = { onOpen, onNew, onDelete, onViewChange };
+    this.callbacks = { onOpen, onNew, onToday, onDelete, onViewChange };
     this.entries = [];
+    const today = localISODate();
     this.state = {
       filter: { type: 'all', value: null },
       query: '',
       sort: { key: 'date', dir: 'desc' },
-      view: view === 'tiles' ? 'tiles' : 'details',
+      view: VIEWS.includes(view) ? view : 'details',
       selectedId: null,
+      // Calendar: the month on screen and the day whose entries are listed below it.
+      month: monthOf(today),
+      day: today,
     };
     this.buildShell();
     this.render();
@@ -109,8 +145,11 @@ export class HomeView {
       },
     });
     this.newBtn = this.commandButton('New entry', 'plus', () => this.callbacks.onNew?.(), 'cmd-primary');
+    this.todayBtn = this.commandButton('Today', 'calendar', () => this.callbacks.onToday?.());
+    this.todayBtn.title = "Open today's journal, or start one (Alt+T)";
     this.openBtn = this.commandButton('Open', 'open', () => this.openSelected());
     this.deleteBtn = this.commandButton('Delete', 'trash', () => this.deleteSelected());
+    this.streak = el('span', { class: 'streak-chip' });
     this.detailsBtn = el(
       'button',
       { class: 'cmd-btn cmd-icon-only', type: 'button', title: 'Details', 'aria-label': 'Details view', onClick: () => this.setViewMode('details') },
@@ -120,6 +159,11 @@ export class HomeView {
       'button',
       { class: 'cmd-btn cmd-icon-only', type: 'button', title: 'Tiles', 'aria-label': 'Tiles view', onClick: () => this.setViewMode('tiles') },
       iconNode('tiles'),
+    );
+    this.calendarBtn = el(
+      'button',
+      { class: 'cmd-btn cmd-icon-only', type: 'button', title: 'Calendar', 'aria-label': 'Calendar view', onClick: () => this.setViewMode('calendar') },
+      iconNode('calendar'),
     );
     this.nav = el('nav', { class: 'home-nav', 'aria-label': 'Filter entries' });
     this.main = el('div', { class: 'home-main' });
@@ -141,11 +185,13 @@ export class HomeView {
         'div',
         { class: 'home-command', role: 'toolbar', 'aria-label': 'Entry actions' },
         this.newBtn,
+        this.todayBtn,
         this.openBtn,
         this.deleteBtn,
         el('span', { class: 'cmd-sep', 'aria-hidden': 'true' }),
         el('span', { class: 'cmd-spacer' }),
-        el('div', { class: 'view-toggle', role: 'group', 'aria-label': 'View' }, this.detailsBtn, this.tilesBtn),
+        this.streak,
+        el('div', { class: 'view-toggle', role: 'group', 'aria-label': 'View' }, this.detailsBtn, this.tilesBtn, this.calendarBtn),
       ),
       el('div', { class: 'home-body' }, this.nav, this.main),
     );
@@ -168,6 +214,7 @@ export class HomeView {
     if (!matches.some((entry) => entry.id === state.selectedId)) state.selectedId = null;
     this.renderNav();
     this.renderCrumb();
+    this.renderStreak();
     this.renderMain(matches);
   }
 
@@ -175,6 +222,8 @@ export class HomeView {
     const { filter } = this.state;
     const kinds = countByKind(this.entries);
     const tags = countByTag(this.entries);
+    const moods = countByMood(this.entries);
+    const weathers = countByWeather(this.entries);
     const navItem = ({ label, count, icon: iconName, active, onSelect }) =>
       el(
         'button',
@@ -214,6 +263,30 @@ export class HomeView {
             }),
           )
         : [el('p', { class: 'nav-empty' }, 'Tags you add to entries show up here.')]),
+      el('h3', {}, 'Mood'),
+      ...(moods.length
+        ? moods.map(({ id, label, count }) =>
+            navItem({
+              label,
+              count,
+              icon: 'smile',
+              active: filter.type === 'mood' && filter.value === id,
+              onSelect: () => this.setFilter({ type: 'mood', value: id }),
+            }),
+          )
+        : [el('p', { class: 'nav-empty' }, 'Moods you pick show up here.')]),
+      el('h3', {}, 'Weather'),
+      ...(weathers.length
+        ? weathers.map(({ id, label, count }) =>
+            navItem({
+              label,
+              count,
+              icon: 'cloud',
+              active: filter.type === 'weather' && filter.value === id,
+              onSelect: () => this.setFilter({ type: 'weather', value: id }),
+            }),
+          )
+        : [el('p', { class: 'nav-empty' }, 'Weather you pick show up here.')]),
     );
   }
 
@@ -221,12 +294,22 @@ export class HomeView {
     const { filter } = this.state;
     if (filter.type === 'kind') this.crumb.textContent = kindLabel(filter.value);
     else if (filter.type === 'tag') this.crumb.textContent = `#${filter.value}`;
+    else if (filter.type === 'mood') this.crumb.textContent = labelFor(MOODS, filter.value);
+    else if (filter.type === 'weather') this.crumb.textContent = labelFor(WEATHERS, filter.value);
     else this.crumb.textContent = 'All entries';
+  }
+
+  renderStreak() {
+    const streak = dayStreaks(this.entries);
+    this.streak.replaceChildren(iconNode('flame'), el('span', {}, streakText(streak)));
+    this.streak.dataset.active = String(streak.current > 0);
+    this.streak.title = `Days with at least one entry in a row. Longest: ${streak.longest} ${streak.longest === 1 ? 'day' : 'days'}.`;
   }
 
   renderMain(matches) {
     this.main.dataset.view = this.state.view;
-    if (!this.entries.length) this.main.replaceChildren(this.emptyLibrary());
+    if (this.state.view === 'calendar') this.main.replaceChildren(this.calendar(matches));
+    else if (!this.entries.length) this.main.replaceChildren(this.emptyLibrary());
     else if (!matches.length) this.main.replaceChildren(this.emptyMatches());
     else if (this.state.view === 'tiles') this.main.replaceChildren(this.tileGrid(matches));
     else this.main.replaceChildren(this.table(matches));
@@ -256,6 +339,7 @@ export class HomeView {
     this.deleteBtn.disabled = !hasSelection;
     this.detailsBtn.setAttribute('aria-pressed', String(this.state.view === 'details'));
     this.tilesBtn.setAttribute('aria-pressed', String(this.state.view === 'tiles'));
+    this.calendarBtn.setAttribute('aria-pressed', String(this.state.view === 'calendar'));
   }
 
   // ---------- details list ----------
@@ -302,6 +386,7 @@ export class HomeView {
         el('td', { class: 'col-date' }, formatShortDate(entry.date)),
         el('td', { class: 'col-kind' }, kindLabel(entry.kind)),
         el('td', { class: 'col-tags' }, entry.tags.join(', ')),
+        el('td', { class: 'col-feel' }, feelText(entry)),
         el('td', { class: 'col-words num' }, String(wordCount(entry.body))),
         el('td', { class: 'col-modified' }, modifiedLabel(entry.updatedAt)),
       ),
@@ -357,6 +442,121 @@ export class HomeView {
         el('span', { class: 'tile-title' }, displayTitle(entry)),
         el('span', { class: 'tile-sub' }, `${formatShortDate(entry.date)} · ${kindLabel(entry.kind)}`),
       ),
+    );
+  }
+
+  // ---------- calendar ----------
+
+  /**
+   * A month grid with a count and the day's mood on every day that has
+   * entries, and the selected day's entries listed underneath. Entries are
+   * counted from `matches`, so the search and nav filters apply here too.
+   */
+  calendar(matches) {
+    const { month, day } = this.state;
+    const today = localISODate();
+    const grid = monthGrid(month.year, month.month);
+    const summary = summarizeDays(matches);
+
+    const head = el(
+      'div',
+      { class: 'cal-head' },
+      el(
+        'button',
+        { class: 'cmd-btn cal-step', type: 'button', title: 'Previous month', 'aria-label': 'Previous month', onClick: () => this.shiftMonth(-1) },
+        '‹',
+      ),
+      el('h2', { class: 'cal-title', 'aria-live': 'polite' }, monthTitle(month)),
+      el(
+        'button',
+        { class: 'cmd-btn cal-step', type: 'button', title: 'Next month', 'aria-label': 'Next month', onClick: () => this.shiftMonth(1) },
+        '›',
+      ),
+      el('span', { class: 'cmd-spacer' }),
+      el('button', { class: 'cmd-btn', type: 'button', onClick: () => this.goToday() }, 'Today'),
+    );
+
+    const cells = grid.weeks.flat().map((cell) => this.dayCell(cell, summary[cell.date], today));
+
+    return el(
+      'div',
+      { class: 'cal' },
+      head,
+      el(
+        'div',
+        { class: 'cal-grid' },
+        WEEKDAYS.map((name) => el('div', { class: 'cal-dow', 'aria-hidden': 'true' }, name)),
+        el('div', { class: 'cal-days', role: 'group', 'aria-label': monthTitle(month) }, cells),
+      ),
+      this.dayPanel(matches, day),
+    );
+  }
+
+  dayCell(cell, info, today) {
+    const count = info?.count ?? 0;
+    const selected = cell.date === this.state.day;
+    const classes = ['cal-day'];
+    if (!cell.inMonth) classes.push('is-outside');
+    if (cell.date === today) classes.push('is-today');
+    if (count) classes.push('has-entries');
+    if (selected) classes.push('is-selected');
+    const label = `${formatLongDate(cell.date)}${count ? `, ${count} ${count === 1 ? 'entry' : 'entries'}` : ''}`;
+    return el(
+      'button',
+      {
+        type: 'button',
+        class: classes.join(' '),
+        'data-date': cell.date,
+        'aria-label': label,
+        'aria-pressed': String(selected),
+        'aria-current': cell.date === today ? 'date' : null,
+        tabIndex: selected ? 0 : -1,
+        onClick: () => this.selectDay(cell.date),
+        onKeydown: (event) => this.onDayKeydown(event),
+      },
+      el('span', { class: 'cal-num' }, String(cell.day)),
+      count ? el('span', { class: 'cal-count' }, String(count)) : null,
+      info?.mood ? el('span', { class: 'cal-mood' }, labelFor(MOODS, info.mood)) : null,
+    );
+  }
+
+  dayPanel(matches, date) {
+    const entries = matches.filter((entry) => entry.date === date);
+    const list = entries.length
+      ? el(
+          'ul',
+          { class: 'cal-list' },
+          entries.map((entry) =>
+            el(
+              'li',
+              {},
+              el(
+                'button',
+                { class: 'cal-entry', type: 'button', onClick: () => this.open(entry.id) },
+                iconNode('page'),
+                el('span', { class: 'cal-entry-title' }, displayTitle(entry)),
+                el('span', { class: 'cal-entry-sub' }, [kindLabel(entry.kind), feelText(entry)].filter(Boolean).join(' · ')),
+              ),
+            ),
+          ),
+        )
+      : el('p', { class: 'cal-empty' }, this.entries.length ? 'Nothing written on this day.' : 'Nothing written yet.');
+
+    return el(
+      'section',
+      { class: 'cal-panel', 'aria-label': `Entries for ${formatLongDate(date)}` },
+      el(
+        'div',
+        { class: 'cal-panel-head' },
+        el('h3', {}, formatLongDate(date)),
+        el(
+          'button',
+          { class: 'cmd-btn', type: 'button', onClick: () => this.callbacks.onNew?.({ date }) },
+          iconNode('plus'),
+          el('span', { class: 'cmd-label' }, 'New entry for this day'),
+        ),
+      ),
+      list,
     );
   }
 
@@ -416,6 +616,35 @@ export class HomeView {
       ? { key, dir: sort.dir === 'asc' ? 'desc' : 'asc' }
       : { key, dir: SORTS[key].dir };
     this.render();
+  }
+
+  shiftMonth(delta) {
+    const { year, month } = this.state.month;
+    const next = new Date(Date.UTC(year, month + delta, 1));
+    this.state.month = { year: next.getUTCFullYear(), month: next.getUTCMonth() };
+    this.render();
+  }
+
+  goToday() {
+    const today = localISODate();
+    this.state.day = today;
+    this.state.month = monthOf(today);
+    this.render();
+  }
+
+  /** Selects a day, moves the calendar to its month, and optionally moves focus onto it. */
+  selectDay(date, { focus = false } = {}) {
+    this.state.day = date;
+    this.state.month = monthOf(date);
+    this.render();
+    if (focus) this.main.querySelector(`[data-date="${date}"]`)?.focus();
+  }
+
+  onDayKeydown(event) {
+    const step = DAY_STEPS[event.key];
+    if (step === undefined) return;
+    event.preventDefault();
+    this.selectDay(shiftISODate(this.state.day, step), { focus: true });
   }
 
   select(id) {

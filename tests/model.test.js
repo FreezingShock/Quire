@@ -86,3 +86,15 @@ test('createZip writes local headers and a central directory with the right entr
   assert.equal(view.getUint32(eocd, true), 0x06054b50);
   assert.equal(view.getUint16(eocd + 10, true), 2);
 });
+
+test('normalizeEntry keeps only known mood and weather ids, defaulting to null', () => {
+  assert.equal(normalizeEntry({ mood: 'good', weather: 'rain' }).mood, 'good');
+  assert.equal(normalizeEntry({ mood: 'good', weather: 'rain' }).weather, 'rain');
+  const bad = normalizeEntry({ mood: 'ecstatic', weather: 42 });
+  assert.equal(bad.mood, null);
+  assert.equal(bad.weather, null);
+  // Entries saved before these fields existed still load.
+  const old = normalizeEntry({ id: 'x', body: 'old' });
+  assert.equal(old.mood, null);
+  assert.equal(old.weather, null);
+});

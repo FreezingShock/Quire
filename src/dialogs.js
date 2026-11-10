@@ -8,6 +8,7 @@ const SHORTCUTS = [
   ['All entries (home)', 'Ctrl+Shift+H'],
   ['Search entries, on home', 'Ctrl+F'],
   ['New entry', 'Ctrl+N'],
+  ["Today's entry (journal)", 'Alt+T'],
   ['Open entry', 'Ctrl+O'],
   ['Save now', 'Ctrl+S'],
   ['Export Markdown', 'Ctrl+E'],
@@ -22,7 +23,7 @@ const SHORTCUTS = [
   ['Keyboard shortcuts', 'F1'],
 ];
 
-function showDialog(dialog) {
+export function showDialog(dialog) {
   dialog.addEventListener('close', () => dialog.remove(), { once: true });
   document.body.append(dialog);
   dialog.showModal();
