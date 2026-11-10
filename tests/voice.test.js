@@ -11,6 +11,7 @@ import {
   formatDuration,
   normalizeAudioDataUrl,
   pickVoiceType,
+  voiceLabel,
 } from '../src/voice.js';
 
 const CLIP = 'data:audio/webm;base64,AAAA';
@@ -79,4 +80,24 @@ test('an export writes each voice note to audio/ with its own extension', async 
   assert.equal(files.length, 1);
   assert.equal(files[0].path, 'audio/a1.m4a');
   assert.deepEqual([...files[0].data], [...Buffer.from('ABC')]);
+});
+
+test('voiceLabel shows the length when it is known', () => {
+  assert.equal(voiceLabel(90), '\u{1F399} Voice note (1:30)');
+  assert.equal(voiceLabel(undefined), '\u{1F399} Voice note');
+});
+
+test('normalizeEntry keeps each voice note length as whole seconds', () => {
+  const entry = normalizeEntry({ audioSeconds: { a1: 12.4, bad: 'x', neg: -3 } });
+  assert.deepEqual(entry.audioSeconds, { a1: 12 });
+  assert.deepEqual(normalizeEntry({}).audioSeconds, {});
+});
+
+test('a printed page shows the voice note as a label, not a player', () => {
+  const html = renderMarkdown('![Voice note](quire-audio:a1)', {
+    media: (kind, id) => (kind === 'audio' && id === 'a1' ? CLIP : null),
+    printAudio: () => voiceLabel(65),
+  });
+  assert.equal(html, '<p class="media-audio-label">\u{1F399} Voice note (1:05)</p>');
+  assert.equal(renderMarkdown('![Voice note](quire-audio:a1)', { media: () => null, printAudio: () => 'x' }), '');
 });

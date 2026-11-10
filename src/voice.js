@@ -53,6 +53,11 @@ export function normalizeAudioDataUrl(src) {
   return `data:${type};base64,${match[2]}`;
 }
 
+/** The label a printed page shows in place of a voice note's player: "🎙 Voice note (1:30)". */
+export function voiceLabel(seconds) {
+  return Number.isFinite(seconds) ? `🎙 Voice note (${formatDuration(seconds)})` : '🎙 Voice note';
+}
+
 /** "0:05", "1:30", "5:00". Whole seconds, never negative. */
 export function formatDuration(seconds) {
   const whole = Math.max(0, Math.floor(Number(seconds) || 0));

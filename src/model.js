@@ -63,6 +63,16 @@ function normalizeAudio(raw) {
   return out;
 }
 
+/** How long each voice note runs, in seconds, keyed by id. Kept so a printed page can show it. */
+function normalizeAudioSeconds(raw) {
+  const out = {};
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return out;
+  for (const [id, seconds] of Object.entries(raw)) {
+    if (Number.isFinite(seconds) && seconds >= 0) out[id] = Math.round(seconds);
+  }
+  return out;
+}
+
 /** Inline sketches on an entry, keyed by id. Each has a height and the ops drawn on it. */
 function normalizeSketches(raw) {
   const out = {};
@@ -162,6 +172,7 @@ export function normalizeEntry(raw = {}) {
     images: normalizeImages(raw.images),
     // Voice notes are referenced from the body by id, the same way pictures are.
     audio: normalizeAudio(raw.audio),
+    audioSeconds: normalizeAudioSeconds(raw.audioSeconds),
     sketches: normalizeSketches(raw.sketches),
     // Song links for the entry's mixtape. Older entries have none, so they read back as an empty list.
     mixtape: normalizeMixtape(raw.mixtape),

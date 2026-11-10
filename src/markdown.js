@@ -68,12 +68,14 @@ function listItem(text) {
 }
 
 /** Picture, sketch or voice note, or nothing when the caller cannot resolve the id. */
-function mediaHtml(match, media) {
+function mediaHtml(match, media, printAudio) {
   const [, alt, kind, id] = match;
   const src = media?.(kind, id);
   if (!src) return '';
   if (kind === 'audio') {
     if (!/^(data:audio\/|blob:)/.test(src)) return '';
+    // A printed page cannot play sound, so it shows a label with the length instead.
+    if (printAudio) return `<p class="media-audio-label">${escapeHtml(printAudio(id))}</p>`;
     return `<figure class="media media-audio"><audio controls preload="metadata" aria-label="${escapeHtml(alt || 'Voice note')}" src="${escapeHtml(src)}"></audio></figure>`;
   }
   if (!/^(data:image\/|blob:)/.test(src)) return '';
@@ -83,6 +85,7 @@ function mediaHtml(match, media) {
 /**
  * Block-level pass: headings, quotes, lists, rules, fenced code and paragraphs.
  * `options.media(kind, id)` returns an image URL for a picture or sketch id, or null.
+ * `options.printAudio(id)` replaces a voice note's player with a text label, for printed pages.
  */
 export function renderMarkdown(source, options = {}) {
   const lines = String(source ?? '').replace(/\u0000/g, '').replace(/\r\n?/g, '\n').split('\n');
@@ -133,7 +136,7 @@ export function renderMarkdown(source, options = {}) {
     let match;
     if ((match = MEDIA_LINE.exec(line))) {
       close();
-      const html = mediaHtml(match, options.media);
+      const html = mediaHtml(match, options.media, options.printAudio);
       if (html) out.push(html);
       continue;
     }

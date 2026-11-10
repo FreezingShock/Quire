@@ -45,6 +45,7 @@ export function redactEntry(entry) {
     weather: null,
     images: {},
     audio: {},
+    audioSeconds: {},
     sketches: {},
     ink: { ops: [], h: 0, layers: normalizeLayers() },
   };

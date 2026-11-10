@@ -16,6 +16,7 @@
 import { escapeHtml, renderMarkdown, wordCount } from './markdown.js';
 import { PAGE_WIDTH, inkHeightFor } from './export.js';
 import { mediaResolver } from './media.js';
+import { voiceLabel } from './voice.js';
 import { NORM_WIDTH } from './drawing.js';
 import { KINDS, MOODS, WEATHERS, displayTitle, formatLongDate, formatShortDate, localISODate } from './model.js';
 import {
@@ -210,7 +211,7 @@ function sheetHtml(entry, { inkUrl, setup, hasInk }) {
   return {
     head: `<header class="print-head"><h1>${escapeHtml(displayTitle(entry))}</h1><p>${escapeHtml(`${kind} · ${formatLongDate(entry.date)}`)}</p></header>`,
     sheet: `<div class="sheet" style="zoom: ${zoom.toFixed(4)}; background: ${escapeHtml(entry.pageColor)}; width: ${PAGE_WIDTH}px; padding: 56px 72px 72px 88px;">`
-      + `<div class="sheet-text">${renderMarkdown(entry.body, { media: mediaResolver(entry) })}</div>`
+      + `<div class="sheet-text">${renderMarkdown(entry.body, { media: mediaResolver(entry), printAudio: (id) => voiceLabel(entry.audioSeconds?.[id]) })}</div>`
       + (ink ? `<img class="sheet-ink" alt="" src="${ink}" style="width: ${PAGE_WIDTH}px; height: ${cssHeight}px; mix-blend-mode: multiply;">` : '')
       + '</div>',
   };
@@ -269,7 +270,7 @@ const logKind = {
           + `<p class="log-date">${escapeHtml(formatLongDate(entry.date))}</p>`
           + `<h2 class="log-title">${escapeHtml(displayTitle(entry))}</h2>`
           + meta
-          + `<div class="sheet-text">${renderMarkdown(entry.body, { media: mediaResolver(entry) })}</div>`
+          + `<div class="sheet-text">${renderMarkdown(entry.body, { media: mediaResolver(entry), printAudio: (id) => voiceLabel(entry.audioSeconds?.[id]) })}</div>`
           + ink
           + '</article>';
       })

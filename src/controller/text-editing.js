@@ -144,6 +144,7 @@ export const textEditingMethods = {
       }
       const id = newId();
       entry.audio[id] = src;
+      entry.audioSeconds[id] = Math.round(seconds);
       const from = Math.min(range.start, ta.value.length);
       const to = Math.min(Math.max(from, range.end), ta.value.length);
       this.applyEdit(blockInsertEdit(ta.value, from, to, `![Voice note](quire-audio:${id})`));
