@@ -160,8 +160,7 @@ test('Source mode shows the Markdown markers and the status bar says so', async 
     await page.click('#editor');
     await page.keyboard.type('# Source check');
     await page.keyboard.press('Enter');
-    await page.click('.menu-title:has-text("View")');
-    await page.click('.menu-item:has-text("Source mode")');
+    await menuPick(page, 'View', 'Source mode', 'Page');
     assert.equal((await page.textContent('#status-mode')).trim(), 'Source');
     assert.match(await page.innerText('#editor'), /# Source check/);
     expectNoErrors(page);
@@ -257,10 +256,8 @@ test('Save version now adds a version that Version history lists', async () => {
     await page.click('#editor');
     await page.keyboard.type('Version one text');
     await waitForSaved(page);
-    await page.click('.menu-title:has-text("File")');
-    await page.click('.menu-item:has-text("Save version now")');
-    await page.click('.menu-title:has-text("File")');
-    await page.click('.menu-item:has-text("Version history")');
+    await menuPick(page, 'File', 'Save version now', 'This entry');
+    await menuPick(page, 'File', 'Version history', 'This entry');
     await page.waitForSelector('.version-list li');
     const count = await page.locator('.version-list li:not(.version-empty)').count();
     assert.ok(count >= 1, 'at least one saved version is listed');
@@ -306,8 +303,7 @@ test('Postcard dialog previews a template and saves it as a PNG', async () => {
     await page.click('#editor');
     await page.keyboard.type('Wish you were here.');
     await waitForSaved(page);
-    await page.click('.menu-title:has-text("File")');
-    await page.click('.menu-item:has-text("Postcard")');
+    await menuPick(page, 'File', 'Postcard', 'Export and print');
     await page.waitForSelector('.postcard-preview');
     await page.click('.postcard-thumb[data-template="airmail"]');
     assert.equal(await page.getAttribute('.postcard-thumb[data-template="airmail"]', 'aria-pressed'), 'true');
@@ -331,9 +327,10 @@ test('Back up all entries downloads a JSON file that includes the entry', async 
     await renameEntry(page, 'Backup me');
     await waitForSaved(page);
     await page.click('.menu-title:has-text("File")');
+    await page.click('.menu-panel:not(.menu-sub) .menu-item.has-sub:has-text("Backup and restore")');
     const [download] = await Promise.all([
       page.waitForEvent('download'),
-      page.click('.menu-item:has-text("Back up all entries")'),
+      page.click('.menu-sub .menu-item:has-text("Back up all entries")'),
     ]);
     assert.match(download.suggestedFilename(), /\.json$/);
     const path = await download.path();
@@ -393,10 +390,16 @@ async function goHome(page) {
   await page.waitForFunction(() => document.querySelector('.app')?.dataset.view === 'home');
 }
 
+/** Opens a menu, then clicks an item. When the item sits in a flyout, the flyout is opened first. */
+async function menuPick(page, menu, item, flyout = null) {
+  await page.click(`.menu-title:has-text("${menu}")`);
+  if (flyout) await page.click(`.menu-panel:not(.menu-sub) .menu-item.has-sub:has-text("${flyout}")`);
+  await page.click(`${flyout ? ".menu-sub" : ".menu-panel"} .menu-item:has-text("${item}")`);
+}
+
 /** Moves the open entry into a notebook through File > Move to notebook. */
 async function moveOpenEntryTo(page, { existing = null, typed = null }) {
-  await page.click('.menu-title:has-text("File")');
-  await page.click('.menu-item:has-text("Move to notebook")');
+  await menuPick(page, 'File', 'Move to notebook', 'This entry');
   const dialog = page.locator('dialog[open]');
   await dialog.waitFor();
   if (typed !== null) {
