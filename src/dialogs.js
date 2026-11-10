@@ -22,7 +22,7 @@ const SHORTCUTS = [
   ['Keyboard shortcuts', 'F1'],
 ];
 
-function showDialog(dialog) {
+export function showDialog(dialog) {
   dialog.addEventListener('close', () => dialog.remove(), { once: true });
   document.body.append(dialog);
   dialog.showModal();

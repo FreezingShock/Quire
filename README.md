@@ -23,7 +23,9 @@ You can also open `index.html` through any static server.
 - **Writing:** a live preview. Headings, quotes, lists, rules, code, bold, italics, links, and colors render as you type, and the Markdown markup shows only on the line you are editing. Enter continues lists. Select text and click a color to color it.
 - **Source mode:** the Source button (or View > Source mode) shows every Markdown marker. Formatting still applies right away.
 - **Drawing:** pencil, brush, highlighter, eraser, line, rectangle, ellipse, fill, and color picker. Stroke widths 1, 3, and 6. Undo and redo follow whichever surface you touched last. Right-click a swatch to change the page color.
-- **Export:** Markdown with front matter (a .zip with the drawing PNG when the entry has ink), drawing as PNG, print or save as PDF, and JSON backup and restore.
+- **Export:** Markdown with front matter (a .zip with the drawing PNG when the entry has ink), drawing as PNG, print or save as PDF, and JSON backup and restore. Backups include version history.
+- **Version history:** Quire keeps a version every five minutes while you edit, when you leave an entry, and before a restore. Open File > Version history to preview a version's text and drawing, restore it, or delete it. Save version now keeps one by hand. The newest 30 versions are kept per entry.
+- **Save status:** the dot in the title bar shows whether changes are pending, saving, saved, or failed to save.
 - **Look:** serif, sans, or monospace writing font, plus a dark chrome option.
 
 ## Design decisions
@@ -40,6 +42,7 @@ You can also open `index.html` through any static server.
 - Ink is pinned to the page, not to a line of text. If you edit text above a drawing, the ink does not move with it.
 - The print/PDF layout is close to the screen layout but can differ slightly.
 - There is no zoom or lasso selection yet.
+- Each version keeps a full copy of the text and ink, so a long entry with many versions takes more browser storage.
 
 ## Layout
 
@@ -52,8 +55,10 @@ src/model.js        entry schema and helpers (no DOM)
 src/markdown.js     safe Markdown renderer
 src/textops.js      pure text edits (lists, headings, color spans)
 src/drawing.js      ops, undo stack, flood fill, rendering
-src/storage.js      IndexedDB and memory stores behind one interface
+src/storage.js      IndexedDB and memory stores behind one interface (entries and versions)
 src/export.js       Markdown, ZIP, PNG, print, backup
+src/versions.js     version rules: when a copy is kept and what it holds (no DOM)
+src/history.js      version history dialog
 styles/             app chrome, live editor, and rendered-text styles
 tests/              node:test unit tests
 scripts/serve.js    dependency-free static server
