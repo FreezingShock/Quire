@@ -370,6 +370,12 @@ textarea {
   animation: menu-drop 0.14s ease-out;
 }
 
+/* A flyout opens from an item inside the menu panel, so it gets its own opaque body to read over the page. */
+:root[data-skin] .menu-panel.menu-sub {
+  background: var(--popup-body);
+  z-index: 21;
+}
+
 @keyframes menu-drop {
   from { opacity: 0; transform: translateY(-4px); }
   to { opacity: 1; transform: none; }

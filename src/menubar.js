@@ -54,8 +54,11 @@ export function createMenuBar(root, menus) {
     return next;
   }
 
+  /** The items the arrow keys move through: the open submenu's if one is open, otherwise the menu's own. */
   function enabledItems() {
-    return open ? [...open.panel.querySelectorAll('.menu-item:not(:disabled)')] : [];
+    if (!open) return [];
+    const level = open.sub?.panel ?? open.panel;
+    return [...level.querySelectorAll(':scope > .menu-item:not(:disabled)')];
   }
 
   function focusItem(which) {
@@ -66,34 +69,79 @@ export function createMenuBar(root, menus) {
     else items[(items.indexOf(document.activeElement) + which + items.length) % items.length].focus();
   }
 
+  /** One row of a menu or submenu. An item with `submenu` opens a flyout instead of running an action. */
+  function makeItem(item) {
+    const checkable = Boolean(item.check);
+    const hasSub = Array.isArray(item.submenu);
+    const row = el(
+      'button',
+      {
+        class: `menu-item${checkable && item.checked ? ' is-checked' : ''}${hasSub ? ' has-sub' : ''}`,
+        type: 'button',
+        role: checkable ? 'menuitemcheckbox' : 'menuitem',
+        'aria-checked': checkable ? String(Boolean(item.checked)) : null,
+        'aria-haspopup': hasSub ? 'menu' : null,
+        'aria-expanded': hasSub ? 'false' : null,
+        disabled: Boolean(item.disabled),
+        onClick: () => {
+          if (hasSub) openSub(row, item.submenu, { focusFirst: true });
+          else {
+            close();
+            item.action?.();
+          }
+        },
+      },
+      el('span', {}, item.label),
+      el('span', { class: 'menu-shortcut' }, hasSub ? '›' : (item.shortcut ?? '')),
+    );
+    row.submenuItems = hasSub ? item.submenu : null;
+    row.addEventListener('pointerenter', () => {
+      if (!open || row.disabled) return;
+      if (hasSub) openSub(row, item.submenu);
+      else if (open.sub && row.parentElement === open.panel) closeSub();
+    });
+    return row;
+  }
+
+  /** Opens a flyout beside `parent`, inside the open menu panel so the keys and clicks stay in one place. */
+  function openSub(parent, items, { focusFirst = false } = {}) {
+    if (!open) return;
+    if (open.sub?.button === parent) {
+      if (focusFirst) focusItem('first');
+      return;
+    }
+    closeSub();
+    const panel = el('div', { class: 'menu-panel menu-sub', role: 'menu', 'aria-label': parent.querySelector('span')?.textContent ?? '' });
+    for (const item of items) {
+      if (item === 'sep') panel.append(el('div', { class: 'menu-sep', role: 'separator' }));
+      else panel.append(makeItem(item));
+    }
+    panel.style.top = `${parent.offsetTop - 4}px`;
+    panel.style.left = `${open.panel.offsetWidth - 3}px`;
+    open.panel.append(panel);
+    parent.setAttribute('aria-expanded', 'true');
+    open.sub = { button: parent, panel };
+    if (focusFirst) focusItem('first');
+  }
+
+  /** Closes the open flyout. `refocus` moves focus back to the item that opened it. */
+  function closeSub({ refocus = false } = {}) {
+    if (!open?.sub) return;
+    const { button, panel } = open.sub;
+    const hadFocus = panel.contains(document.activeElement);
+    panel.remove();
+    button.setAttribute('aria-expanded', 'false');
+    open.sub = null;
+    if (hadFocus || refocus) button.focus();
+  }
+
   function show(index, { focusFirst = false } = {}) {
     close();
     const button = titles[index];
     const panel = el('div', { class: 'menu-panel', role: 'menu', id: `menu-panel-${index}`, 'aria-label': menus[index].label });
     for (const item of menus[index].items()) {
-      if (item === 'sep') {
-        panel.append(el('div', { class: 'menu-sep', role: 'separator' }));
-        continue;
-      }
-      const checkable = Boolean(item.check);
-      panel.append(
-        el(
-          'button',
-          {
-            class: `menu-item${checkable && item.checked ? ' is-checked' : ''}`,
-            type: 'button',
-            role: checkable ? 'menuitemcheckbox' : 'menuitem',
-            'aria-checked': checkable ? String(Boolean(item.checked)) : null,
-            disabled: Boolean(item.disabled),
-            onClick: () => {
-              close();
-              item.action?.();
-            },
-          },
-          el('span', {}, item.label),
-          el('span', { class: 'menu-shortcut' }, item.shortcut ?? ''),
-        ),
-      );
+      if (item === 'sep') panel.append(el('div', { class: 'menu-sep', role: 'separator' }));
+      else panel.append(makeItem(item));
     }
     button.setAttribute('aria-expanded', 'true');
     button.setAttribute('aria-controls', panel.id);
@@ -127,11 +175,23 @@ export function createMenuBar(root, menus) {
   document.addEventListener('keydown', (event) => {
     if (!open) return;
     const inPanel = open.panel.contains(document.activeElement);
-    if (event.key === 'Escape') {
+    const inSub = Boolean(open.sub?.panel.contains(document.activeElement));
+    const focused = document.activeElement;
+    if (event.key === 'Escape' && open.sub) {
+      // Escape first closes the flyout, leaving the menu open.
+      event.preventDefault();
+      closeSub({ refocus: true });
+    } else if (event.key === 'Escape') {
       event.preventDefault();
       const { index } = open;
       close();
       titles[index].focus();
+    } else if (event.key === 'ArrowRight' && inPanel && !inSub && focused?.submenuItems) {
+      event.preventDefault();
+      openSub(focused, focused.submenuItems, { focusFirst: true });
+    } else if (event.key === 'ArrowLeft' && inSub) {
+      event.preventDefault();
+      closeSub({ refocus: true });
     } else if (event.key === 'ArrowRight' || event.key === 'ArrowLeft') {
       event.preventDefault();
       const step = event.key === 'ArrowRight' ? 1 : -1;
