@@ -63,6 +63,7 @@ import {
 import { icon } from './icons.js';
 import { el } from './dom.js';
 import { loadPrefs, savePrefs } from './prefs.js';
+import { ACCENT_PROPERTIES, SKINS, accentTokens, normalizeAccent, skinOf } from './skins.js';
 import { playSound } from './sound.js';
 import {
   downloadBlob,
@@ -245,7 +246,17 @@ export class QuireApp {
 
   applyPrefs() {
     const root = document.documentElement;
-    root.dataset.theme = this.prefs.dark ? 'dark' : 'light';
+    const skin = skinOf(this.prefs);
+    root.dataset.skin = skin;
+    root.dataset.theme = skin === 'aero-dark' ? 'dark' : 'light';
+    root.dataset.motion = this.prefs.motion === false ? 'off' : 'on';
+    // A custom accent overrides the skin's selection and title bar colors. Without one, the skin's own colors show.
+    const accent = accentTokens(this.prefs.accent);
+    for (const name of ACCENT_PROPERTIES) {
+      if (accent) root.style.setProperty(`--${name}`, accent[name]);
+      else root.style.removeProperty(`--${name}`);
+    }
+    root.dataset.accent = accent ? 'custom' : 'skin';
     root.style.setProperty('--page-font', FONT_STACKS[this.prefs.font] ?? FONT_STACKS.serif);
     const source = Boolean(this.prefs.source);
     this.dom.editorEl.classList.toggle('is-source', source);
@@ -272,6 +283,25 @@ export class QuireApp {
     this.prefs = savePrefs(patch);
     this.applyPrefs();
     this.requestSync();
+  }
+
+  /** Opens the system color chooser. Each change previews live and is saved as the custom accent. */
+  pickAccent() {
+    if (!this.accentInput) {
+      this.accentInput = el('input', { class: 'accent-picker', type: 'color', tabindex: '-1', 'aria-hidden': 'true' });
+      this.accentInput.addEventListener('input', () => {
+        const hex = normalizeAccent(this.accentInput.value);
+        if (hex) this.setPref({ accent: hex });
+      });
+      document.body.append(this.accentInput);
+    }
+    this.accentInput.value = normalizeAccent(this.prefs.accent) ?? '#2f6fbf';
+    try {
+      if (typeof this.accentInput.showPicker === 'function') this.accentInput.showPicker();
+      else this.accentInput.click();
+    } catch {
+      this.accentInput.click();
+    }
   }
 
   /** `state` drives the dot in the title bar: 'pending', 'saving', 'saved', 'error', or '' for a plain message. */
@@ -553,8 +583,6 @@ export class QuireApp {
             action: () => this.setPref({ font: id }),
           })),
           'sep',
-          { label: 'Dark chrome', check: true, checked: this.prefs.dark, action: () => this.setPref({ dark: !this.prefs.dark }) },
-          'sep',
           { label: 'Show grid', check: true, checked: Boolean(this.prefs.showGrid), action: () => this.setPref({ showGrid: !this.prefs.showGrid }) },
           { label: 'Snap to grid', check: true, checked: Boolean(this.prefs.snapGrid), action: () => this.setPref({ snapGrid: !this.prefs.snapGrid }) },
           { label: 'Snap lines to 15° angles', check: true, checked: Boolean(this.prefs.snapAngles), action: () => this.setPref({ snapAngles: !this.prefs.snapAngles }) },
@@ -575,6 +603,30 @@ export class QuireApp {
             },
           },
         ],
+      },
+      {
+        label: 'Skin',
+        items: () => {
+          const current = skinOf(this.prefs);
+          return [
+            ...SKINS.map((skin) => ({
+              label: skin.label,
+              check: true,
+              checked: current === skin.id,
+              action: () => this.setPref({ skin: skin.id }),
+            })),
+            'sep',
+            { label: 'Custom accent color…', action: () => this.pickAccent() },
+            { label: 'Reset accent color', disabled: !this.prefs.accent, action: () => this.setPref({ accent: null }) },
+            'sep',
+            {
+              label: 'Window animations',
+              check: true,
+              checked: this.prefs.motion !== false,
+              action: () => this.setPref({ motion: this.prefs.motion === false }),
+            },
+          ];
+        },
       },
       {
         label: 'Colors',

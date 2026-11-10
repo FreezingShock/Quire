@@ -1,0 +1,350 @@
+/*
+ * Skins. Aero (light and dark) is the default look in app.css and vista.css.
+ * The blocks below re-color the same tokens for Aero Basic, XP Luna, and
+ * Classic 98, then restyle the parts that are not token-driven. A skin is
+ * picked with data-skin on <html>; the ids live in src/skins.js.
+ */
+
+/* ---------- tokens shared by every skin ---------- */
+
+:root {
+  --wallpaper: url("../assets/aero-wallpaper.svg");
+  --pattern: radial-gradient(circle at 1px 1px, rgba(47, 111, 191, 0.16) 1px, transparent 1.6px);
+  --pattern-size: 14px;
+  --glare: linear-gradient(115deg, rgba(255, 255, 255, 0.75), rgba(255, 255, 255, 0) 42%);
+}
+
+:root[data-theme="dark"] {
+  --pattern: radial-gradient(circle at 1px 1px, rgba(150, 190, 240, 0.12) 1px, transparent 1.6px);
+  --glare: linear-gradient(115deg, rgba(180, 210, 255, 0.16), rgba(180, 210, 255, 0) 42%);
+}
+
+:root:not([data-skin^="aero"]) {
+  --pattern: none;
+  --glare: none;
+}
+
+/* Reduced motion: the window's Motion setting turns off every animation and transition. */
+:root[data-motion="off"] *,
+:root[data-motion="off"] *::before,
+:root[data-motion="off"] *::after {
+  animation: none !important;
+  transition: none !important;
+}
+
+/* The hidden color chooser behind View > Skin > Custom accent color. */
+.accent-picker {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+  border: 0;
+  padding: 0;
+}
+
+/* ---------- Aero Basic: Windows 7 Basic, flat frame with no glass ---------- */
+
+:root[data-skin="basic"] {
+  --wallpaper: none;
+  --frame: #6d8aa8;
+  --glass-hi: #eef4fb;
+  --glass-mid: #cbdbee;
+  --glass-lo: #bcd0e6;
+  --title-text: #1d2d40;
+  --panel-hi: #fbfbfc;
+  --panel-lo: #eceff3;
+  --panel-edge: #a7b3c2;
+  --menu-hi: #fdfdfd;
+  --menu-lo: #eceff3;
+  --field: #ffffff;
+  --field-edge: #a0aab7;
+  --accent: #3a78c2;
+  --accent-hi: #8fb9ea;
+  --accent-lo: #2d64aa;
+  --accent-ink: #ffffff;
+  --hover-edge: #3c7fb1;
+  --tile-hi: #fbfcfd;
+  --tile-lo: #e4e9ef;
+  --tile-edge: #a5afbb;
+  --tile-ink: #1e2f44;
+  --glow-hi: #eaf4fd;
+  --glow-lo: #cde5f8;
+  --press-hi: #c3e0f7;
+  --press-lo: #8fc1ea;
+  --desk-hi: #d5dde7;
+  --desk-lo: #c4cfdc;
+  --paper: #fffffe;
+  --text: #1e2630;
+  --muted: #5a6470;
+  --danger: #b3262b;
+  --status-hi: #f1f4f8;
+  --status-lo: #dde4ec;
+  --shadow: 0 1px 3px rgba(0, 0, 0, 0.22);
+}
+
+html[data-skin="basic"].has-wallpaper { background: #4a6a8e; }
+[data-skin="basic"] .titlebar { text-shadow: none; box-shadow: none; }
+[data-skin="basic"] .brand-mark { color: #1d2d40; }
+[data-skin="basic"] .titlebar-status { color: #1d2d40; }
+[data-skin="basic"] .splash { background: #3b5b7d; }
+
+/* ---------- XP Luna: blue title bar with rounded top, beige panes, soft orange glow ---------- */
+
+:root[data-skin="luna"] {
+  --wallpaper: url("../assets/luna-hills.svg");
+  --frame: #0831d9;
+  --glass-hi: #5b9cff;
+  --glass-mid: #0a5ff0;
+  --glass-lo: #0046d5;
+  --title-text: #ffffff;
+  --panel-hi: #fbfbf7;
+  --panel-lo: #ece9d8;
+  --panel-edge: #8c9bb4;
+  --menu-hi: #fdfdf9;
+  --menu-lo: #ece9d8;
+  --field: #ffffff;
+  --field-edge: #7f9db9;
+  --accent: #316ac5;
+  --accent-hi: #7aa6ec;
+  --accent-lo: #1f56b0;
+  --accent-ink: #ffffff;
+  --hover-edge: #3c7fb1;
+  --tile-hi: #ffffff;
+  --tile-lo: #ece9d8;
+  --tile-edge: #003c74;
+  --tile-ink: #1c3a6e;
+  --glow-hi: #fffbe8;
+  --glow-lo: #ffe59a;
+  --press-hi: #ffd27a;
+  --press-lo: #e7a14a;
+  --desk-hi: #c6d3f7;
+  --desk-lo: #a8bce9;
+  --paper: #ffffff;
+  --text: #1c2a3b;
+  --muted: #4d5b72;
+  --danger: #b3261e;
+  --status-hi: #f6f5ee;
+  --status-lo: #ece9d8;
+  --shadow: 0 2px 6px rgba(0, 30, 90, 0.35);
+  --ui-font: Tahoma, "Segoe UI", Verdana, system-ui, Arial, sans-serif;
+}
+
+html[data-skin="luna"].has-wallpaper { background: #3a6fd6; }
+[data-skin="luna"] .app { border-radius: 8px 8px 3px 3px; overflow: hidden; }
+[data-skin="luna"] .titlebar { border-radius: 7px 7px 0 0; border-bottom-color: #0031b8; text-shadow: 0 1px 1px #0a1f5c; }
+[data-skin="luna"] .brand-mark { color: #3c7fe8; }
+[data-skin="luna"] .home-nav { background: linear-gradient(to bottom, #ffffff, #c6d3f7 75%, #aabfe9); }
+[data-skin="luna"] .menu-panel {
+  background: linear-gradient(to right, #ece9d8 0, #ece9d8 27px, #ffffff 27px, #ffffff 100%);
+  border-color: #0831d9;
+  border-radius: 0 0 4px 4px;
+}
+[data-skin="luna"] .menu-item:hover,
+[data-skin="luna"] .menu-item:focus-visible {
+  background: #316ac5;
+  color: #ffffff;
+}
+[data-skin="luna"] .btn {
+  border-color: #003c74;
+  border-radius: 3px;
+  background: linear-gradient(to bottom, #ffffff, #f2f0e6 60%, #d9d3bf);
+}
+[data-skin="luna"] .btn-primary {
+  background: linear-gradient(to bottom, #6fa1f5, #2b62d0 60%, #2452b8);
+  border-color: #003c74;
+}
+[data-skin="luna"] .splash {
+  background: radial-gradient(ellipse at 50% 120%, #5aa6ff 0%, #1c5fd6 45%, #0a2f8a 100%);
+}
+
+/* ---------- Classic 98: flat gray faces, bevels, navy title bars, square corners ---------- */
+
+:root[data-skin="classic"] {
+  --wallpaper: none;
+  --frame: #008080;
+  --glass-hi: #000080;
+  --glass-mid: #000080;
+  --glass-lo: #000080;
+  --title-text: #ffffff;
+  --panel-hi: #dfdfdf;
+  --panel-lo: #c0c0c0;
+  --panel-edge: #808080;
+  --menu-hi: #c0c0c0;
+  --menu-lo: #c0c0c0;
+  --field: #ffffff;
+  --field-edge: #808080;
+  --accent: #000080;
+  --accent-hi: #1084d0;
+  --accent-lo: #000060;
+  --accent-ink: #ffffff;
+  --hover-edge: #000080;
+  --tile-hi: #dfdfdf;
+  --tile-lo: #c0c0c0;
+  --tile-edge: #808080;
+  --tile-ink: #000000;
+  --glow-hi: #dfdfdf;
+  --glow-lo: #c0c0c0;
+  --press-hi: #a8a8a8;
+  --press-lo: #c0c0c0;
+  --desk-hi: #c0c0c0;
+  --desk-lo: #c0c0c0;
+  --paper: #ffffff;
+  --text: #000000;
+  --muted: #303030;
+  --danger: #800000;
+  --status-hi: #c0c0c0;
+  --status-lo: #c0c0c0;
+  --shadow: none;
+  --ui-font: "Microsoft Sans Serif", Tahoma, Arial, sans-serif;
+}
+
+html[data-skin="classic"].has-wallpaper { background: #008080; }
+[data-skin="classic"] * { border-radius: 0; text-shadow: none; }
+[data-skin="classic"] :is(.app, .titlebar, .menu-panel, .dialog, .menubar, .menu-title, .entry-bar, .toolbox, .palette, .statusbar, .home-command, .home-nav, .home-main) {
+  box-shadow: none;
+}
+[data-skin="classic"] .app {
+  border: 2px solid;
+  border-color: #dfdfdf #000000 #000000 #dfdfdf;
+  overflow: hidden;
+}
+[data-skin="classic"] :is(.toolbox, .palette, .entry-bar, .home-command, .home-nav, .statusbar, .menubar-row, .menubar, .workspace) {
+  background: #c0c0c0;
+  background-image: none;
+}
+[data-skin="classic"] .titlebar { border-bottom: 1px solid #000000; }
+[data-skin="classic"] .brand-mark { display: none; }
+[data-skin="classic"] .titlebar-status::before { border-radius: 0; }
+[data-skin="classic"] .titlebar-status[data-state="saving"]::before {
+  animation: classic-blink 0.8s steps(2, start) infinite;
+  background: #000080;
+}
+[data-skin="classic"] .menu-title { color: #000000; border-color: transparent; }
+[data-skin="classic"] .menu-title:hover,
+[data-skin="classic"] .menu-title.is-open {
+  background: #000080;
+  color: #ffffff;
+  border-color: transparent;
+  box-shadow: none;
+}
+[data-skin="classic"] .menu-panel {
+  background: #c0c0c0;
+  border: 2px solid;
+  border-color: #ffffff #000000 #000000 #ffffff;
+  animation: none;
+}
+[data-skin="classic"] .menu-panel::before { display: none; }
+[data-skin="classic"] .menu-item:hover,
+[data-skin="classic"] .menu-item:focus-visible {
+  background: #000080;
+  color: #ffffff;
+}
+[data-skin="classic"] .menu-item:disabled { color: #808080; }
+[data-skin="classic"] .dialog {
+  background: #c0c0c0;
+  border: 2px solid;
+  border-color: #ffffff #000000 #000000 #ffffff;
+  animation: none;
+}
+[data-skin="classic"] .dialog-title { color: #000080; }
+
+/* Raised bevels for every button, pressed bevels while held or toggled on. */
+[data-skin="classic"] :is(.btn, .cmd-btn, .tool-btn, .format-btn, .source-btn, .size-btn, .layer-btn, .ribbon-toggle, .cal-step) {
+  background: #c0c0c0;
+  background-image: none;
+  color: #000000;
+  border: 2px solid;
+  border-color: #ffffff #000000 #000000 #ffffff;
+  box-shadow: inset -1px -1px #808080;
+  transition: none;
+}
+
+[data-skin="classic"] :is(.btn, .cmd-btn, .tool-btn, .format-btn, .source-btn, .size-btn, .layer-btn, .ribbon-toggle, .cal-step):active:not(:disabled),
+[data-skin="classic"] :is(.tool-btn, .format-btn, .source-btn)[aria-pressed="true"],
+[data-skin="classic"] .size-btn[aria-checked="true"] {
+  background: #c0c0c0;
+  background-image: repeating-conic-gradient(#ffffff 0 25%, #c0c0c0 0 50%) 0 0 / 2px 2px;
+  border-color: #000000 #ffffff #ffffff #000000;
+  box-shadow: inset 1px 1px #808080;
+}
+
+[data-skin="classic"] .btn:disabled,
+[data-skin="classic"] .tool-btn:disabled,
+[data-skin="classic"] .layer-btn:disabled {
+  opacity: 1;
+  color: #808080;
+  text-shadow: 1px 1px #ffffff;
+}
+
+[data-skin="classic"] .btn-primary {
+  font-weight: 700;
+  outline: 1px dotted #000000;
+  outline-offset: -5px;
+}
+
+[data-skin="classic"] :is(.btn-danger, .btn-quiet-danger) { color: #800000; }
+[data-skin="classic"] .btn-quiet-danger { background: #c0c0c0; border-color: #ffffff #000000 #000000 #ffffff; }
+
+[data-skin="classic"] :is(.nav-item[aria-current="true"], .home-table tbody tr.is-selected, .cal-day.is-selected) {
+  background: #000080;
+  color: #ffffff;
+}
+[data-skin="classic"] .nav-item[aria-current="true"] .icon { color: #ffffff; }
+[data-skin="classic"] .th-btn:hover { background: #dfdfdf; }
+
+[data-skin="classic"] :is(.home-search, .home-search input, input:not([type="color"]):not([type="checkbox"]), select, textarea) {
+  border-radius: 0;
+  background: #ffffff;
+  border: 2px solid;
+  border-color: #808080 #ffffff #ffffff #808080;
+  box-shadow: none;
+}
+
+[data-skin="classic"] .splash {
+  background: #008080;
+  color: #ffffff;
+}
+[data-skin="classic"] .splash-mark { display: none; }
+[data-skin="classic"] .splash-name { font: 700 28px/1 "Courier New", monospace; letter-spacing: 0.02em; }
+[data-skin="classic"] .splash-ring { gap: 4px; }
+[data-skin="classic"] .splash-ring span {
+  width: 12px;
+  height: 12px;
+  border-radius: 0;
+  background: #ffffff;
+  box-shadow: none;
+  opacity: 0.3;
+  animation-name: classic-block;
+  animation-duration: 1.2s;
+  animation-timing-function: steps(2, end);
+  animation-iteration-count: infinite;
+}
+
+@keyframes classic-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.15; }
+}
+
+@keyframes classic-block {
+  0%, 100% { opacity: 0.3; }
+  50% { opacity: 1; }
+}
+
+/* ---------- Motion is per skin: Aero settles and sheens, Luna eases, Classic blinks and never slides ---------- */
+
+[data-skin="classic"] .menu-panel,
+[data-skin="classic"] .dialog[open] { animation: none; }
+
+:root[data-skin="luna"][data-motion="on"] .app { animation: window-fade 0.25s ease-out both; }
+:root[data-skin="basic"][data-motion="on"] .app { animation: window-fade 0.2s ease-out both; }
+
+@keyframes window-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* A dialog pops in only where the skin has motion. */
+:root[data-skin="luna"][data-motion="on"] .dialog[open] { animation: dialog-settle 0.18s ease-out both; }
