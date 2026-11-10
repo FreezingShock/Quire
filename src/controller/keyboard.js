@@ -18,6 +18,17 @@ export const keyboardMethods = {
       showShortcuts();
       return;
     }
+    if (event.key === 'F11') {
+      event.preventDefault();
+      this.toggleFocusMode();
+      return;
+    }
+    // Esc leaves focus mode, unless it has a job of its own: a text box, a draft, or a selection.
+    if (event.key === 'Escape' && this.focusMode && !this.draft && !this.textDraft && !this.selection.size) {
+      event.preventDefault();
+      this.exitFocusMode();
+      return;
+    }
     if (event.altKey && !event.ctrlKey && !event.metaKey && key === 't') {
       event.preventDefault();
       this.openToday();

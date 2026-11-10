@@ -1,0 +1,179 @@
+/*
+ * Focus writing mode (F11): the window chrome goes away and only the page stays,
+ * with a Vista-style bar at the bottom for the word count, the session goal and
+ * the save state. Loaded last, so these rules win over the skin and Vista rules
+ * they replace. Everything is scoped to html.focus-mode, so the normal layout is untouched.
+ */
+
+/* ---------- the page fills the screen ---------- */
+
+html.focus-mode,
+html.focus-mode.has-wallpaper {
+  background: var(--paper);
+}
+
+html.focus-mode body,
+html.focus-mode.has-wallpaper body {
+  padding: 0;
+  background: var(--paper);
+}
+
+html.focus-mode body::before,
+html.focus-mode body::after {
+  display: none;
+}
+
+html.focus-mode .app,
+html.focus-mode.has-wallpaper .app {
+  grid-template-rows: minmax(0, 1fr);
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  overflow: hidden;
+  background: var(--paper);
+}
+
+html.focus-mode :is(.titlebar, .menubar-row, .entry-bar, .palette, .statusbar, .toolbox, .ribbon-toggle, .home) {
+  display: none;
+}
+
+html.focus-mode .workspace {
+  grid-row: 1;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
+}
+
+html.focus-mode .desk {
+  background-color: var(--paper);
+}
+
+/* A comfortable column of text in the middle of the window, a little below the top. */
+html.focus-mode .sheet {
+  padding-top: clamp(40px, 12vh, 140px);
+  padding-inline: max(24px, calc(50% - 340px));
+}
+
+html.focus-mode .editor {
+  font-size: 19px;
+  line-height: 1.75;
+}
+
+/* CRT ambient: faint scan lines over the page. */
+html.focus-mode[data-ambient="crt"] .desk::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 5;
+  pointer-events: none;
+  background: repeating-linear-gradient(to bottom, rgba(0, 0, 0, 0.035) 0 1px, transparent 1px 3px);
+}
+
+/* Typewriter scrolling: the page has room below the last line, so the caret can reach the middle. */
+html.typewriter .sheet {
+  padding-bottom: 50vh;
+}
+
+/* ---------- the bar at the bottom ---------- */
+
+.focus-hud {
+  display: none;
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 30;
+  align-items: center;
+  gap: 14px;
+  height: 28px;
+  padding: 0 12px;
+  background: linear-gradient(to bottom, var(--status-hi), var(--status-lo));
+  border-top: 1px solid var(--panel-edge);
+  font-size: 12px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+html.focus-mode .focus-hud {
+  display: flex;
+}
+
+.focus-hud-count {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-variant-numeric: tabular-nums;
+}
+
+.focus-hud-save {
+  margin-left: auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.focus-hud-hint {
+  opacity: 0.75;
+}
+
+/* The Vista progress bar, as on the splash: a sunken groove with segmented green blocks. */
+.focus-progress {
+  position: relative;
+  display: none;
+  flex: 0 1 240px;
+  width: 240px;
+  max-width: 30vw;
+  height: 12px;
+  border: 1px solid rgba(20, 60, 40, 0.5);
+  border-radius: 3px;
+  background: linear-gradient(to bottom, #d9e3ec, #f5f8fb);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.25);
+  overflow: hidden;
+}
+
+.focus-hud[data-goal="on"] .focus-progress {
+  display: block;
+}
+
+.focus-progress-fill {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 0;
+  background: linear-gradient(to bottom, #e4ffdc, #5fd64f 45%, #1f9f2a 55%, #a9f09a);
+  -webkit-mask-image: repeating-linear-gradient(to right, #000 0 8px, transparent 8px 10px);
+          mask-image: repeating-linear-gradient(to right, #000 0 8px, transparent 8px 10px);
+  transition: width 0.3s ease-out;
+}
+
+html[data-motion="off"] .focus-progress-fill {
+  transition: none;
+}
+
+/* Phones: the hint goes first, so the count, goal and save state still fit. */
+@media (max-width: 560px) {
+  .focus-hud-hint {
+    display: none;
+  }
+
+  .focus-progress {
+    width: 120px;
+  }
+}
+
+html[data-skin="classic"] .focus-hud {
+  background: #d4d0c8;
+  border-top-color: #808080;
+  color: #000;
+}
+
+html[data-skin="classic"] .focus-progress {
+  border-color: #808080;
+  background: #ffffff;
+}
+
+html[data-skin="classic"] .focus-progress-fill {
+  background: #000080;
+  -webkit-mask-image: none;
+          mask-image: none;
+}

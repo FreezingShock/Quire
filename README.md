@@ -30,6 +30,7 @@ You can also open `index.html` through any static server.
 - **Pictures:** paste or drop an image file into the text, or use Insert > Image. Large photos are scaled to 1600 px. The picture sits on its own line, and its file is kept with the entry in a separate media store.
 - **Inline sketches:** Insert > Sketch between paragraphs puts a small drawing pad in the text. It has its own pencil, brush, highlighter, eraser, undo and clear, and uses the current ink color.
 - **Word count:** the status bar shows words and reading time (about 238 words a minute). Pictures, sketches and checkboxes do not count as words.
+- **Focus mode:** F11 (or View > Focus mode) hides the menus, ribbon, and status bar, so only the page is left. A bar at the bottom shows the word count and save state. Esc or F11 leaves it. Options has three focus settings: typewriter scrolling (Writing tab) keeps the line you are typing at the middle of the window; a session word goal (Writing tab) fills a progress bar as you write; and ambient sounds (General tab) play rain, a café murmur, or a CRT hum while you write. The ambient sounds are synthesized in the browser, play only in focus mode, and need Sound effects on. A session starts when you open an entry or turn on focus mode.
 - **Source mode:** View > Source mode shows every Markdown marker. Formatting still applies right away.
 - **Drawing:** pencil, brush, highlighter, eraser, line, rectangle, ellipse, fill, and color picker. Stroke widths 1, 3, and 6. Undo and redo follow whichever surface you touched last. Right-click a swatch to change the page color. Without a mouse, Tab to the drawing layer (or an inline sketch) once a drawing tool is picked: the arrow keys move a crosshair, Space or Enter puts the pen down and lifts it, and Escape lifts it.
 - **Export:** Markdown with front matter (a .zip with the drawing PNG when the entry has ink), drawing as PNG, print or save as PDF, and JSON backup and restore. Backups include version history.
@@ -71,6 +72,8 @@ src/model.js        entry schema and helpers (no DOM)
 src/markdown.js     safe Markdown renderer
 src/prompts.js      daily writing prompts (pure, no DOM)
 src/textops.js      pure text edits (lists, headings, color spans)
+src/focus.js        focus mode rules: session word count, goal progress, typewriter offset (no DOM)
+src/ambient.js      focus mode ambient sounds (rain, café, CRT hum), synthesized with Web Audio
 src/drawing.js      ops, undo stack, flood fill, rendering
 src/keypen.js       keyboard pen: sends pointer events from arrow keys and Space to a drawing canvas
 src/storage.js      IndexedDB and memory stores behind one interface (entries, media, versions, and the lock record); seals rows when a vault is set
@@ -81,7 +84,7 @@ src/versions.js     version rules: when a copy is kept and what it holds (no DOM
 src/history.js      version history dialog
 src/skins.js        skin list, skin choice from saved prefs, and accent colors (no DOM)
 src/options.js      Options dialog: the tabbed settings that the View and Skin menus used to hold
-styles/             app chrome, live editor, rendered-text styles, Vista extras, skins, and the lock dialogs
+styles/             app chrome, live editor, rendered-text styles, Vista extras, skins, the lock dialogs, and focus mode (loaded last)
 tests/              node:test unit tests (including the passcode vault and the sealed store)
 scripts/serve.js    dependency-free static server
 ```

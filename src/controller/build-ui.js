@@ -230,6 +230,8 @@ export const buildUiMethods = {
           { label: 'Show grid', check: true, checked: Boolean(this.prefs.showGrid), action: () => this.setPref({ showGrid: !this.prefs.showGrid }) },
           { label: 'Snap to grid', check: true, checked: Boolean(this.prefs.snapGrid), action: () => this.setPref({ snapGrid: !this.prefs.snapGrid }) },
           'sep',
+          { label: 'Focus mode', shortcut: 'F11', check: true, checked: this.focusMode, disabled: !this.entry, action: () => this.toggleFocusMode() },
+          'sep',
           { label: 'Options…', shortcut: 'Ctrl+,', action: () => this.openOptions() },
         ],
       },

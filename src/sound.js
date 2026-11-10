@@ -29,11 +29,18 @@ const SOUNDS = {
     { at: 0, freq: 1174.66, dur: 0.7, gain: 0.14 },
     { at: 0, freq: 2349.32, dur: 0.35, gain: 0.03 },
   ],
+  // Three rising notes when a focus-mode word goal is reached.
+  goal: [
+    { at: 0, freq: 659.25, dur: 0.22, gain: 0.14, type: 'triangle' },
+    { at: 0.12, freq: 880, dur: 0.22, gain: 0.14, type: 'triangle' },
+    { at: 0.24, freq: 1318.51, dur: 0.7, gain: 0.14, type: 'triangle' },
+  ],
 };
 
 let context = null;
 
-function audioContext() {
+/** The shared AudioContext, created on first use. Null when the browser has no Web Audio. */
+export function audioContext() {
   if (!context) {
     const Ctor = globalThis.AudioContext || globalThis.webkitAudioContext;
     if (!Ctor) return null;

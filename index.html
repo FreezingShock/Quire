@@ -23,6 +23,7 @@
   <link rel="stylesheet" href="styles/skins.css">
   <link rel="stylesheet" href="styles/pwa.css">
   <link rel="stylesheet" href="styles/lock.css">
+  <link rel="stylesheet" href="styles/focus.css">
 </head>
 <body>
   <div class="splash" id="splash" role="status" aria-label="Quire is starting">
@@ -107,6 +108,14 @@
       <span id="status-mode">Markdown</span>
       <span id="status-date"></span>
     </footer>
+
+    <!-- Focus mode (F11) shows this bar in place of the chrome: word count, session goal, and save state. -->
+    <div class="focus-hud" id="focus-hud" data-goal="off">
+      <span class="focus-hud-count" id="focus-count"></span>
+      <span class="focus-progress" id="focus-progress" role="progressbar" aria-label="Session word goal" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><span class="focus-progress-fill" id="focus-fill"></span></span>
+      <span class="focus-hud-save" id="focus-save" role="status"></span>
+      <span class="focus-hud-hint">F11 or Esc to exit</span>
+    </div>
   </div>
   <script type="module" src="src/main.js"></script>
 </body>

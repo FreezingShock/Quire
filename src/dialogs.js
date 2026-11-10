@@ -33,6 +33,8 @@ const SHORTCUT_GROUPS = [
       ['Continue a list', 'Enter'],
       ['Finish a text box', 'Escape or Ctrl+Enter'],
       ['Finish renaming the entry (Escape cancels)', 'Enter'],
+      ['Focus mode: hide everything but the page', 'F11'],
+      ['Leave focus mode', 'Escape or F11'],
     ],
   },
   {

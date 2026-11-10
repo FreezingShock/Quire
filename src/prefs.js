@@ -30,6 +30,13 @@ const DEFAULTS = Object.freeze({
   motion: true,
   // Daily reminder: { enabled, time as HH:MM, lastDay as YYYY-MM-DD when it last went out }.
   reminder: { enabled: false, time: '20:00', lastDay: null },
+  // Focus mode: keep the line being typed at the middle of the window.
+  typewriter: false,
+  // Focus mode: words to write this session. 0 means no goal.
+  wordGoal: 0,
+  // Focus mode: the ambient sound (see focus.js) and its volume from 0 to 1.
+  ambient: 'off',
+  ambientVolume: 0.5,
 });
 
 export function loadPrefs() {

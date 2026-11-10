@@ -23,6 +23,7 @@ export const chromeMethods = {
     root.dataset.skin = skin;
     root.dataset.theme = skin === 'aero-dark' ? 'dark' : 'light';
     root.dataset.motion = this.prefs.motion === false ? 'off' : 'on';
+    root.classList.toggle('typewriter', Boolean(this.prefs.typewriter));
     // A custom accent overrides the skin's selection and title bar colors. Without one, the skin's own colors show.
     const accent = accentTokens(this.prefs.accent);
     for (const name of ACCENT_PROPERTIES) {
@@ -48,6 +49,9 @@ export const chromeMethods = {
     this.dom.ribbonToggle.setAttribute('aria-expanded', String(!ribbonHidden));
     this.dom.ribbonToggle.title = ribbonHidden ? 'Show the ribbon' : 'Minimize the ribbon';
     this.dom.ribbonToggle.setAttribute('aria-label', this.dom.ribbonToggle.title);
+    // Focus mode: the ambient sound follows the sound setting, and the word goal follows Options.
+    this.syncAmbient();
+    this.refreshWordStatus();
   },
 
   setPref(patch) {
@@ -92,6 +96,8 @@ export const chromeMethods = {
     this.dom.saveStatus.textContent = text;
     this.dom.saveStatus.classList.toggle('is-error', isError);
     this.dom.saveStatus.dataset.state = state;
+    // The title bar is hidden in focus mode, so the save state also shows in the bar at the bottom.
+    this.refreshWordStatus();
   },
 
   updateChrome() {
@@ -99,7 +105,7 @@ export const chromeMethods = {
     this.dom.windowTitle.textContent = title;
     document.title = `${title} · Quire`;
     this.dom.statusDate.textContent = this.entry ? formatLongDate(this.entry.date) : '';
-    this.dom.words.textContent = this.wordLabel(this.dom.editor.value);
+    this.refreshWordStatus();
   },
 
   /** "120 words · 1 min read". The reading time is about 238 words a minute. */

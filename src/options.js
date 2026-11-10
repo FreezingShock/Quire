@@ -10,6 +10,7 @@ import { showDialog } from './dialogs.js';
 import { SKINS, normalizeAccent, skinOf } from './skins.js';
 import { playSound } from './sound.js';
 import { reminderRow } from './pwa.js';
+import { AMBIENT_SOUNDS, MAX_WORD_GOAL, normalizeAmbient, normalizeGoal } from './focus.js';
 
 /** The prefs this dialog reads or writes. Each one must have a default in prefs.js. */
 export const OPTION_PREFS = Object.freeze([
@@ -28,6 +29,10 @@ export const OPTION_PREFS = Object.freeze([
   'showOnThisDay',
   'tipsDismissed',
   'reminder',
+  'typewriter',
+  'wordGoal',
+  'ambient',
+  'ambientVolume',
 ]);
 
 const TABS = Object.freeze([
@@ -76,7 +81,7 @@ export function showOptions({ get, set, pickAccent }) {
     );
   }
 
-  function choices({ legend, name, options, read, write }) {
+  function choices({ legend, name, options, read, write, note }) {
     const inputs = options.map(({ id, label }) => {
       const input = el('input', { type: 'radio', name, value: id, onChange: () => change(write(id)) });
       refreshers.push((prefs) => {
@@ -84,7 +89,54 @@ export function showOptions({ get, set, pickAccent }) {
       });
       return el('label', { class: 'options-radio' }, input, el('span', {}, label));
     });
-    return el('fieldset', { class: 'options-group' }, el('legend', { class: 'options-legend' }, legend), inputs);
+    return el(
+      'fieldset',
+      { class: 'options-group' },
+      el('legend', { class: 'options-legend' }, legend),
+      note ? el('p', { class: 'options-note options-note-first' }, note) : null,
+      inputs,
+    );
+  }
+
+  /** A whole-number field. The value is saved when the field is committed (Enter or leaving it), not on each key. */
+  function numberField({ label, note, min, max, step, read, write }) {
+    const input = el('input', {
+      type: 'number',
+      class: 'input options-number',
+      min: String(min),
+      max: String(max),
+      step: String(step),
+      inputmode: 'numeric',
+      onChange: () => change(write(input.value)),
+    });
+    refreshers.push((prefs) => {
+      input.value = String(read(prefs));
+    });
+    return el(
+      'div',
+      { class: 'options-item' },
+      el('label', { class: 'options-field' }, el('span', {}, label), input),
+      note ? el('p', { class: 'options-note options-note-first' }, note) : null,
+    );
+  }
+
+  /** A slider that shows its value as a percent. Saves when the thumb is released or moved with a key. */
+  function percentField({ label, note, read, write }) {
+    const input = el('input', { type: 'range', class: 'options-range', min: '0', max: '100', step: '5', onChange: () => change(write(input.value)) });
+    const value = el('output', { class: 'options-range-value' });
+    input.addEventListener('input', () => {
+      value.textContent = `${input.value}%`;
+    });
+    refreshers.push((prefs) => {
+      input.value = String(Math.round(read(prefs) * 100));
+      value.textContent = `${input.value}%`;
+    });
+    return el(
+      'div',
+      { class: 'options-item' },
+      el('label', { class: 'options-field' }, el('span', {}, label), el('span', { class: 'options-range-row' }, input, value)),
+      note ? el('p', { class: 'options-note options-note-first' }, note) : null,
+    );
   }
 
   function accentRow() {
@@ -127,6 +179,20 @@ export function showOptions({ get, set, pickAccent }) {
         write: (on) => ({ sound: on }),
         after: (on) => on && playSound('startup'),
       }),
+      choices({
+        legend: 'Ambient sound for focus mode',
+        note: 'Plays while focus mode is on (F11), if Sound effects is on too. Synthesized in the browser, so nothing is downloaded.',
+        name: 'ambient',
+        options: AMBIENT_SOUNDS,
+        read: (prefs) => normalizeAmbient(prefs.ambient),
+        write: (id) => ({ ambient: id }),
+      }),
+      percentField({
+        label: 'Ambient volume',
+        note: 'How loud the ambient sound plays under your writing.',
+        read: (prefs) => Math.min(1, Math.max(0, Number(prefs.ambientVolume) || 0)),
+        write: (value) => ({ ambientVolume: Math.min(1, Math.max(0, Number(value) / 100)) }),
+      }),
     ],
     appearance: [
       choices({
@@ -163,6 +229,21 @@ export function showOptions({ get, set, pickAccent }) {
         note: 'Show every Markdown marker as you type, instead of the live preview.',
         read: (prefs) => Boolean(prefs.source),
         write: (on) => ({ source: on }),
+      }),
+      toggle({
+        label: 'Typewriter scrolling',
+        note: 'Keeps the line you are typing at the middle of the window. Works in focus mode too.',
+        read: (prefs) => Boolean(prefs.typewriter),
+        write: (on) => ({ typewriter: on }),
+      }),
+      numberField({
+        label: 'Session word goal',
+        note: `Words to write before the bar fills. A session starts when you open an entry or turn on focus mode. 0 turns the goal off (up to ${MAX_WORD_GOAL.toLocaleString('en-US')}).`,
+        min: 0,
+        max: MAX_WORD_GOAL,
+        step: 50,
+        read: (prefs) => normalizeGoal(prefs.wordGoal),
+        write: (value) => ({ wordGoal: normalizeGoal(value) }),
       }),
     ],
     drawing: [
