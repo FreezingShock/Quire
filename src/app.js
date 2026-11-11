@@ -170,6 +170,10 @@ export class QuireApp {
       savedSearches: [],
       onSavedSearchesChange: (savedSearches) => this.saveSavedSearches(savedSearches),
       onHabitsChange: (habits) => this.saveHabits(habits),
+      name: this.prefs.name,
+      showWelcome: this.prefs.showWelcome !== false,
+      welcomeSeenDay: this.prefs.welcomeSeenDay,
+      customPrompts: this.prefs.customPrompts,
       onGadgetsChange: (gadgets) => this.setPref({ gadgets }),
       navSections: this.prefs.navSections,
       // Saved quietly: the sidebar is already drawn, so the whole window does not need a refresh.
@@ -183,6 +187,7 @@ export class QuireApp {
       onWritePrompt: (prompt) => this.openToday({ prompt }),
       onHidePrompts: () => this.setPref({ showPrompts: false }),
       onDismissTips: () => this.setPref({ tipsDismissed: true }),
+      onDismissWelcome: (day) => this.setPref({ welcomeSeenDay: day }),
       onDelete: (id) => this.deleteEntry(id),
       onRestore: (id) => this.restoreEntry(id),
       onPurge: (id) => this.purgeEntry(id),

@@ -57,7 +57,8 @@ import {
 import { promptFor } from './prompts.js';
 import { capsuleStatus, countdownText, isHidden, redactSealed, upcomingCapsules } from './capsule.js';
 import { capsuleTileArt, envelopeIcon } from './capsule-ui.js';
-import { greetingFor, isFirstRun, lastDays, monthSummary, recentEntries } from './dashboard.js';
+import { greetingFor, isFirstRun, lastDays, monthSummary, recentEntries, welcomeBack } from './dashboard.js';
+import { normalizeName, normalizePrompts } from './personal.js';
 import { addGadget, normalizeGadgetList, removeGadget } from './gadgets.js';
 import { addHabit, habitProblem, normalizeHabits, removeHabit, toggleHabit } from './habits.js';
 import { buildSidebar } from './gadget-views.js';
@@ -200,6 +201,17 @@ function yearsAgoText(years) {
 }
 
 /** "1 day", "3 days". Pass the plural form when adding "s" is wrong, as in "entry" and "entries". */
+/** Cleans the personal fields of the strip options, so the cards only ever see a tidy name and prompt list. */
+function personalOptions(options) {
+  return {
+    ...options,
+    name: normalizeName(options.name),
+    customPrompts: normalizePrompts(options.customPrompts),
+    showWelcome: options.showWelcome !== false,
+    welcomeSeenDay: typeof options.welcomeSeenDay === 'string' ? options.welcomeSeenDay : null,
+  };
+}
+
 function plural(count, word, many = `${word}s`) {
   return `${count} ${count === 1 ? word : many}`;
 }
@@ -224,6 +236,7 @@ export class HomeView {
    * onViewChange(view), onPatch(id, fields), onGadgetsChange(list),
    * onSaveNote(text), onSavedSearchesChange(list), onHabitsChange(state), onNavSectionsChange(sections),
    * and for the desk drawer onRestore(id), onPurge(id) (delete for good) and onEmptyDrawer().
+    * onDismissWelcome(day). `name`, `showWelcome`, `welcomeSeenDay` and `customPrompts` are the personal settings (see personal.js).
    * `navSections` says which sidebar sections are open (see nav-sections.js).
    */
   constructor(
@@ -237,12 +250,17 @@ export class HomeView {
       gadgets,
       savedSearches,
       habits,
+      name = '',
+      showWelcome = true,
+      welcomeSeenDay = null,
+      customPrompts = [],
       onOpen,
       onNew,
       onToday,
       onWritePrompt,
       onHidePrompts,
       onDismissTips,
+      onDismissWelcome,
       onDelete,
       onViewChange,
       onPatch,
@@ -258,7 +276,7 @@ export class HomeView {
     } = {},
   ) {
     this.root = root;
-    this.callbacks = { onOpen, onNew, onToday, onWritePrompt, onHidePrompts, onDismissTips, onDelete, onViewChange, onPatch, onGadgetsChange, onSaveNote, onNavSectionsChange, onSavedSearchesChange, onHabitsChange, onRestore, onPurge, onEmptyDrawer };
+    this.callbacks = { onOpen, onNew, onToday, onWritePrompt, onHidePrompts, onDismissTips, onDismissWelcome, onDelete, onViewChange, onPatch, onGadgetsChange, onSaveNote, onNavSectionsChange, onSavedSearchesChange, onHabitsChange, onRestore, onPurge, onEmptyDrawer };
     this.trashed = []; // the desk drawer: deleted entries, kept out of every list until restored
     this.navOpen = normalizeNavSections(navSections); // which sidebar sections are open
     this.savedSearches = normalizeSavedSearches(savedSearches);
@@ -266,7 +284,7 @@ export class HomeView {
     this.habitError = ''; // why the last habit could not be added, shown in the gadget
     this.entries = [];
     this.terms = []; // search terms for the current query, used for highlighting
-    this.stripOptions = { showPrompts, showOnThisDay, showTips, showGadgets, gadgets: normalizeGadgetList(gadgets) };
+    this.stripOptions = personalOptions({ showPrompts, showOnThisDay, showTips, showGadgets, gadgets: normalizeGadgetList(gadgets), name, showWelcome, welcomeSeenDay, customPrompts });
     this.note = ''; // the sticky note's text, kept here so a re-render does not clear it
     this.focusGadget = null; // a gadget whose title bar gets focus after a keyboard move
     this.currentMatches = []; // the entries on screen, in order, for keyboard moves
@@ -320,7 +338,7 @@ export class HomeView {
   setStripOptions(options) {
     const next = { ...this.stripOptions, ...options };
     if ('gadgets' in options) next.gadgets = normalizeGadgetList(options.gadgets);
-    this.stripOptions = next;
+    this.stripOptions = personalOptions(next);
     this.render();
   }
 
@@ -902,10 +920,14 @@ export class HomeView {
     const todayMood = summarizeDays(this.entries)[today]?.mood ?? null;
     const wroteToday = written.some((entry) => entry.date === today);
     const capsules = upcomingCapsules(this.entries, today);
-    const { showPrompts, showOnThisDay, showTips } = this.stripOptions;
+    const { showPrompts, showOnThisDay, showTips, showWelcome, welcomeSeenDay, name } = this.stripOptions;
     const memories = showOnThisDay ? onThisDay(this.entries.filter((entry) => !isHidden(entry, today)), today) : [];
+    // The welcome-back card looks only at entries whose text is visible: sealed letters stay out of it.
+    const away = showWelcome && welcomeSeenDay !== today ? welcomeBack(this.entries.filter((entry) => !isHidden(entry, today)), today) : null;
 
-    const heading = isFirstRun(this.entries) ? 'Welcome to Quire' : greetingFor(new Date().getHours());
+    const heading = isFirstRun(this.entries)
+      ? name ? `Welcome, ${name}` : 'Welcome to Quire'
+      : greetingFor(new Date().getHours(), name);
     const line = isFirstRun(this.entries)
       ? 'Your library starts with a sample entry. Read it, change it, or delete it when you are ready.'
       : wroteToday
@@ -979,6 +1001,7 @@ export class HomeView {
     const left = el(
       'div',
       { class: 'dash-col' },
+      away ? this.welcomeCard(away, today) : null,
       firstRun ? tips : null,
       showPrompts ? this.promptCard(today, 'dash-card') : null,
       capsules.length ? this.capsuleListCard(capsules, today) : null,
@@ -1608,8 +1631,56 @@ export class HomeView {
     return el('section', { class: 'home-strip', 'aria-label': 'Today in Quire' }, cards);
   }
 
+  /**
+   * The welcome-back card: shown after a few days without a change. It names
+   * the last entry changed and offers to open it or start today's journal.
+   * Its × hides the card for the rest of today.
+   */
+  welcomeCard({ days, entry, changedOn }, today) {
+    const { name } = this.stripOptions;
+    const title = displayTitle(entry);
+    return el(
+      'section',
+      { class: 'strip-card welcome-card dash-card', 'aria-label': 'Welcome back' },
+      el(
+        'div',
+        { class: 'strip-head' },
+        iconNode('home'),
+        el('h3', {}, name ? `Welcome back, ${name}` : 'Welcome back'),
+        el(
+          'button',
+          {
+            class: 'cmd-btn cmd-icon-only strip-dismiss',
+            type: 'button',
+            title: 'Hide this card for today',
+            'aria-label': 'Hide the welcome-back card for today',
+            onClick: () => this.callbacks.onDismissWelcome?.(today),
+          },
+          iconNode('close'),
+        ),
+      ),
+      el('p', { class: 'prompt-text' }, `It has been ${plural(days, 'day')} since you last changed an entry. The last one was "${title}", from ${formatShortDate(changedOn)}.`),
+      el(
+        'div',
+        { class: 'strip-actions' },
+        el(
+          'button',
+          { class: 'cmd-btn cmd-primary', type: 'button', onClick: () => this.callbacks.onOpen?.(entry.id) },
+          iconNode('page'),
+          el('span', { class: 'cmd-label' }, 'Open it'),
+        ),
+        el(
+          'button',
+          { class: 'cmd-btn', type: 'button', onClick: () => this.callbacks.onToday?.() },
+          iconNode('calendar'),
+          el('span', { class: 'cmd-label' }, "Start today's journal"),
+        ),
+      ),
+    );
+  }
+
   promptCard(today, extraClass = '') {
-    const prompt = promptFor(today, this.state.promptSkip);
+    const prompt = promptFor(today, this.state.promptSkip, this.stripOptions.customPrompts);
     const hasJournal = this.entries.some((entry) => entry.kind === 'journal' && entry.date === today);
     return el(
       'section',

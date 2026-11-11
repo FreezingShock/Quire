@@ -22,6 +22,8 @@ import { GRID_STEP } from './snap.js';
 
 export const NORM_WIDTH = 1000;
 export const BASE_LAYER = 'base';
+/** The layer that holds doodles drawn in a page margin (see ink-canvas.js). */
+export const MARGIN_LAYER = 'margins';
 export const MAX_LAYERS = 12;
 const MARKER_ALPHA = 0.35;
 const TEXT_LINE_SPACING = 1.25;

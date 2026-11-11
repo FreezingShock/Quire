@@ -13,6 +13,7 @@ import { reminderRow } from './pwa.js';
 import { AMBIENT_SOUNDS, MAX_WORD_GOAL, normalizeAmbient, normalizeGoal } from './focus.js';
 import { MAX_IDLE_MINUTES, MIN_IDLE_MINUTES, normalizeIdleMinutes, normalizeScreensaver, screensaverOptions } from './screensaver.js';
 import { CUSTOM_LIMIT, normalizeCustoms } from './screensaver-custom.js';
+import { NAME_MAX, PROMPT_MAX_COUNT, PROMPT_MAX_LENGTH, formatPromptLines, normalizeName, normalizePrompts, parsePromptLines } from './personal.js';
 
 /** The prefs this dialog reads or writes. Each one must have a default in prefs.js. */
 export const OPTION_PREFS = Object.freeze([
@@ -39,10 +40,14 @@ export const OPTION_PREFS = Object.freeze([
   'screensaver',
   'screensaverMinutes',
   'screensavers',
+  'name',
+  'showWelcome',
+  'customPrompts',
 ]);
 
 const TABS = Object.freeze([
   { id: 'general', label: 'General' },
+  { id: 'personal', label: 'Personal' },
   { id: 'appearance', label: 'Appearance' },
   { id: 'writing', label: 'Writing' },
   { id: 'drawing', label: 'Drawing' },
@@ -177,6 +182,57 @@ export function showOptions({ get, set, pickAccent, onPreview, onCustomize }) {
     );
   }
 
+  /** A single line of text. Saves when it is committed (Enter or leaving the box), not on each key. */
+  function textField({ label, note, placeholder, maxLength, read, write }) {
+    const input = el('input', {
+      type: 'text',
+      class: 'input options-text',
+      maxlength: String(maxLength),
+      placeholder,
+      autocomplete: 'off',
+      onChange: () => change(write(input.value)),
+    });
+    refreshers.push((prefs) => {
+      // Leave the box alone while it has focus, so typing is never overwritten.
+      if (document.activeElement !== input) input.value = read(prefs);
+    });
+    return el(
+      'div',
+      { class: 'options-item' },
+      el('label', { class: 'options-field' }, el('span', {}, label), input),
+      note ? el('p', { class: 'options-note options-note-first' }, note) : null,
+    );
+  }
+
+  /** The writing prompts you wrote, one per line. Saved when the box is committed. */
+  function promptsRow() {
+    const area = el('textarea', {
+      class: 'input options-prompts',
+      rows: '6',
+      spellcheck: 'true',
+      placeholder: 'What did you notice today?\nWrite a letter to your future self.',
+      'aria-describedby': 'options-prompts-note',
+      onChange: () => change({ customPrompts: parsePromptLines(area.value) }),
+    });
+    const count = el('span', { class: 'options-count' });
+    refreshers.push((prefs) => {
+      const list = normalizePrompts(prefs.customPrompts);
+      if (document.activeElement !== area) area.value = formatPromptLines(list);
+      count.textContent = `${list.length} of ${PROMPT_MAX_COUNT}`;
+    });
+    return el(
+      'fieldset',
+      { class: 'options-group' },
+      el('legend', { class: 'options-legend' }, 'Your writing prompts'),
+      el(
+        'p',
+        { class: 'options-note options-note-first', id: 'options-prompts-note' },
+        `They are mixed into the daily prompt on the dashboard. One per line, up to ${PROMPT_MAX_COUNT}, each up to ${PROMPT_MAX_LENGTH} characters.`,
+      ),
+      el('div', { class: 'options-prompts-box' }, area, count),
+    );
+  }
+
   /** Closes the dialog and shows the screensaver, so you can see it without waiting for the idle time. */
   function previewRow() {
     return el(
@@ -255,6 +311,23 @@ export function showOptions({ get, set, pickAccent, onPreview, onCustomize }) {
           write: (value) => ({ ambientVolume: Math.min(1, Math.max(0, Number(value) / 100)) }),
         }),
       ]),
+    ],
+    personal: [
+      textField({
+        label: 'Your name',
+        note: 'The dashboard greets you by it, and the welcome-back card uses it. Saved in this browser only.',
+        placeholder: 'Your first name',
+        maxLength: NAME_MAX,
+        read: (prefs) => prefs.name ?? '',
+        write: (value) => ({ name: normalizeName(value) }),
+      }),
+      toggle({
+        label: 'Welcome-back card',
+        note: 'After three or more days without a change, the dashboard shows your last entry. Its × hides it for the day.',
+        read: (prefs) => prefs.showWelcome !== false,
+        write: (on) => ({ showWelcome: on }),
+      }),
+      promptsRow(),
     ],
     appearance: [
       choices({
