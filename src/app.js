@@ -189,6 +189,9 @@ export class QuireApp {
       onDismissTips: () => this.setPref({ tipsDismissed: true }),
       onDismissWelcome: (day) => this.setPref({ welcomeSeenDay: day }),
       onDelete: (id) => this.deleteEntry(id),
+      onRestore: (id) => this.restoreEntry(id),
+      onPurge: (id) => this.purgeEntry(id),
+      onEmptyDrawer: () => this.emptyDeskDrawer(),
       onPatch: (id, fields) => this.patchEntry(id, fields),
       onViewChange: (view) => this.setPref({ homeView: view }),
     });

@@ -19,6 +19,7 @@ import {
 import { isHidden, redactSealed, capsuleStatus, unsealedEntry } from '../capsule.js';
 import { unsealAnimation } from '../capsule-ui.js';
 import { playSound } from '../sound.js';
+import { TRASH_DAYS, splitExpired } from '../trash.js';
 import { pickRandomMemory } from '../memories.js';
 import { findLinkTarget, linkedFrom } from '../wikilinks.js';
 import { recapLines, yearRecap } from '../recap.js';
@@ -48,9 +49,9 @@ export const entryMethods = {
       await this.store.remove(this.entry.id);
     }
     const next = await this.store.get(id);
-    if (!next) {
+    if (!next || next.deletedAt) {
       await this.showHome({ history: 'replace' });
-      this.showStatus('That entry no longer exists.', true);
+      this.showStatus(next ? 'That entry is in the desk drawer. Restore it to open it.' : 'That entry no longer exists.', true);
       return;
     }
     this.entry = next;
@@ -107,6 +108,17 @@ export const entryMethods = {
     const existing = todaysJournal(open, today);
     if (existing) await this.openEntry(existing.id);
     else await this.newEntry({ date: today, kind: 'journal', body: prompt ? `> ${prompt}\n\n` : '' });
+  },
+
+  /**
+   * The library for the list and the desk drawer. Entries that have waited in
+   * the drawer for TRASH_DAYS are removed for good first, so auto-empty runs
+   * every time the list is loaded.
+   */
+  async loadLibrary() {
+    const { kept, expired } = splitExpired(await this.store.listTrash());
+    for (const entry of expired) await this.store.remove(entry.id);
+    return { entries: await this.store.list(), trashed: kept };
   },
 
   /** Ctrl+click on [[Title]]: opens the entry with that title, or starts a new entry with it. */
@@ -252,26 +264,69 @@ export const entryMethods = {
     });
   },
 
+  /**
+   * Moves an entry to the desk drawer, like the Recycle Bin: no prompt, because
+   * Restore brings it back. It is removed for good after TRASH_DAYS. Edits in
+   * the open entry are saved first, so the drawer copy is the latest one.
+   */
   async deleteEntry(id) {
     this.commitTextDraft();
-    const target = await this.store.get(id);
-    if (!target) return;
-    const ok = await confirmDialog({
-      title: 'Delete this entry?',
-      message: `“${displayTitle(target)}” and its drawing will be removed from this browser. This cannot be undone.`,
-      confirmLabel: 'Delete',
-      danger: true,
-    });
-    if (!ok) return;
+    const isCurrent = this.entry?.id === id;
+    if (isCurrent) await this.persist('leave');
     await this.saveChain;
     clearTimeout(this.saveTimer);
     this.saveTimer = 0;
-    const isCurrent = this.entry?.id === id;
+    const target = await this.store.get(id);
+    if (!target || target.deletedAt) return;
     if (isCurrent) this.entry = null;
-    await this.store.remove(id);
+    await this.store.setTrashed(id, new Date().toISOString());
     if (isCurrent) await this.showHome({ history: 'replace' });
     else await this.refreshHome();
-    this.showStatus('Entry deleted');
+    this.showStatus(`“${displayTitle(target)}” moved to the desk drawer`);
+    playSound('delete');
+  },
+
+  /** Takes an entry out of the desk drawer and back into the library. */
+  async restoreEntry(id) {
+    const target = await this.store.get(id);
+    if (!target?.deletedAt) return;
+    await this.store.setTrashed(id, null);
+    await this.refreshHome();
+    this.showStatus(`“${displayTitle(target)}” restored`);
+  },
+
+  /** Removes a drawer entry for good, with its drawing, pictures and versions. */
+  async purgeEntry(id) {
+    const target = await this.store.get(id);
+    if (!target?.deletedAt) return;
+    const ok = await confirmDialog({
+      title: 'Delete this entry for good?',
+      message: `“${displayTitle(target)}” and its drawing, pictures and versions are removed from this browser. This cannot be undone.`,
+      confirmLabel: 'Delete forever',
+      danger: true,
+    });
+    if (!ok) return;
+    await this.store.remove(id);
+    await this.refreshHome();
+    this.showStatus('Entry deleted for good');
+    playSound('delete');
+  },
+
+  /** Removes every entry in the desk drawer for good. */
+  async emptyDeskDrawer() {
+    const trashed = await this.store.listTrash();
+    if (!trashed.length) return;
+    const count = trashed.length;
+    const ok = await confirmDialog({
+      title: 'Empty the desk drawer?',
+      message: `${count} ${count === 1 ? 'entry' : 'entries'} will be removed for good, with ${count === 1 ? 'its' : 'their'} drawings, pictures and versions. This cannot be undone.`,
+      confirmLabel: 'Empty drawer',
+      danger: true,
+    });
+    if (!ok) return;
+    for (const entry of trashed) await this.store.remove(entry.id);
+    await this.refreshHome();
+    this.showStatus('The desk drawer is empty');
     playSound('delete');
   },
 };

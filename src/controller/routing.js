@@ -33,8 +33,10 @@ export const routingMethods = {
     this.renderLayers();
     this.lastSurface = 'text';
     // Load the list before the view appears, so a stale list never flashes.
-    const entries = known ?? (await this.store.list());
-    this.home.setEntries(entries);
+    const { entries, trashed } = known
+      ? { entries: known, trashed: await this.store.listTrash() }
+      : await this.loadLibrary();
+    this.home.setEntries(entries, trashed);
     this.setView('home');
     this.writeRoute(HOME_ROUTE, mode);
     this.updateHomeChrome(entries.length);
@@ -42,8 +44,8 @@ export const routingMethods = {
   },
 
   async refreshHome() {
-    const entries = await this.store.list();
-    this.home.setEntries(entries);
+    const { entries, trashed } = await this.loadLibrary();
+    this.home.setEntries(entries, trashed);
     if (this.view === 'home') this.updateHomeChrome(entries.length);
   },
 

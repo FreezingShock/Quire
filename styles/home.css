@@ -1788,6 +1788,27 @@ mark.hit {
 .postcard-note {
   font-size: 12px;
   color: var(--muted);
+/* Desk drawer: the note above deleted entries. The line under each title is the table's snippet. */
+.drawer {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.drawer-note {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--panel-edge);
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.drawer-note .icon {
+  flex: none;
+  color: var(--accent);
 }
 
 /* Year in review: label and value pairs in two columns. */

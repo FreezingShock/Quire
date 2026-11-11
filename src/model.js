@@ -164,6 +164,8 @@ export function normalizeEntry(raw = {}) {
     place: normalizePlace(raw.place),
     pinned: raw.pinned === true,
     favorite: raw.favorite === true,
+    // When the entry went into the desk drawer, as an ISO time. Live entries, and older ones, read back as null.
+    deletedAt: typeof raw.deletedAt === 'string' && !Number.isNaN(Date.parse(raw.deletedAt)) ? raw.deletedAt : null,
     // The first-run sample entry is marked so streaks can skip it. Entries written by hand never set this.
     sample: raw.sample === true,
     // A time capsule stays closed until its day. See capsule.js for the rules.

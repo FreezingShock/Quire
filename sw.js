@@ -133,6 +133,7 @@ const SHELL = [
   './src/sound.js',
   './src/splash.js',
   './src/storage.js',
+  './src/trash.js',
   './src/textops.js',
   './src/tools.js',
   './src/touch.js',
