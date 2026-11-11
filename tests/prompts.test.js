@@ -34,3 +34,20 @@ test('dates before 1970 still map inside the list', () => {
   assert.ok(PROMPTS.includes(promptFor('1960-06-15', 0)));
   assert.ok(PROMPTS.includes(promptFor('1960-06-15', -3)));
 });
+
+test('own prompts are mixed into the cycle, so they come up on some day', () => {
+  const own = ['My first prompt', 'My second prompt'];
+  const seen = new Set();
+  // Sixty consecutive days cover the whole cycle of the two own prompts plus the built-in list.
+  for (let day = 0; day < 60; day += 1) {
+    const iso = new Date(Date.UTC(2026, 2, 1 + day)).toISOString().slice(0, 10);
+    seen.add(promptFor(iso, 0, own));
+  }
+  assert.ok(seen.has('My first prompt'));
+  assert.ok(seen.has('My second prompt'));
+});
+
+test('with no own prompts, the built-in cycle is unchanged', () => {
+  assert.equal(promptFor('2026-11-10', 0, []), promptFor('2026-11-10'));
+  assert.equal(promptFor('2026-11-10', 3, []), promptFor('2026-11-10', 3));
+});

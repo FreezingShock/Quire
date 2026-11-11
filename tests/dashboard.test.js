@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createEntry } from '../src/model.js';
-import { greetingFor, isFirstRun, lastDays, monthSummary, recentEntries } from '../src/dashboard.js';
+import { greetingFor, isFirstRun, lastDays, monthSummary, recentEntries, welcomeBack } from '../src/dashboard.js';
 
 const on = (date, extra = {}) => createEntry({ date, body: 'one two three', ...extra });
 
@@ -63,4 +63,26 @@ test('lastDays crosses a month boundary', () => {
   const days = lastDays([], '2026-03-02');
   assert.equal(days[0].date, '2026-02-24');
   assert.equal(days[6].date, '2026-03-02');
+});
+
+test('greetingFor adds the name when one is set', () => {
+  assert.equal(greetingFor(9, 'Nate'), 'Good morning, Nate');
+  assert.equal(greetingFor(20, ''), 'Good evening');
+});
+
+test('welcomeBack appears only after the gap, and ignores sample entries', () => {
+  const today = '2026-11-10';
+  const old = createEntry({ date: '2026-11-01', body: 'Old page', title: 'Old page' });
+  old.updatedAt = '2026-11-01T12:00:00.000Z';
+  const sample = createEntry({ date: '2026-11-01', body: 'Sample', sample: true });
+  sample.updatedAt = '2026-11-09T12:00:00.000Z';
+  const back = welcomeBack([old, sample], today);
+  assert.equal(back.entry.id, old.id);
+  assert.equal(back.days, 9);
+
+  const recent = createEntry({ date: '2026-11-09', body: 'Recent' });
+  recent.updatedAt = '2026-11-09T12:00:00.000Z';
+  assert.equal(welcomeBack([recent], today), null, 'two days away is not a gap yet');
+  assert.equal(welcomeBack([], today), null);
+  assert.equal(welcomeBack([sample], today), null, 'only the sample is not a history');
 });
