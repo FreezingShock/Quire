@@ -41,6 +41,7 @@ const MOOD_IDS = new Set(MOODS.map((mood) => mood.id));
 const WEATHER_IDS = new Set(WEATHERS.map((weather) => weather.id));
 const HEX = /^#[0-9a-f]{6}$/i;
 const DATA_IMAGE = /^data:image\/[a-z0-9.+-]+;base64,/i;
+const DATA_AUDIO = /^data:audio\/[a-z0-9.+-]+;base64,/i;
 const MAX_SKETCH_H = 4000;
 
 /** Pictures on an entry, keyed by id. Only data URLs for images are kept. */
@@ -49,6 +50,26 @@ function normalizeImages(raw) {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return out;
   for (const [id, src] of Object.entries(raw)) {
     if (typeof src === 'string' && DATA_IMAGE.test(src)) out[id] = src;
+  }
+  return out;
+}
+
+/** Voice notes on an entry, keyed by id. Only audio data URLs are kept. */
+function normalizeAudio(raw) {
+  const out = {};
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return out;
+  for (const [id, src] of Object.entries(raw)) {
+    if (typeof src === 'string' && DATA_AUDIO.test(src)) out[id] = src;
+  }
+  return out;
+}
+
+/** How long each voice note runs, in seconds, keyed by id. Kept so a printed page can show it. */
+function normalizeAudioSeconds(raw) {
+  const out = {};
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return out;
+  for (const [id, seconds] of Object.entries(raw)) {
+    if (Number.isFinite(seconds) && seconds >= 0) out[id] = Math.round(seconds);
   }
   return out;
 }
@@ -92,6 +113,15 @@ export function normalizeNotebook(value) {
   return name || null;
 }
 
+export const PLACE_MAX = 60;
+
+/** "  Lisbon  " -> "Lisbon". Blank or non-string places become null (no place). Typed by hand, never from GPS. */
+export function normalizePlace(value) {
+  if (typeof value !== 'string') return null;
+  const place = value.trim().replace(/\s+/g, ' ').slice(0, PLACE_MAX).trim();
+  return place || null;
+}
+
 /** How far ahead a time capsule can be sealed. */
 export const CAPSULE_MAX_YEARS = 50;
 
@@ -130,6 +160,8 @@ export function normalizeEntry(raw = {}) {
     weather: WEATHER_IDS.has(raw.weather) ? raw.weather : null,
     // A notebook is a name. Entries with no notebook, and older entries, read back as null.
     notebook: normalizeNotebook(raw.notebook),
+    // Where the entry was written, as a name you type. Older entries have none, so they read back as null.
+    place: normalizePlace(raw.place),
     pinned: raw.pinned === true,
     favorite: raw.favorite === true,
     // The first-run sample entry is marked so streaks can skip it. Entries written by hand never set this.
@@ -139,6 +171,9 @@ export function normalizeEntry(raw = {}) {
     body: typeof raw.body === 'string' ? raw.body : '',
     // Pictures and sketches are referenced from the body by id. Older entries have neither, so both default to empty.
     images: normalizeImages(raw.images),
+    // Voice notes are referenced from the body by id, the same way pictures are.
+    audio: normalizeAudio(raw.audio),
+    audioSeconds: normalizeAudioSeconds(raw.audioSeconds),
     sketches: normalizeSketches(raw.sketches),
     // Song links for the entry's mixtape. Older entries have none, so they read back as an empty list.
     mixtape: normalizeMixtape(raw.mixtape),
@@ -214,15 +249,14 @@ function dateFromISO(iso) {
   return new Date(y, m - 1, d);
 }
 
+// Formatters are built once. Calling toLocaleDateString with options builds a new formatter on every call, and the entries list formats one date per row.
+const LONG_DATE = new Intl.DateTimeFormat(undefined, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+const SHORT_DATE = new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+
 export function formatLongDate(iso) {
-  return dateFromISO(iso).toLocaleDateString(undefined, {
-    weekday: 'long',
-    month: 'long',
-    day: 'numeric',
-    year: 'numeric',
-  });
+  return LONG_DATE.format(dateFromISO(iso));
 }
 
 export function formatShortDate(iso) {
-  return dateFromISO(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+  return SHORT_DATE.format(dateFromISO(iso));
 }

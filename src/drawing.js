@@ -914,6 +914,31 @@ export class InkStack {
     applyOp(this.#ctxFor(layerOf(op)), op, scale);
   }
 
+  /**
+   * Draws a run of plain pen strokes (see isPlainPenStroke) onto one layer. The run shares
+   * the first stroke's color and width, so the state is set once. Each stroke is still its own
+   * path and its own stroke() call, which keeps the pixels the same as applyOp per op.
+   */
+  applyPenRun(layer, ops, scale) {
+    if (!ops.length) return;
+    const ctx = this.#ctxFor(layer);
+    const { c, w } = ops[0];
+    ctx.save();
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.strokeStyle = c;
+    ctx.fillStyle = c;
+    ctx.lineWidth = w * scale;
+    for (const op of ops) {
+      const pts = op.p;
+      ctx.beginPath();
+      ctx.moveTo(pts[0][0] * scale, pts[0][1] * scale);
+      for (let i = 1; i < pts.length; i += 1) ctx.lineTo(pts[i][0] * scale, pts[i][1] * scale);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
   /** Draws the listed layers, in the order given, onto `ctx`. */
   composite(ctx, ids) {
     ctx.clearRect(0, 0, this.#width, this.#height);
@@ -924,11 +949,38 @@ export class InkStack {
   }
 }
 
-/** Replays the resolved ops into a stack. Ids in `exclude` are left out. */
+/**
+ * A plain pen stroke: no pressure, more than one point. Its canvas state is the same
+ * for every stroke in a run, so a run can set that state once (see replayInk).
+ */
+function isPlainPenStroke(op) {
+  return op.t === 'stroke' && op.tool === 'pen' && op.p.length > 1 && op.p[0].length === 2;
+}
+
+/**
+ * Replays the resolved ops into a stack. Ids in `exclude` are left out.
+ * Runs of plain pen strokes on one layer, color and width share one canvas state,
+ * so they are drawn with that state set once. The pixels match drawing each op on its own,
+ * but the replay of a 20,000-op drawing takes a fraction of the time.
+ */
 export function replayInk(stack, ops, scale, exclude = null) {
+  let run = [];
+  const flush = () => {
+    if (run.length) stack.applyPenRun(layerOf(run[0]), run, scale);
+    run = [];
+  };
   for (const op of resolveOps(ops)) {
-    if (!exclude?.has(op.id)) stack.apply(op, scale);
+    if (exclude?.has(op.id)) continue;
+    if (isPlainPenStroke(op)) {
+      const head = run[0];
+      if (head && (layerOf(op) !== layerOf(head) || op.c !== head.c || op.w !== head.w)) flush();
+      run.push(op);
+      continue;
+    }
+    flush();
+    stack.apply(op, scale);
   }
+  flush();
 }
 
 /** Standalone paint of a drawing's visible layers into `ctx`. Used for thumbnails and exports. */

@@ -2,6 +2,7 @@
 
 import { HOME_ROUTE, routeEntryId } from './routes.js';
 import { DEFAULT_PAGE_COLOR, isBlankEntry } from '../model.js';
+import { mark } from '../perf.js';
 
 export const routingMethods = {
   // ---------- views and routing ----------
@@ -17,7 +18,8 @@ export const routingMethods = {
   },
 
   /** Saves the open entry, drops it if it is blank, and shows the entries list. */
-  async showHome({ history: mode = 'push' } = {}) {
+  /** `entries` is the library when the caller has just read it; otherwise it is read here. */
+  async showHome({ history: mode = 'push', entries: known = null } = {}) {
     this.commitTextDraft();
     this.commitDraft();
     await this.persist('leave');
@@ -31,11 +33,12 @@ export const routingMethods = {
     this.renderLayers();
     this.lastSurface = 'text';
     // Load the list before the view appears, so a stale list never flashes.
-    const entries = await this.store.list();
+    const entries = known ?? (await this.store.list());
     this.home.setEntries(entries);
     this.setView('home');
     this.writeRoute(HOME_ROUTE, mode);
     this.updateHomeChrome(entries.length);
+    mark('quire:home-ready');
   },
 
   async refreshHome() {
@@ -73,6 +76,7 @@ export const routingMethods = {
 
   renderInkChip() {
     this.dom.inkChip.style.setProperty('--fg', this.fg);
-    this.dom.inkChip.style.setProperty('--bg', this.entry?.pageColor ?? DEFAULT_PAGE_COLOR);
+    const page = this.entry?.pageColor ?? DEFAULT_PAGE_COLOR;
+    this.dom.inkChip.style.setProperty('--bg', page === DEFAULT_PAGE_COLOR ? 'var(--page-default)' : page);
   },
 };

@@ -1,4 +1,5 @@
 /** Small DOM and entry helpers used across the Quire controller. */
+import { DEFAULT_PAGE_COLOR } from '../model.js';
 
 import { el } from '../dom.js';
 import { normalizeLayers } from '../drawing.js';
@@ -9,16 +10,16 @@ export const prevent = (event) => event.preventDefault();
 /** Pen pressure rounded to two places. Pens without a reading fall back to a typical press. */
 export const penPressure = (event) => (event.pressure > 0 ? Math.round(event.pressure * 100) / 100 : 0.5);
 
-/** Fills a select with an empty "not set" option followed by each { id, label }. */
+/** Fills a drop-down with an empty "not set" choice followed by each { id, label }. The current choice stays if it is still offered. */
 export function fillSelect(select, options, emptyLabel) {
-  select.replaceChildren(
-    el('option', { value: '' }, emptyLabel),
-    ...options.map((option) => el('option', { value: option.id }, option.label)),
-  );
+  select.setOptions([{ value: '', label: emptyLabel }, ...options]);
 }
 
+/** Whether keys typed here belong to the field, so single-key shortcuts must not fire. Drop-downs count, as selects did. */
 export function isTextTarget(node) {
-  return Boolean(node) && (node.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(node.tagName));
+  if (!node) return false;
+  if (node.closest?.('.dd')) return true;
+  return Boolean(node.isContentEditable) || ['INPUT', 'TEXTAREA', 'SELECT'].includes(node.tagName);
 }
 
 export function formatTime(date) {
@@ -31,6 +32,9 @@ export function contentKey(entry) {
     entry.title,
     entry.date,
     entry.kind,
+    // Mood and weather are edits too. Leaving them out meant a change to only one was never written.
+    entry.mood ?? null,
+    entry.weather ?? null,
     entry.tags,
     entry.body,
     entry.pageColor,
@@ -38,6 +42,8 @@ export function contentKey(entry) {
     normalizeLayers(entry.ink.layers),
     // Pictures are never edited once added, so their ids are enough to notice a new one.
     Object.keys(entry.images ?? {}).sort(),
+    // A new voice note is an edit too, so it gets written.
+    Object.keys(entry.audio ?? {}).sort(),
     entry.sketches ?? {},
     // Sealing and unsealing are edits too, so the change gets written.
     entry.capsule ?? null,
@@ -64,4 +70,14 @@ export function scopeItems(items, view) {
   }
   while (out.length && out[out.length - 1] === 'sep') out.pop();
   return out;
+}
+
+/**
+ * Paints the sheet's page color. The stored default cream follows the theme through the
+ * `--page-default` token, so it turns dark in dark skins. A custom color is used as is.
+ */
+export function paintSheet(sheet, hex) {
+  const isDefault = hex === DEFAULT_PAGE_COLOR;
+  sheet.style.backgroundColor = isDefault ? 'var(--page-default)' : hex;
+  sheet.dataset.page = isDefault ? 'default' : 'custom';
 }

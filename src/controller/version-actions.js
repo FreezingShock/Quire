@@ -5,6 +5,7 @@ import { Drawing } from '../drawing.js';
 import { formatVersionTime, historyDialog } from '../history.js';
 import { mediaResolver } from '../media.js';
 import { isBlankEntry } from '../model.js';
+import { paintSheet } from './helpers.js';
 
 export const versionActionMethods = {
   // ---------- version history ----------
@@ -28,10 +29,11 @@ export const versionActionMethods = {
       onRestore: (version) => this.restoreVersion(version),
       onSaveNow: () => this.saveVersionNow(),
       onDelete: (version) => this.deleteVersion(version),
-      // Pictures are kept with the entry. Sketches come from the version's own strokes, falling back to the current ones.
+      // Pictures and voice notes are kept with the entry, and a version refers to them by id. Sketches come from the version's own strokes, falling back to the current ones.
       mediaFor: (version) =>
         mediaResolver({
           images: entry.images,
+          audio: entry.audio,
           sketches: { ...entry.sketches, ...(version.content.sketches ?? {}) },
           pageColor: version.content.pageColor,
         }),
@@ -57,7 +59,7 @@ export const versionActionMethods = {
     this.dom.kind.value = c.kind;
     this.dom.tags.value = c.tags.join(', ');
     this.drawing = new Drawing(c.ink.ops);
-    this.dom.sheet.style.backgroundColor = c.pageColor;
+    paintSheet(this.dom.sheet, c.pageColor);
     this.lastSurface = 'text';
     this.renderInkChip();
     this.syncCanvas();

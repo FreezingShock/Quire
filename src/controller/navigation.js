@@ -39,7 +39,7 @@ export const navigationMethods = {
         label: displayTitle(entry),
         group: 'Entry',
         meta: [formatShortDate(entry.date), kindLabel(entry.kind), entry.notebook].filter(Boolean).join(' · '),
-        keywords: [entry.notebook, kindLabel(entry.kind), ...entry.tags].filter(Boolean).join(' '),
+        keywords: [entry.notebook, entry.place, kindLabel(entry.kind), ...entry.tags].filter(Boolean).join(' '),
         run: () => this.openEntry(entry.id),
       }));
     return [...commands, ...entries];
@@ -91,6 +91,7 @@ export const navigationMethods = {
       'sep',
       { label: 'Image…', action: () => this.pickImages() },
       { label: 'Sketch between paragraphs', action: () => this.insertSketch() },
+      { label: this.voice ? 'Stop voice note' : 'Voice note', action: () => this.toggleVoiceNote() },
       { label: 'Today’s date', action: () => this.insertText(formatLongDate(localISODate())) },
     ];
   },

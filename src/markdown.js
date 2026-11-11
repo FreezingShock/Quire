@@ -21,9 +21,9 @@ const STASH_REF = /\u0000(\d+)\u0000/g;
 /** A checklist item's text, after the list marker. Group 1 is the box, group 2 the rest. */
 export const TASK_ITEM = /^\[([ xX])\](?:\s+|$)([\s\S]*)$/;
 /** A whole line that is a picture (kind "image") or an inline sketch (kind "sketch"). */
-export const MEDIA_LINE = /^!\[([^\]\n]*)\]\(quire-(image|sketch):([A-Za-z0-9_-]+)\)\s*$/;
+export const MEDIA_LINE = /^!\[([^\]\n]*)\]\(quire-(image|sketch|audio):([A-Za-z0-9_-]+)\)\s*$/;
 /** The same reference anywhere in a line. */
-export const MEDIA_REF = /!\[[^\]\n]*\]\(quire-(?:image|sketch):[A-Za-z0-9_-]+\)/g;
+export const MEDIA_REF = /!\[[^\]\n]*\]\(quire-(?:image|sketch|audio):[A-Za-z0-9_-]+\)/g;
 /** Silent reading speed for non-fiction prose: about 238 words a minute (Brysbaert, 2019, Journal of Memory and Language, 109, 104047). */
 export const READING_WPM = 238;
 
@@ -40,6 +40,8 @@ export function renderInline(text) {
 
   let s = escapeHtml(String(text).replace(/\u0000/g, ''));
   s = s.replace(/`([^`]+)`/g, (_, code) => hold(`<code>${code}</code>`));
+  // [[Entry title]] links to another entry. The title is already escaped, so it is safe as text.
+  s = s.replace(/\[\[([^[\]\n]{1,120})\]\]/g, (_, title) => hold(`<span class="wikilink">${title}</span>`));
   s = s.replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, (match, label, href) => {
     const decoded = href.replace(/&amp;/g, '&');
     return SAFE_HREF.test(decoded) ? hold(`<a href="${href}" rel="noopener noreferrer">${label}</a>`) : match;
@@ -65,17 +67,25 @@ function listItem(text) {
   return `<li class="task${done ? ' is-done' : ''}">${box} ${renderInline(task[2])}</li>`;
 }
 
-/** Picture or sketch, or nothing when the caller cannot resolve the id. */
-function mediaHtml(match, media) {
+/** Picture, sketch or voice note, or nothing when the caller cannot resolve the id. */
+function mediaHtml(match, media, printAudio) {
   const [, alt, kind, id] = match;
   const src = media?.(kind, id);
-  if (!src || !/^(data:image\/|blob:)/.test(src)) return '';
+  if (!src) return '';
+  if (kind === 'audio') {
+    if (!/^(data:audio\/|blob:)/.test(src)) return '';
+    // A printed page cannot play sound, so it shows a label with the length instead.
+    if (printAudio) return `<p class="media-audio-label">${escapeHtml(printAudio(id))}</p>`;
+    return `<figure class="media media-audio"><audio controls preload="metadata" aria-label="${escapeHtml(alt || 'Voice note')}" src="${escapeHtml(src)}"></audio></figure>`;
+  }
+  if (!/^(data:image\/|blob:)/.test(src)) return '';
   return `<figure class="media"><img src="${escapeHtml(src)}" alt="${escapeHtml(alt)}"></figure>`;
 }
 
 /**
  * Block-level pass: headings, quotes, lists, rules, fenced code and paragraphs.
  * `options.media(kind, id)` returns an image URL for a picture or sketch id, or null.
+ * `options.printAudio(id)` replaces a voice note's player with a text label, for printed pages.
  */
 export function renderMarkdown(source, options = {}) {
   const lines = String(source ?? '').replace(/\u0000/g, '').replace(/\r\n?/g, '\n').split('\n');
@@ -126,7 +136,7 @@ export function renderMarkdown(source, options = {}) {
     let match;
     if ((match = MEDIA_LINE.exec(line))) {
       close();
-      const html = mediaHtml(match, options.media);
+      const html = mediaHtml(match, options.media, options.printAudio);
       if (html) out.push(html);
       continue;
     }

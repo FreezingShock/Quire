@@ -32,6 +32,7 @@
   --accent: #2f6fbf;
   --accent-hi: #7fb5ec;
   --accent-lo: #3b7fd0;
+  --focus-ring: var(--accent-lo);
   --accent-ink: #ffffff;
   --hover-edge: #5c8fcc;
 
@@ -71,6 +72,13 @@
   --scroll-hover-b: #a9ccf2;
   --scroll-hover-c: #6fa3da;
   --scroll-ring: rgba(47, 111, 191, 0.45);
+  /* plain buttons (.btn) */
+  --btn-hi: #ffffff;
+  --btn-lo: #dbe6f3;
+  --btn-press-hi: #cfe0f3;
+  --btn-press-lo: #eaf2fb;
+  --btn-edge: #7d93b0;
+  --btn-ink: #1c2a3b;
   color-scheme: light;
 }
 
@@ -98,6 +106,7 @@
   --accent: #4f8fd6;
   --accent-hi: #6aa6e6;
   --accent-lo: #2f6fb6;
+  --focus-ring: #9cc8f2;
   --accent-ink: #ffffff;
   --hover-edge: #6f95c4;
 
@@ -128,6 +137,12 @@
   --scroll-hover-b: #4d6688;
   --scroll-hover-c: #3a5070;
   --scroll-ring: rgba(150, 190, 240, 0.35);
+  --btn-hi: #3d5070;
+  --btn-lo: #263650;
+  --btn-press-hi: #1d2c45;
+  --btn-press-lo: #2f4262;
+  --btn-edge: #4b6287;
+  --btn-ink: #e3edfb;
   color-scheme: dark;
 }
 
@@ -159,8 +174,9 @@ textarea {
   color: inherit;
 }
 
+/* Keyboard focus. Each skin sets --focus-ring; dark themes lift it so it stays visible on dark faces. */
 :focus-visible {
-  outline: 2px solid var(--accent-lo);
+  outline: 2px solid var(--focus-ring, var(--accent-lo));
   outline-offset: 1px;
 }
 
@@ -174,6 +190,12 @@ textarea {
   grid-template-rows: auto auto auto minmax(0, 1fr) auto auto;
   background: var(--panel-lo);
   border: 1px solid var(--frame);
+}
+
+/* The editor has the entry bar as its own row, so the 1fr row goes to the page. Without this the bar was squeezed
+   into the 1fr row, and its fields ran under the mixtape deck and the toolbox. Home has no bar, so its 1fr row stays. */
+.app[data-view="editor"] {
+  grid-template-rows: auto auto auto auto minmax(0, 1fr) auto auto;
 }
 
 /* ---------- title bar: glassy blue frame ---------- */
@@ -437,7 +459,6 @@ textarea {
 }
 
 .field input,
-.field select,
 .input {
   height: 28px;
   padding: 0 8px;
@@ -452,7 +473,6 @@ textarea {
 .field-tags input { width: 180px; }
 
 .field input:focus,
-.field select:focus,
 .input:focus {
   border-color: var(--accent);
   box-shadow: 0 0 0 2px rgba(127, 181, 236, 0.6), inset 0 1px 2px rgba(20, 40, 70, 0.12);
@@ -1111,10 +1131,10 @@ button.layer-name:focus-visible {
   height: 28px;
   min-width: 78px;
   padding: 0 14px;
-  border: 1px solid #7d93b0;
+  border: 1px solid var(--btn-edge);
   border-radius: 3px;
-  background: linear-gradient(to bottom, #ffffff, #dbe6f3);
-  color: var(--raised-ink);
+  background: linear-gradient(to bottom, var(--btn-hi), var(--btn-lo));
+  color: var(--btn-ink);
   cursor: pointer;
 }
 
@@ -1129,7 +1149,7 @@ button.layer-name:focus-visible {
 }
 
 .btn:active:not(:disabled) {
-  background: linear-gradient(to bottom, #cfe0f3, #eaf2fb);
+  background: linear-gradient(to bottom, var(--btn-press-hi), var(--btn-press-lo));
   box-shadow: inset 1px 1px 3px rgba(20, 50, 90, 0.35);
 }
 
@@ -1336,7 +1356,6 @@ kbd {
 
   /* iOS zooms the page when a field under 16px gets focus, so phone inputs stay at 16px. */
   .field input,
-  .field select,
   .input,
   .entry-title { font-size: 16px; }
 
@@ -1364,10 +1383,18 @@ kbd {
   .titlebar-status { min-width: 0; }
 }
 
+/* Narrow phones (360 to 400 px): the menu titles and the drawing tools shrink to fit without scrolling. */
+@media (max-width: 400px) {
+  .menu-title { padding: 0 6px; }
+  .tool-grid { grid-template-columns: repeat(10, 31px); }
+  .tool-btn { width: 31px; height: 31px; }
+  .format-grid { grid-template-columns: repeat(10, 29px); }
+  .format-btn { width: 29px; height: 29px; }
+}
+
 /* Touch tablets get the same 16px inputs, since Safari zooms in on smaller fields at any width. */
 @media (pointer: coarse) {
   .field input,
-  .field select,
   .input,
   .entry-title,
   .home-search input { font-size: 16px; }
@@ -1423,3 +1450,70 @@ kbd {
 
 .kb-pen.is-down::before,
 .kb-pen.is-down::after { background: #d6262c; }
+
+/* Linked from: a strip under the mixtape listing the entries that link to the open one. */
+.backlinks {
+  flex: 0 0 auto;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  padding: 5px 12px;
+  border-bottom: 1px solid var(--panel-edge);
+  background: var(--panel-hi);
+  color: var(--text);
+  font-size: 12px;
+}
+
+.backlinks[hidden] { display: none; }
+
+.backlinks-title {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.backlinks-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.backlinks-list li { display: contents; }
+
+.backlink {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  max-width: 260px;
+  height: 22px;
+  padding: 0 8px;
+  border: 1px solid var(--panel-edge);
+  border-radius: 11px;
+  background: var(--panel-hi);
+  color: var(--accent);
+  font: inherit;
+  cursor: pointer;
+}
+
+.backlink:hover,
+.backlink:focus-visible {
+  border-color: var(--hover-edge);
+  background: linear-gradient(to bottom, var(--glow-hi), var(--glow-lo));
+}
+
+.backlink-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.backlink-date {
+  font-size: 11px;
+  color: var(--muted);
+}

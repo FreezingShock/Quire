@@ -27,7 +27,9 @@ export function describeReason(reason) {
  * height is derived from the ink, so neither is copied. Pictures are not copied
  * either: they are never changed or removed while the entry exists, so a version
  * refers to them by id and keeps them. Sketches change as you draw on them, so
- * their strokes are copied, and only when the entry has any.
+ * their strokes are copied, and only when the entry has any. Voice notes are
+ * referred to by id too: a clip is large, and it is never changed or removed
+ * while the entry exists.
  */
 export function contentOf(entry) {
   const content = {

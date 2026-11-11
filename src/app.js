@@ -9,6 +9,7 @@
 import { createLocalStore } from './storage.js';
 import { lockNow, unlockStore } from './lock.js';
 import {
+  KINDS,
   MOODS,
   WEATHERS,
   createEntry,
@@ -23,6 +24,7 @@ import { startScreensaver } from './screensaver.js';
 import { HomeView } from './home.js';
 import { sampleEntry } from './onboarding.js';
 import { $, fillSelect } from './controller/helpers.js';
+import { mountDropdown } from './dropdown.js';
 import { routeEntryId } from './controller/routes.js';
 import { chromeMethods } from './controller/chrome.js';
 import { routingMethods } from './controller/routing.js';
@@ -47,6 +49,7 @@ import { navigationMethods } from './controller/navigation.js';
 import { capsuleActionMethods } from './controller/capsule-actions.js';
 import { mixtapeMethods } from './controller/mixtape.js';
 import { MixtapeView } from './mixtape-view.js';
+import { mark } from './perf.js';
 
 
 
@@ -60,9 +63,9 @@ export class QuireApp {
       ribbonToggle: $('#ribbon-toggle'),
       title: $('#entry-title'),
       date: $('#entry-date'),
-      kind: $('#entry-kind'),
-      mood: $('#entry-mood'),
-      weather: $('#entry-weather'),
+      kind: mountDropdown($('#entry-kind'), { label: 'Entry kind', options: KINDS, value: 'journal' }),
+      mood: mountDropdown($('#entry-mood'), { label: 'Mood' }),
+      weather: mountDropdown($('#entry-weather'), { label: 'Weather' }),
       tags: $('#entry-tags'),
       sheet: $('#sheet'),
       editorEl: $('#editor'),
@@ -84,11 +87,13 @@ export class QuireApp {
       focusFill: $('#focus-fill'),
       focusSave: $('#focus-save'),
       entryPath: $('#entry-path'),
+      backlinks: $('#backlinks'),
     };
     this.dom.editor = new LiveEditor(this.dom.editorEl, {
       onChange: () => this.onEditorChanged(),
       onHistory: (redo) => (redo ? this.redo() : this.undo()),
       onFiles: (files, range) => this.insertImages(files, range),
+      onWikiLink: (title) => this.followWikiLink(title),
       inkStyle: () => ({ color: this.fg, size: this.size }),
     });
     this.mixtape = new MixtapeView($('#mixtape'), {
@@ -161,7 +166,16 @@ export class QuireApp {
       showTips: !this.prefs.tipsDismissed,
       showGadgets: this.prefs.showGadgets !== false,
       gadgets: this.prefs.gadgets,
+      // Saved searches come from the sealed store once it opens (see loadSavedSearches).
+      savedSearches: [],
+      onSavedSearchesChange: (savedSearches) => this.saveSavedSearches(savedSearches),
+      onHabitsChange: (habits) => this.saveHabits(habits),
       onGadgetsChange: (gadgets) => this.setPref({ gadgets }),
+      navSections: this.prefs.navSections,
+      // Saved quietly: the sidebar is already drawn, so the whole window does not need a refresh.
+      onNavSectionsChange: (navSections) => {
+        this.prefs = savePrefs({ navSections });
+      },
       onSaveNote: (text) => this.saveSidebarNote(text),
       onOpen: (id) => this.openEntry(id),
       onNew: (options) => this.newEntry(options),
@@ -177,12 +191,18 @@ export class QuireApp {
     this.bindFocusEvents();
     this.setTool('write');
     this.store = await createLocalStore();
+    mark('quire:store-open');
     if (this.store.kind === 'memory') {
       this.showStatus('Browser storage is unavailable. Entries will not survive a reload.', true);
     }
     // Nothing is read until the passcode, if there is one, is typed.
     this.passcodeOn = await unlockStore(this.store);
+    mark('quire:unlocked');
+    // Older versions kept their own copy of each voice note. This moves those clips into the entries, once.
+    this.store.migrateVersionClips().catch((error) => console.warn('Voice notes could not be moved out of old versions.', error));
     this.home.setNote((await this.store.getNote()) ?? '');
+    this.home.setHabits(await this.store.getHabits());
+    this.home.setSavedSearches(await this.loadSavedSearches());
     startPwa({ onReady: () => this.showStatus('Quire is ready to work offline', false, 'saved') });
     startReminders({
       getReminder: () => this.prefs.reminder ?? REMINDER_DEFAULTS,
@@ -192,32 +212,36 @@ export class QuireApp {
     });
     this.screensaver = startScreensaver({
       getPrefs: () => this.prefs,
-      getEntries: () => this.store.list(),
+      getEntries: ({ photos = false } = {}) => (photos ? this.store.listFull() : this.store.list()),
       isLocked: () => this.passcodeOn,
       // A locked Quire wakes to the passcode. Saving first keeps the open entry.
       onWake: () => lockNow(() => this.persist()),
     });
-    await this.seedSampleEntry();
+    // One read of the library serves the first-run check, the route, and the first list. Reading it again costs a full pass over every entry.
+    let entries = await this.store.list();
+    if (await this.seedSampleEntry(entries)) entries = await this.store.list();
     // The site opens on the dashboard. A reload on an entry keeps that entry.
     const routed = routeEntryId(location.hash);
-    const entries = await this.store.list();
     if (routed && entries.some((entry) => entry.id === routed)) {
       await this.openEntry(routed, { history: 'replace' });
     } else {
-      await this.showHome({ history: 'replace' });
+      await this.showHome({ history: 'replace', entries });
     }
+    mark('quire:ready');
   }
 
   /**
    * First run: a library with no entries gets one sample entry, once. The flag
    * is set on the first start whatever happens, so a deleted sample stays
-   * deleted and a library that already has entries never gets one.
+   * deleted and a library that already has entries never gets one. Resolves
+   * true when a sample was written.
    */
-  async seedSampleEntry() {
-    if (this.prefs.sampleSeeded) return;
+  async seedSampleEntry(entries) {
+    if (this.prefs.sampleSeeded) return false;
     this.prefs = savePrefs({ sampleSeeded: true });
-    if ((await this.store.list()).length) return;
+    if (entries.length) return false;
     await this.store.save(createEntry(sampleEntry(localISODate())));
+    return true;
   }
 
 }

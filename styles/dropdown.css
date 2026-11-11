@@ -1,0 +1,257 @@
+/*
+ * Themed drop-downs (src/dropdown.js). One component replaces every choice list
+ * that used to be a native select. The box and list take the skin's tokens, so
+ * light and dark follow the one switch. Each skin draws its own arrow button:
+ * Aero glass, Aero Basic flat, XP Luna's blue tab, and Classic 98's raised square.
+ */
+
+.dd {
+  position: relative;
+  display: block;
+  min-width: 0;
+  max-width: 100%;
+  font: inherit;
+  color: var(--text);
+}
+
+.dd-slot { display: block; min-width: 0; }
+
+.dd-trigger {
+  display: flex;
+  align-items: stretch;
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 96px;
+  height: 28px;
+  border: 1px solid var(--field-edge);
+  border-radius: 3px;
+  background: var(--field);
+  color: var(--text);
+  box-shadow: inset 0 1px 2px rgba(20, 40, 70, 0.12);
+  cursor: default;
+  user-select: none;
+  overflow: hidden;
+}
+
+.dd-trigger:hover { border-color: var(--hover-edge); }
+
+.dd-trigger:focus-visible {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px rgba(127, 181, 236, 0.6), inset 0 1px 2px rgba(20, 40, 70, 0.12);
+}
+
+.dd-trigger[aria-disabled="true"] {
+  opacity: 0.55;
+  pointer-events: none;
+}
+
+.dd-value {
+  flex: 1;
+  min-width: 0;
+  padding: 0 8px;
+  line-height: 26px;
+  font-size: 13px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dd-arrow {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  border-left: 1px solid var(--btn-edge);
+  background: linear-gradient(to bottom, var(--btn-hi), var(--btn-lo));
+  color: var(--btn-ink);
+}
+
+.dd-arrow svg {
+  width: 9px;
+  height: 9px;
+  fill: currentColor;
+}
+
+.dd-trigger:hover .dd-arrow { background: linear-gradient(to bottom, var(--glow-hi), var(--glow-lo)); }
+
+.dd-trigger[aria-expanded="true"] .dd-arrow,
+.dd-trigger:active .dd-arrow { background: linear-gradient(to bottom, var(--press-hi), var(--press-lo)); }
+
+/* The list. It opens as a popover in the top layer, so it shows above dialogs. */
+.dd-list {
+  position: fixed;
+  inset: auto;
+  margin: 0;
+  box-sizing: border-box;
+  min-width: 120px;
+  max-height: min(60vh, 300px);
+  overflow-y: auto;
+  padding: 3px;
+  list-style: none;
+  border: 1px solid var(--panel-edge);
+  border-radius: 3px;
+  background: var(--popup-body);
+  color: var(--text);
+  box-shadow: var(--shadow);
+  z-index: 1000;
+}
+
+.dd-list[hidden] { display: none; }
+
+.dd-inline .dd-list {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  z-index: 1000;
+}
+
+.dd-option {
+  position: relative;
+  display: block;
+  min-height: 24px;
+  padding: 2px 8px 2px 22px;
+  border: 1px solid transparent;
+  border-radius: 2px;
+  font-size: 13px;
+  line-height: 18px;
+  white-space: nowrap;
+  cursor: default;
+}
+
+/* A dot marks the current choice. It stays visible on the highlighted row too. */
+.dd-option::before {
+  content: "";
+  position: absolute;
+  left: 8px;
+  top: 50%;
+  width: 6px;
+  height: 6px;
+  margin-top: -3px;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0;
+}
+
+.dd-option[aria-selected="true"]::before { opacity: 1; }
+
+.dd-option.is-active {
+  background: linear-gradient(to bottom, var(--accent-lo), var(--accent));
+  border-color: var(--accent);
+  color: var(--accent-ink);
+}
+
+.dd-option[aria-disabled="true"] { opacity: 0.45; }
+
+.dialog-dd { min-width: 160px; }
+
+/* ---------- Aero Basic: flat frame, no glass ---------- */
+
+[data-skin="basic"] .dd-trigger { box-shadow: none; }
+
+[data-skin="basic"] .dd-arrow { background: var(--btn-lo); }
+
+/* ---------- XP Luna: a blue tab on the right, with a white arrow ---------- */
+
+[data-skin="luna"] .dd-trigger {
+  border-color: var(--field-edge);
+  border-radius: 3px;
+  box-shadow: none;
+}
+
+[data-skin="luna"] .dd-arrow {
+  width: 19px;
+  margin: -1px -1px -1px 0;
+  border: 0;
+  border-radius: 0 2px 2px 0;
+  background: linear-gradient(to bottom, var(--accent-hi), var(--accent) 55%, var(--accent-lo));
+  color: var(--accent-ink);
+  box-shadow: inset 1px 0 0 var(--accent-lo);
+}
+
+[data-skin="luna"] .dd-trigger:hover .dd-arrow {
+  background: linear-gradient(to bottom, var(--glow-hi), var(--glow-lo) 60%, var(--press-lo));
+  color: var(--text);
+}
+
+[data-skin="luna"] .dd-trigger[aria-expanded="true"] .dd-arrow,
+[data-skin="luna"] .dd-trigger:active .dd-arrow {
+  background: linear-gradient(to bottom, var(--press-hi), var(--press-lo));
+  color: var(--text);
+}
+
+[data-skin="luna"] .dd-list {
+  border-color: var(--accent-lo);
+  border-radius: 0 0 3px 3px;
+}
+
+/* ---------- Classic 98: sunken field, raised square button ---------- */
+
+[data-skin="classic"] .dd-trigger {
+  height: 26px;
+  border: 2px solid;
+  border-color: var(--c-shade) var(--c-hi) var(--c-hi) var(--c-shade);
+  border-radius: 0;
+  background: var(--c-field);
+  color: var(--c-ink);
+  box-shadow: none;
+}
+
+[data-skin="classic"] .dd-trigger:hover { border-color: var(--c-shade) var(--c-hi) var(--c-hi) var(--c-shade); }
+
+[data-skin="classic"] .dd-trigger:focus-visible {
+  border-color: var(--c-shade) var(--c-hi) var(--c-hi) var(--c-shade);
+  box-shadow: inset 0 0 0 1px var(--c-ink);
+}
+
+[data-skin="classic"] .dd-value {
+  line-height: 22px;
+  color: var(--c-ink);
+}
+
+[data-skin="classic"] .dd-arrow {
+  width: 16px;
+  border: 0;
+  background: var(--c-face);
+  color: var(--c-ink);
+  box-shadow: inset 1px 1px 0 var(--c-hi), inset -1px -1px 0 var(--c-edge), inset -2px -2px 0 var(--c-shade);
+}
+
+[data-skin="classic"] .dd-trigger:hover .dd-arrow { background: var(--c-face); }
+
+[data-skin="classic"] .dd-trigger[aria-expanded="true"] .dd-arrow,
+[data-skin="classic"] .dd-trigger:active .dd-arrow {
+  background: var(--c-press);
+  box-shadow: inset 1px 1px 0 var(--c-edge), inset -1px -1px 0 var(--c-hi);
+}
+
+[data-skin="classic"] .dd-list {
+  border: 2px solid;
+  border-color: var(--c-hi) var(--c-edge) var(--c-edge) var(--c-hi);
+  border-radius: 0;
+  background: var(--c-field);
+  box-shadow: none;
+  padding: 2px;
+}
+
+[data-skin="classic"] .dd-option { border-radius: 0; }
+
+[data-skin="classic"] .dd-option.is-active {
+  background: var(--c-navy);
+  border-color: var(--c-navy);
+  color: var(--accent-ink);
+}
+
+/* ---------- Phone and touch: 16px text so iOS does not zoom, and taller rows ---------- */
+
+/* The triggers stay 28px tall to match the header fields, whose row is fixed height on a phone. */
+@media (max-width: 720px), (pointer: coarse) {
+  .dd-value { font-size: 16px; }
+  .dd-option {
+    min-height: 36px;
+    font-size: 16px;
+    line-height: 24px;
+  }
+  .dd-option::before { left: 10px; }
+}
+

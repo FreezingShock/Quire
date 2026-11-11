@@ -38,6 +38,7 @@
 }
 .sheet-text pre code { background: none; padding: 0; }
 .sheet-text a { color: #2f5d7c; }
+.sheet-text .wikilink { color: #2f5d7c; border-bottom: 1px dotted currentColor; }
 
 /* Checklists and pictures in the read view and the print/PDF export. */
 .sheet-text li.task {
@@ -60,3 +61,6 @@
   height: auto;
   border-radius: 3px;
 }
+
+/* A voice note in the reader. */
+.sheet-text figure.media-audio audio { display: block; width: min(100%, 360px); }

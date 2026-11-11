@@ -257,6 +257,7 @@ html[data-skin="luna"].has-wallpaper { background: #3a6fd6; }
 }
 
 :root[data-skin="classic"][data-theme="dark"] {
+  --focus-ring: #9cc8f2;
   --c-face: #3c3f47;
   --c-face-hi: #52565f;
   --c-shade: #1d2026;
@@ -778,3 +779,59 @@ html[data-skin="basic"][data-theme="dark"].has-wallpaper { background: #1f2d40; 
   --scroll-hover-c: #2a4d88;
   --scroll-ring: rgba(120, 160, 230, 0.4);
 }
+
+/* ---------- icon sets: each skin draws its icons its own way. An icon is three layers (see icons.js):
+   a glow under the drawing, the drawing, and a highlight over it. Each skin shows the layers it needs. ---------- */
+
+.qi-glow,
+.qi-shine { display: none; }
+
+/* Aero: glassy. A soft halo, a light tint in the shapes, and a white highlight along the top edge. */
+:root[data-skin="aero"] .qi-glow {
+  display: block;
+  stroke: color-mix(in srgb, currentColor 32%, transparent);
+  stroke-width: 3.2;
+}
+:root[data-skin="aero"] .qi-main :is(rect, ellipse, circle, path) { fill: color-mix(in srgb, currentColor 14%, transparent); }
+:root[data-skin="aero"] .qi-shine {
+  display: block;
+  stroke: rgba(255, 255, 255, 0.9);
+  stroke-width: 0.6;
+  transform: translateY(-0.7px);
+}
+
+/* Aero Basic: the flat thin line, as drawn. Tools share one ink so the set stays plain. */
+:root[data-skin="basic"] .qi-main { stroke: currentColor; }
+:root[data-skin="basic"] .tool-btn[data-tool-id] svg,
+:root[data-skin="basic"] .stamp-btn svg,
+:root[data-skin="basic"] .xform-btn svg { color: var(--tile-ink); }
+
+/* XP Luna: colored and glossy. Shapes get a light fill of their own color, folders and pages get the
+   yellow and cream of XP's icons, and a white sheen sits on top. */
+:root[data-skin="luna"] .qi-main :is(rect, ellipse, circle) { fill: color-mix(in srgb, currentColor 30%, var(--tile-lo)); }
+:root[data-skin="luna"] svg[data-ic="folder"] .qi-main path,
+:root[data-skin="luna"] svg[data-ic="notebook"] .qi-main :is(rect, path) { fill: #f6d36b; }
+:root[data-skin="luna"] svg[data-ic="page"] .qi-main path:first-child,
+:root[data-skin="luna"] svg[data-ic="envelope"] .qi-main rect { fill: #ffffff; }
+:root[data-skin="luna"] svg[data-ic="lock"] .qi-main rect { fill: #f2c94c; }
+:root[data-skin="luna"] svg[data-ic="place"] .qi-main path:first-child { fill: #e4572e; }
+:root[data-skin="luna"] .qi-main { stroke-width: 1.15; }
+:root[data-skin="luna"] .qi-shine {
+  display: block;
+  stroke: rgba(255, 255, 255, 0.85);
+  stroke-width: 0.7;
+  transform: translate(0.2px, -0.6px);
+}
+
+/* Classic 98: pixel art. Each glyph is drawn on the 16 by 16 grid (see icon-pixels.js), in one ink
+   with no anti-aliasing, and the vector layers are hidden. */
+.qi-pixel { display: none; }
+:root[data-skin="classic"] :is(.qi-glow, .qi-main, .qi-shine) { display: none; }
+:root[data-skin="classic"] .qi-pixel {
+  display: block;
+  fill: var(--c-ink);
+  shape-rendering: crispEdges;
+}
+:root[data-skin="classic"] .tool-btn[data-tool-id] svg,
+:root[data-skin="classic"] .stamp-btn svg,
+:root[data-skin="classic"] .xform-btn svg { color: var(--c-ink); }

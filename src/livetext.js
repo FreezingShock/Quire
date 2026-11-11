@@ -108,16 +108,19 @@ export class LiveEditor {
    *   onChange?: () => void,
    *   onHistory?: (redo: boolean) => void,
    *   onFiles?: (files: File[], range: { start: number, end: number }) => void,
+   *   onWikiLink?: (title: string) => void,
    *   inkStyle?: () => { color: string, size: number },
    * }} [options]
    */
-  constructor(root, { onChange = () => {}, onHistory = () => {}, onFiles = () => {}, inkStyle = () => ({ color: '#1d1b19', size: 3 }) } = {}) {
+  constructor(root, { onChange = () => {}, onHistory = () => {}, onFiles = () => {}, onWikiLink = () => {}, inkStyle = () => ({ color: '#1d1b19', size: 3 }) } = {}) {
     this.root = root;
     this.onChange = onChange;
+    this.onWikiLink = onWikiLink;
     this.onHistory = onHistory;
     this.onFiles = onFiles;
     this.inkStyle = inkStyle;
     this.images = {}; // id -> data URL, from the open entry
+    this.audio = {}; // id -> audio data URL, from the open entry
     this.sketches = {}; // id -> { h, ops }, from the open entry
     this.layouts = {}; // image id -> placement, from the open entry (see media-layout.js)
     this.selected = null; // id of the picture the placement bar is showing
@@ -212,6 +215,7 @@ export class LiveEditor {
     this.urls = new Map();
     this.pads = new Map();
     this.images = entry?.images ?? {};
+    this.audio = entry?.audio ?? {};
     this.sketches = entry?.sketches ?? {};
     if (entry && !entry.imageLayout) entry.imageLayout = {};
     this.layouts = entry?.imageLayout ?? {};
@@ -361,8 +365,15 @@ export class LiveEditor {
     return this.offsetOf(node, offset);
   }
 
-  /** A click on a checklist box flips it between [ ] and [x] in the source. */
+  /** Ctrl+click on a [[link]] opens the entry it names. A plain click leaves the caret where it is. */
   onClick(event) {
+    const link = event.target.closest?.('.lv-wikilink');
+    if (link && (event.ctrlKey || event.metaKey)) {
+      event.preventDefault();
+      this.onWikiLink(link.textContent);
+      return;
+    }
+    // A click on a checklist box flips it between [ ] and [x] in the source.
     const box = event.target.closest?.('.lv-check');
     if (!box || !box.firstChild) return;
     event.preventDefault();
@@ -595,14 +606,24 @@ export class LiveEditor {
   /** What a picture or sketch id resolves to while drawing a line. */
   mediaFor(kind, id) {
     if (kind === 'image') return this.imageUrl(id);
+    if (kind === 'audio') return this.audioUrl(id);
     return Object.hasOwn(this.sketches, id) ? true : null;
   }
 
   /** Display URL for a stored picture, made once per picture from its data URL. */
   imageUrl(id) {
+    return this.blobUrl(this.images, id);
+  }
+
+  /** Display URL for a voice note, made once per clip from its data URL. */
+  audioUrl(id) {
+    return this.blobUrl(this.audio, id);
+  }
+
+  blobUrl(store, id) {
     if (this.urls.has(id)) return this.urls.get(id);
-    if (!Object.hasOwn(this.images, id)) return null;
-    const blob = dataUrlToBlob(this.images[id]);
+    if (!Object.hasOwn(store, id)) return null;
+    const blob = dataUrlToBlob(store[id]);
     if (!blob) return null;
     const url = URL.createObjectURL(blob);
     this.urls.set(id, url);

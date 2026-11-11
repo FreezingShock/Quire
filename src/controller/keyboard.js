@@ -8,6 +8,14 @@ import { TOOL_BY_KEY } from '../tools.js';
 export const keyboardMethods = {
   // ---------- keyboard ----------
 
+  /** Finishes a lone Alt tap. Any other key between the press and the release cancels it. */
+  onGlobalKeyup(event) {
+    if (event.key !== 'Alt' || !this.altTapArmed) return;
+    this.altTapArmed = false;
+    if (document.querySelector('dialog[open]')) return;
+    this.menubar?.focusMenu();
+  },
+
   onGlobalKeydown(event) {
     if (document.querySelector('dialog[open]')) return;
     const typing = isTextTarget(event.target);
@@ -18,6 +26,17 @@ export const keyboardMethods = {
       showShortcuts();
       return;
     }
+    if (event.key === 'F10' && !event.ctrlKey && !event.metaKey && !event.altKey) {
+      event.preventDefault();
+      this.menubar?.focusMenu();
+      return;
+    }
+    // A lone Alt tap (no other key in between) opens the menu bar, as in Windows.
+    if (event.key === 'Alt') {
+      this.altTapArmed = !event.repeat;
+      return;
+    }
+    this.altTapArmed = false;
     if (event.key === 'F11') {
       event.preventDefault();
       this.toggleFocusMode();
