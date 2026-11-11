@@ -99,6 +99,8 @@ const SHELL = [
   './src/lock.js',
   './src/main.js',
   './src/markdown.js',
+  './src/media-bar.js',
+  './src/media-layout.js',
   './src/media.js',
   './src/memories.js',
   './src/menubar.js',

@@ -11,6 +11,7 @@
  */
 
 import { MEDIA_LINE, TASK_ITEM, escapeHtml } from './markdown.js';
+import { DEFAULT_MEDIA_LAYOUT, mediaClasses, mediaStyle } from './media-layout.js';
 
 const HEADING = /^(#{1,3})(\s+)(.*)$/;
 const RULE = /^\s*([-*_])(\s*\1){2,}\s*$/;
@@ -184,7 +185,7 @@ function pieceHtml({ text, role, color }) {
  * gives the picture's URL, or a truthy value when a sketch exists, or null when
  * the id is unknown. Nothing here adds text, so the offsets stay right.
  */
-function mediaHtml({ alt, kind, id }, resolve) {
+function mediaHtml({ alt, kind, id }, resolve, layout) {
   const found = resolve(kind, id);
   if (kind === 'audio') {
     // A voice note plays where it sits. Nothing here adds text, so the offsets stay right.
@@ -201,15 +202,18 @@ function mediaHtml({ alt, kind, id }, resolve) {
   if (!found || !/^(data:image\/|blob:)/.test(found)) {
     return '<span class="lv-media lv-missing" contenteditable="false"></span>';
   }
-  return `<span class="lv-media" contenteditable="false"><img class="lv-img" src="${escapeHtml(found)}" alt="${escapeHtml(alt)}" draggable="false"></span>`;
+  const placed = layout ?? DEFAULT_MEDIA_LAYOUT;
+  // A tight wrap follows the picture's own outline (its alpha channel), so the text sits close to it.
+  const shape = placed.mode === 'tight' ? `;shape-outside:url('${found}');shape-image-threshold:0.5;shape-margin:12px` : '';
+  return `<span class="${mediaClasses(placed).join(' ')}" data-media-id="${escapeHtml(id)}" style="${escapeHtml(mediaStyle(placed) + shape)}" contenteditable="false"><img class="lv-img" src="${escapeHtml(found)}" alt="${escapeHtml(alt)}" draggable="false"></span>`;
 }
 
 /** HTML for every line. Active lines are marked later by the editor, so markers can show there. */
-export function documentHtml(lines, { resolve = () => null } = {}) {
+export function documentHtml(lines, { resolve = () => null, layoutOf = () => null } = {}) {
   return lines
     .map((line) => {
       const body = line.pieces.map(pieceHtml).join('');
-      const media = line.media ? mediaHtml(line.media, resolve) : '';
+      const media = line.media ? mediaHtml(line.media, resolve, layoutOf(line.media.id)) : '';
       return `<div class="ln ${line.cls}">${body || '<br>'}${media}</div>`;
     })
     .join('');
