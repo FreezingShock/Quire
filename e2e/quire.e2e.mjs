@@ -586,6 +586,12 @@ test('moving the last entry out of a notebook returns the list to All entries', 
 
     assert.equal((await page.textContent('.home-crumb-current')).trim(), 'All entries', 'the filter does not stay on an empty notebook');
     assert.equal(await notebookRow(page, 'Lab').count(), 0);
+    expectNoErrors(page);
+  } finally {
+    await page.close();
+  }
+});
+
 test('a deleted entry waits in the desk drawer until it is restored or deleted for good', async () => {
   const page = await freshPage();
   try {
