@@ -10,16 +10,25 @@ import { el } from './dom.js';
 import { KINDS, MOODS, WEATHERS, displayTitle, formatLongDate, formatShortDate, labelFor, localISODate } from './model.js';
 import { wordCount } from './markdown.js';
 import { NORM_WIDTH, paintInk } from './drawing.js';
-import { icon } from './icons.js';
+import { icon, iconElement } from './icons.js';
+import { normalizeNavSections, sectionForFilter, toggleNavSection } from './nav-sections.js';
+import { TRASH_DAYS, removalNote } from './trash.js';
 import { downloadBlob } from './export.js';
 import { pixelState, posterBlob, yearGrid } from './yearpixels.js';
-import { notebookDialog } from './dialogs.js';
+import { notebookDialog, placeDialog, saveSearchDialog } from './dialogs.js';
+import {
+  addSavedSearch,
+  normalizeSavedSearches,
+  removeSavedSearch,
+  savedSearchProblem,
+} from './savedsearches.js';
 import { menuPointFor, openContextMenu } from './contextmenu.js';
 import {
   SORTS,
   countByKind,
   countByMood,
   countByNotebook,
+  countByPlace,
   countByTag,
   countByWeather,
   countFlags,
@@ -50,9 +59,10 @@ import { capsuleStatus, countdownText, isHidden, redactSealed, upcomingCapsules 
 import { capsuleTileArt, envelopeIcon } from './capsule-ui.js';
 import { greetingFor, isFirstRun, lastDays, monthSummary, recentEntries } from './dashboard.js';
 import { addGadget, normalizeGadgetList, removeGadget } from './gadgets.js';
-import { TRASH_DAYS, removalNote } from './trash.js';
+import { addHabit, habitProblem, normalizeHabits, removeHabit, toggleHabit } from './habits.js';
 import { buildSidebar } from './gadget-views.js';
 import { TIPS } from './onboarding.js';
+import { ROW_ESTIMATE_PX, visibleRange } from './virtual-rows.js';
 
 const PAGE_RATIO = 1.25; // sheet height relative to its width, as on the writing page
 const THUMB_PX = 352; // 2x the tile page width, so ink stays sharp on high-DPI screens
@@ -86,21 +96,46 @@ const WEEKDAYS = Array.from({ length: 7 }, (_, i) =>
 const DAY_STEPS = { ArrowLeft: -1, ArrowRight: 1, ArrowUp: -7, ArrowDown: 7 };
 
 function iconNode(name, cls = '') {
-  const span = el('span', { class: `icon ${cls}`.trim(), 'aria-hidden': 'true' });
-  span.innerHTML = icon(name);
-  return span;
+  return el('span', { class: `icon ${cls}`.trim(), 'aria-hidden': 'true' }, iconElement(name));
 }
 
-/** Ink only, painted the same way the writing page paints it, over the page color. */
+/**
+ * Ink only, painted the same way the writing page paints it, over the page color.
+ * The canvas is left blank here: a tile paints its ink when it scrolls near the
+ * screen (see tileGrid), so a library of drawings does not paint all at once.
+ */
 function inkThumbnail(entry) {
-  const canvas = el('canvas', {
+  return el('canvas', {
     class: 'tile-ink',
     width: THUMB_PX,
     height: Math.round(THUMB_PX * PAGE_RATIO),
     'aria-hidden': 'true',
+    'data-ink': entry.id,
   });
-  paintInk(canvas.getContext('2d'), entry.ink.ops, entry.ink.layers, THUMB_PX / NORM_WIDTH);
-  return canvas;
+}
+
+/** Word counts are the same for an entry until its body changes, and a search re-renders the list on every key. */
+const WORD_COUNTS = new WeakMap();
+function wordCountOf(entry) {
+  let count = WORD_COUNTS.get(entry);
+  if (count === undefined) {
+    count = wordCount(entry.body);
+    WORD_COUNTS.set(entry, count);
+  }
+  return count;
+}
+
+/**
+ * A blank row that holds the height of rows scrolled past, so the list keeps its
+ * full length. It has one empty cell per column, not one cell spanning them all:
+ * a spanning cell changes how a fixed-layout table shares out its width.
+ */
+function spacerRow(height) {
+  return el(
+    'tr',
+    { class: 'row-gap', 'aria-hidden': 'true', style: `height: ${height}px` },
+    COLUMNS.map((column) => el('td', { class: column.cls, style: 'padding: 0; border: 0;' })),
+  );
 }
 
 /** Text with search hits wrapped in <mark>. Plain text when there is no query. */
@@ -122,10 +157,12 @@ function setLabel(button, text) {
   button.querySelector('.cmd-label').textContent = text;
 }
 
+const MODIFIED_LABEL = new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+
 function modifiedLabel(iso) {
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return '';
-  return date.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+  return MODIFIED_LABEL.format(date);
 }
 
 /** "Good · Rain", or an empty string when neither is set. */
@@ -181,11 +218,13 @@ export class HomeView {
    * `view` is 'dashboard', 'details', 'tiles', 'calendar', 'moods', or 'year'. The
    * dashboard is the default. `showPrompts`, `showOnThisDay`, and `showTips`
    * control the cards. `showGadgets` and `gadgets` control the sidebar, and
-   * `note` is the sticky note's text. Callbacks: onOpen(id), onNew(options),
-   * onToday(), onWritePrompt(prompt), onHidePrompts(), onDismissTips(),
-   * onDelete(id), onViewChange(view), onPatch(id, fields), onGadgetsChange(list),
-   * onSaveNote(text), and for the desk drawer onRestore(id), onPurge(id) (delete
-   * for good) and onEmptyDrawer().
+   * `note` is the sticky note's text, and `savedSearches` is the list in the
+   * sidebar. Callbacks: onOpen(id), onNew(options), onToday(),
+   * onWritePrompt(prompt), onHidePrompts(), onDismissTips(), onDelete(id),
+   * onViewChange(view), onPatch(id, fields), onGadgetsChange(list),
+   * onSaveNote(text), onSavedSearchesChange(list), onHabitsChange(state), onNavSectionsChange(sections),
+   * and for the desk drawer onRestore(id), onPurge(id) (delete for good) and onEmptyDrawer().
+   * `navSections` says which sidebar sections are open (see nav-sections.js).
    */
   constructor(
     root,
@@ -196,6 +235,8 @@ export class HomeView {
       showTips = true,
       showGadgets = true,
       gadgets,
+      savedSearches,
+      habits,
       onOpen,
       onNew,
       onToday,
@@ -207,19 +248,30 @@ export class HomeView {
       onPatch,
       onGadgetsChange,
       onSaveNote,
+      onNavSectionsChange,
+      navSections,
+      onSavedSearchesChange,
+      onHabitsChange,
       onRestore,
       onPurge,
       onEmptyDrawer,
     } = {},
   ) {
     this.root = root;
-    this.callbacks = { onOpen, onNew, onToday, onWritePrompt, onHidePrompts, onDismissTips, onDelete, onViewChange, onPatch, onGadgetsChange, onSaveNote, onRestore, onPurge, onEmptyDrawer };
+    this.callbacks = { onOpen, onNew, onToday, onWritePrompt, onHidePrompts, onDismissTips, onDelete, onViewChange, onPatch, onGadgetsChange, onSaveNote, onNavSectionsChange, onSavedSearchesChange, onHabitsChange, onRestore, onPurge, onEmptyDrawer };
+    this.trashed = []; // the desk drawer: deleted entries, kept out of every list until restored
+    this.navOpen = normalizeNavSections(navSections); // which sidebar sections are open
+    this.savedSearches = normalizeSavedSearches(savedSearches);
+    this.habits = normalizeHabits(habits); // the habit tracker's list and checks (see habits.js)
+    this.habitError = ''; // why the last habit could not be added, shown in the gadget
     this.entries = [];
-    this.trashed = []; // the desk drawer: deleted entries, which stay out of every list until restored
     this.terms = []; // search terms for the current query, used for highlighting
     this.stripOptions = { showPrompts, showOnThisDay, showTips, showGadgets, gadgets: normalizeGadgetList(gadgets) };
     this.note = ''; // the sticky note's text, kept here so a re-render does not clear it
     this.focusGadget = null; // a gadget whose title bar gets focus after a keyboard move
+    this.currentMatches = []; // the entries on screen, in order, for keyboard moves
+    this.rowSet = null; // the details list while it is on screen; see table() and paintRows()
+    this.scrollFrame = 0;
     const today = localISODate();
     this.state = {
       filter: { type: 'all', value: null },
@@ -253,13 +305,13 @@ export class HomeView {
   }
 
   /**
-   * A notebook, tag, mood, or weather filter whose last entry has been moved or
+   * A notebook, place, tag, mood, or weather filter whose last entry has been moved or
    * deleted would leave an empty list with no sidebar row to explain it. Show
    * everything instead. Kind, pinned and favorite filters always stay.
    */
   dropEmptyFilter() {
     const { filter } = this.state;
-    if (!['notebook', 'tag', 'mood', 'weather'].includes(filter.type)) return;
+    if (!['notebook', 'place', 'tag', 'mood', 'weather'].includes(filter.type)) return;
     if (filterEntries(this.entries, { filter }).length) return;
     this.state.filter = { type: 'all', value: null };
   }
@@ -269,6 +321,18 @@ export class HomeView {
     const next = { ...this.stripOptions, ...options };
     if ('gadgets' in options) next.gadgets = normalizeGadgetList(options.gadgets);
     this.stripOptions = next;
+    this.render();
+  }
+
+  /** The habit tracker's saved state, once the store has opened. */
+  setHabits(state) {
+    this.habits = normalizeHabits(state);
+    this.render();
+  }
+
+  /** The saved searches, once the store has opened (they are sealed with the lock). */
+  setSavedSearches(list) {
+    this.savedSearches = normalizeSavedSearches(list);
     this.render();
   }
 
@@ -365,6 +429,9 @@ export class HomeView {
     this.main = el('div', { class: 'home-main' });
     // Right-clicking a row or tile opens its menu. The app's own menus skip the home view.
     this.main.addEventListener('contextmenu', (event) => this.onContextMenu(event));
+    // The details list builds rows as they scroll into view, and a resize changes how many fit.
+    this.main.addEventListener('scroll', () => this.onMainScroll(), { passive: true });
+    window.addEventListener('resize', () => this.onMainScroll());
 
     this.root.replaceChildren(
       el(
@@ -433,6 +500,7 @@ export class HomeView {
     const kinds = countByKind(this.entries);
     const flags = countFlags(this.entries);
     const notebooks = countByNotebook(this.entries);
+    const places = countByPlace(this.entries);
     const tags = countByTag(this.entries);
     const moods = countByMood(this.entries);
     const weathers = countByWeather(this.entries);
@@ -444,105 +512,223 @@ export class HomeView {
         el('span', { class: 'nav-label' }, label),
         el('span', { class: 'nav-count' }, String(count)),
       );
+    // A section heading is a disclosure button inside a heading, with its count, so a collapsed list still says how big it is.
+    const section = (id, title, count, rows) => {
+      const open = Boolean(this.navOpen[id]);
+      return [
+        el(
+          'h3',
+          { class: 'nav-group' },
+          el(
+            'button',
+            {
+              class: 'nav-group-toggle',
+              type: 'button',
+              'aria-expanded': String(open),
+              'aria-controls': `nav-${id}`,
+              onClick: () => this.toggleNavSection(id),
+            },
+            iconNode('chevronDown', 'nav-caret'),
+            el('span', { class: 'nav-group-name' }, title),
+            el('span', { class: 'nav-count' }, String(count)),
+          ),
+        ),
+        el('div', { class: 'nav-group-body', id: `nav-${id}`, hidden: open ? null : true }, rows),
+      ];
+    };
 
     this.nav.replaceChildren(
-      // Hidden heading so the Library, Notebooks, Tags, Mood and Weather headings sit under a level 2 heading.
+      // Hidden heading so the section headings sit under a level 2 heading.
       el('h2', { class: 'sr-only' }, 'Filter entries'),
-      el('h3', {}, 'Library'),
-      navItem({
-        label: 'All entries',
-        count: this.entries.length,
-        icon: 'page',
-        active: filter.type === 'all',
-        onSelect: () => this.setFilter({ type: 'all', value: null }),
-      }),
-      navItem({
-        label: 'Pinned',
-        count: flags.pinned,
-        icon: 'pin',
-        active: filter.type === 'pinned',
-        onSelect: () => this.setFilter({ type: 'pinned', value: null }),
-      }),
-      navItem({
-        label: 'Favorites',
-        count: flags.favorite,
-        icon: 'star',
-        active: filter.type === 'favorite',
-        onSelect: () => this.setFilter({ type: 'favorite', value: null }),
-      }),
-      ...KINDS.map((kind) =>
+      ...section('library', 'Library', this.entries.length, [
         navItem({
-          label: kind.label,
-          count: kinds[kind.id] ?? 0,
-          icon: 'folder',
-          active: filter.type === 'kind' && filter.value === kind.id,
-          onSelect: () => this.setFilter({ type: 'kind', value: kind.id }),
+          label: 'All entries',
+          count: this.entries.length,
+          icon: 'page',
+          active: filter.type === 'all',
+          onSelect: () => this.setFilter({ type: 'all', value: null }),
         }),
+        navItem({
+          label: 'Pinned',
+          count: flags.pinned,
+          icon: 'pin',
+          active: filter.type === 'pinned',
+          onSelect: () => this.setFilter({ type: 'pinned', value: null }),
+        }),
+        navItem({
+          label: 'Favorites',
+          count: flags.favorite,
+          icon: 'star',
+          active: filter.type === 'favorite',
+          onSelect: () => this.setFilter({ type: 'favorite', value: null }),
+        }),
+        ...KINDS.map((kind) =>
+          navItem({
+            label: kind.label,
+            count: kinds[kind.id] ?? 0,
+            icon: 'folder',
+            active: filter.type === 'kind' && filter.value === kind.id,
+            onSelect: () => this.setFilter({ type: 'kind', value: kind.id }),
+          }),
+        ),
+        navItem({
+          label: 'Desk drawer',
+          count: this.trashed.length,
+          icon: 'trash',
+          active: filter.type === 'trash',
+          onSelect: () => this.setFilter({ type: 'trash', value: null }),
+        }),
+      ]),
+      ...section('saved', 'Saved searches', this.savedSearches.length, this.savedSearchRows()),
+      ...section(
+        'notebooks',
+        'Notebooks',
+        notebooks.length,
+        notebooks.length
+          ? notebooks.map(({ name, count }) =>
+              navItem({
+                label: name,
+                count,
+                icon: 'notebook',
+                active: filter.type === 'notebook' && filter.value === name,
+                onSelect: () => this.setFilter({ type: 'notebook', value: name }),
+              }),
+            )
+          : [el('p', { class: 'nav-empty' }, 'Move an entry into a notebook to start one.')],
       ),
-      navItem({
-        label: 'Desk drawer',
-        count: this.trashed.length,
-        icon: 'trash',
-        active: filter.type === 'trash',
-        onSelect: () => this.setFilter({ type: 'trash', value: null }),
-      }),
-      el('h3', {}, 'Notebooks'),
-      ...(notebooks.length
-        ? notebooks.map(({ name, count }) =>
-            navItem({
-              label: name,
-              count,
-              icon: 'notebook',
-              active: filter.type === 'notebook' && filter.value === name,
-              onSelect: () => this.setFilter({ type: 'notebook', value: name }),
-            }),
-          )
-        : [el('p', { class: 'nav-empty' }, 'Move an entry into a notebook to start one.')]),
-      el('h3', {}, 'Tags'),
-      ...(tags.length
-        ? tags.map(({ tag, count }) =>
-            navItem({
-              label: tag,
-              count,
-              icon: 'tag',
-              active: filter.type === 'tag' && filter.value === tag,
-              onSelect: () => this.setFilter({ type: 'tag', value: tag }),
-            }),
-          )
-        : [el('p', { class: 'nav-empty' }, 'Tags you add to entries show up here.')]),
-      el('h3', {}, 'Mood'),
-      ...(moods.length
-        ? moods.map(({ id, label, count }) =>
-            navItem({
-              label,
-              count,
-              icon: 'smile',
-              active: filter.type === 'mood' && filter.value === id,
-              onSelect: () => this.setFilter({ type: 'mood', value: id }),
-            }),
-          )
-        : [el('p', { class: 'nav-empty' }, 'Moods you pick show up here.')]),
-      el('h3', {}, 'Weather'),
-      ...(weathers.length
-        ? weathers.map(({ id, label, count }) =>
-            navItem({
-              label,
-              count,
-              icon: 'cloud',
-              active: filter.type === 'weather' && filter.value === id,
-              onSelect: () => this.setFilter({ type: 'weather', value: id }),
-            }),
-          )
-        : [el('p', { class: 'nav-empty' }, 'Weather you pick show up here.')]),
+      ...section(
+        'places',
+        'Places',
+        places.length,
+        places.length
+          ? places.map(({ name, count }) =>
+              navItem({
+                label: name,
+                count,
+                icon: 'place',
+                active: filter.type === 'place' && filter.value === name,
+                onSelect: () => this.setFilter({ type: 'place', value: name }),
+              }),
+            )
+          : [el('p', { class: 'nav-empty' }, 'Set a place on an entry to list it here.')],
+      ),
+      ...section(
+        'tags',
+        'Tags',
+        tags.length,
+        tags.length
+          ? tags.map(({ tag, count }) =>
+              navItem({
+                label: tag,
+                count,
+                icon: 'tag',
+                active: filter.type === 'tag' && filter.value === tag,
+                onSelect: () => this.setFilter({ type: 'tag', value: tag }),
+              }),
+            )
+          : [el('p', { class: 'nav-empty' }, 'Tags you add to entries show up here.')],
+      ),
+      ...section(
+        'mood',
+        'Mood',
+        moods.length,
+        moods.length
+          ? moods.map(({ id, label, count }) =>
+              navItem({
+                label,
+                count,
+                icon: 'smile',
+                active: filter.type === 'mood' && filter.value === id,
+                onSelect: () => this.setFilter({ type: 'mood', value: id }),
+              }),
+            )
+          : [el('p', { class: 'nav-empty' }, 'Moods you pick show up here.')],
+      ),
+      ...section(
+        'weather',
+        'Weather',
+        weathers.length,
+        weathers.length
+          ? weathers.map(({ id, label, count }) =>
+              navItem({
+                label,
+                count,
+                icon: 'cloud',
+                active: filter.type === 'weather' && filter.value === id,
+                onSelect: () => this.setFilter({ type: 'weather', value: id }),
+              }),
+            )
+          : [el('p', { class: 'nav-empty' }, 'Weather you pick show up here.')],
+      ),
     );
   }
 
-  /** The command bar changes with the view: in the desk drawer, the entry actions give way to Restore, Delete forever and Empty drawer. */
-  swapCommands() {
-    const drawer = this.inDrawer();
-    for (const button of this.libraryCommands) button.hidden = drawer;
-    for (const button of this.drawerCommands) button.hidden = !drawer;
-    this.emptyBtn.disabled = this.trashed.length === 0;
+  /** Saved searches as sidebar rows, each with a remove button, plus a Save row when the search has something to save. */
+  savedSearchRows() {
+    const rows = this.savedSearches.map((saved) =>
+      el(
+        'div',
+        { class: 'nav-saved' },
+        el(
+          'button',
+          {
+            class: 'nav-item',
+            type: 'button',
+            title: saved.query ? `Search: ${saved.query}` : 'Saved filter',
+            onClick: () => this.applySavedSearch(saved),
+          },
+          iconNode('search'),
+          el('span', { class: 'nav-label' }, saved.name),
+        ),
+        el(
+          'button',
+          {
+            class: 'nav-remove',
+            type: 'button',
+            title: `Remove ${saved.name}`,
+            'aria-label': `Remove saved search ${saved.name}`,
+            onClick: () => this.removeSavedSearch(saved.id),
+          },
+          '×',
+        ),
+      ),
+    );
+    const { filter, query } = this.state;
+    const canSave = query.trim() || filter.type !== 'all';
+    if (canSave) {
+      rows.push(el('button', { class: 'nav-item nav-save', type: 'button', onClick: () => this.saveCurrentSearch() }, iconNode('plus'), el('span', { class: 'nav-label' }, 'Save this search…')));
+    } else if (!this.savedSearches.length) {
+      rows.push(el('p', { class: 'nav-empty' }, 'Search or pick a filter, then save it here.'));
+    }
+    return rows;
+  }
+
+  saveCurrentSearch() {
+    const { filter, query } = this.state;
+    const suggested = query.trim() || (filter.type === 'all' ? '' : this.crumb.textContent);
+    const check = (name) => savedSearchProblem(this.savedSearches, { name, query, filter });
+    saveSearchDialog({
+      suggested,
+      check,
+      onSave: (name) => {
+        this.savedSearches = addSavedSearch(this.savedSearches, { name, query, filter });
+        this.callbacks.onSavedSearchesChange?.(this.savedSearches);
+        this.render();
+      },
+    });
+  }
+
+  applySavedSearch(saved) {
+    this.state.query = saved.query;
+    this.searchInput.value = saved.query;
+    this.state.filter = { ...saved.filter };
+    this.render();
+  }
+
+  removeSavedSearch(id) {
+    this.savedSearches = removeSavedSearch(this.savedSearches, id);
+    this.callbacks.onSavedSearchesChange?.(this.savedSearches);
+    this.render();
   }
 
   renderCrumb() {
@@ -552,6 +738,7 @@ export class HomeView {
     else if (filter.type === 'mood') this.crumb.textContent = labelFor(MOODS, filter.value);
     else if (filter.type === 'weather') this.crumb.textContent = labelFor(WEATHERS, filter.value);
     else if (filter.type === 'notebook') this.crumb.textContent = filter.value;
+    else if (filter.type === 'place') this.crumb.textContent = filter.value;
     else if (filter.type === 'pinned') this.crumb.textContent = 'Pinned';
     else if (filter.type === 'favorite') this.crumb.textContent = 'Favorites';
     else if (filter.type === 'trash') this.crumb.textContent = 'Desk drawer';
@@ -568,6 +755,9 @@ export class HomeView {
   renderMain(matches) {
     const { view } = this.state;
     this.main.dataset.view = view;
+    this.currentMatches = matches;
+    this.rowSet = null;
+    this.inkObserver?.disconnect();
     let content;
     if (this.inDrawer()) content = this.drawer(matches);
     else if (view === 'calendar') content = this.calendar(matches);
@@ -582,6 +772,7 @@ export class HomeView {
     // The strip is for the whole journal, so it hides while a filter or search narrows the list. The dashboard has its own cards.
     const strip = view !== 'calendar' && view !== 'dashboard' && view !== 'year' && this.isUnfiltered() ? this.stripSection() : null;
     this.main.replaceChildren(...[strip, content].filter(Boolean));
+    this.paintRows();
     this.drawMoodChart();
     this.markSelection();
   }
@@ -602,6 +793,14 @@ export class HomeView {
     return days > LONG_RANGE_DAYS ? bucketSeries(daily, 7) : daily;
   }
 
+  /** The command bar changes with the view: in the desk drawer, the entry actions give way to Restore, Delete forever and Empty drawer. */
+  swapCommands() {
+    const drawer = this.inDrawer();
+    for (const button of this.libraryCommands) button.hidden = drawer;
+    for (const button of this.drawerCommands) button.hidden = !drawer;
+    this.emptyBtn.disabled = this.trashed.length === 0;
+  }
+
   /** True while the desk drawer is open. Its list holds the drawer's entries, not the library's. */
   inDrawer() {
     return this.state.filter.type === 'trash';
@@ -612,6 +811,39 @@ export class HomeView {
     return this.inDrawer() ? this.trashed : this.entries;
   }
 
+  /** The small line under a row's title: how long a drawer entry has left, the capsule countdown, or the search snippet. */
+  rowNote(entry, closed, today) {
+    if (this.inDrawer()) return el('span', { class: 'cell-snippet' }, removalNote(entry));
+    if (closed) return el('span', { class: 'cell-snippet' }, countdownText(entry, today));
+    if (!this.terms.length) return null;
+    return el('span', { class: 'cell-snippet' }, marked(snippetOf(entry, this.terms), this.terms));
+  }
+
+  /** The desk drawer: deleted entries in a list, with a line on how long they wait. */
+  drawer(matches) {
+    if (!this.trashed.length) {
+      return el(
+        'div',
+        { class: 'home-empty' },
+        iconNode('trash', 'empty-icon'),
+        el('h2', {}, 'The desk drawer is empty'),
+        el('p', {}, `Entries you delete land here. They wait ${TRASH_DAYS} days, and you can restore them until then.`),
+      );
+    }
+    if (!matches.length) return this.emptyMatches();
+    return el(
+      'div',
+      { class: 'drawer' },
+      el(
+        'p',
+        { class: 'drawer-note' },
+        iconNode('trash'),
+        el('span', {}, `Deleted entries wait here for ${TRASH_DAYS} days, then they are removed for good. Restore puts one back in the library.`),
+      ),
+      this.table(matches),
+    );
+  }
+
   isUnfiltered() {
     return this.state.filter.type === 'all' && !this.state.query.trim();
   }
@@ -620,7 +852,7 @@ export class HomeView {
   markSelection({ focus = false } = {}) {
     const { selectedId } = this.state;
     const rows = [...this.main.querySelectorAll('[data-id]')];
-    const anchor = selectedId ?? rows[0]?.dataset.id ?? null;
+    const anchor = selectedId ?? this.currentMatches[0]?.id ?? null;
     let target = null;
     for (const row of rows) {
       const selected = row.dataset.id === selectedId;
@@ -775,7 +1007,12 @@ export class HomeView {
       today,
       streak: dayStreaks(this.entries, today),
       note: this.note,
+      habits: this.habits,
+      habitError: this.habitError,
       on: {
+        onHabitToggle: (id) => this.changeHabits(toggleHabit(this.habits, id, today)),
+        onHabitAdd: (name) => this.addHabitFromForm(name, today),
+        onHabitRemove: (id) => this.changeHabits(removeHabit(this.habits, id)),
         onRemove: (id) => this.changeGadgets(removeGadget(gadgets, id)),
         onAdd: (id) => this.changeGadgets(addGadget(gadgets, id)),
         onReorder: (order, focusId) => this.changeGadgets(order, focusId),
@@ -788,6 +1025,26 @@ export class HomeView {
         },
       },
     });
+  }
+
+  addHabitFromForm(name, today) {
+    const problem = habitProblem(this.habits, name);
+    this.habitError = problem ?? '';
+    if (problem) {
+      this.focusGadget = 'habits';
+      this.render();
+      return;
+    }
+    this.changeHabits(addHabit(this.habits, name, today), 'habits');
+  }
+
+  /** Saves a habit change. The gadget re-renders, and focus moves to it when `focusId` is given. */
+  changeHabits(next, focusId = null) {
+    this.habits = next;
+    this.habitError = '';
+    this.focusGadget = focusId;
+    this.callbacks.onHabitsChange?.(next);
+    this.render();
   }
 
   changeGadgets(list, focusId = null) {
@@ -869,7 +1126,7 @@ export class HomeView {
                 {},
                 el(
                   'button',
-                  { class: 'dash-recent-item', type: 'button', onClick: () => this.open(entry.id) },
+                  { class: 'dash-recent-item', type: 'button', 'data-id': entry.id, onClick: () => this.open(entry.id) },
                   el('span', { class: 'dash-recent-title' }, displayTitle(entry), isHidden(entry) ? envelopeIcon('flag flag-capsule') : null, flagIcons(entry)),
                   el('span', { class: 'dash-recent-sub' }, sub),
                   excerpt ? el('span', { class: 'dash-recent-excerpt' }, excerpt) : null,
@@ -983,6 +1240,11 @@ export class HomeView {
 
   // ---------- details list ----------
 
+  /**
+   * The details list. Only the rows near the viewport are built (see paintRows);
+   * the table itself holds the header, and the body is filled in after it is on
+   * the page, because the rows need the scroll position to know where to start.
+   */
   table(matches) {
     const { sort } = this.state;
     const head = el(
@@ -1007,94 +1269,163 @@ export class HomeView {
       }),
     );
 
-    const today = localISODate();
-    const rows = matches.map((entry) => {
-      const closed = isHidden(entry, today);
-      return el(
-        'tr',
-        {
-          class: closed ? 'is-capsule' : null,
-          'data-id': entry.id,
-          'aria-selected': 'false',
-          onClick: () => this.select(entry.id),
-          onDblclick: () => this.open(entry.id),
-          onKeydown: (event) => this.onKeydown(event),
-        },
-        el(
-          'td',
-          { class: 'col-title' },
-          el(
-            'span',
-            { class: 'cell-title' },
-            closed ? envelopeIcon() : iconNode('page'),
-            el('span', { class: 'cell-name' }, marked(displayTitle(entry), this.terms)),
-            flagIcons(entry),
-          ),
-          this.rowNote(entry, closed, today),
-        ),
-        el('td', { class: 'col-date' }, formatShortDate(entry.date)),
-        el('td', { class: 'col-kind' }, kindLabel(entry.kind)),
-        el('td', { class: 'col-notebook' }, entry.notebook ?? ''),
-        el('td', { class: 'col-tags' }, entry.tags.join(', ')),
-        el('td', { class: 'col-feel' }, closed ? '' : feelText(entry)),
-        el('td', { class: 'col-words num' }, closed ? '—' : String(wordCount(entry.body))),
-        el('td', { class: 'col-modified' }, modifiedLabel(entry.updatedAt)),
-      );
-    });
-
+    const body = el('tbody');
+    const position = new Map(matches.map((entry, index) => [entry.id, index]));
+    this.rowSet = { matches, position, body, today: localISODate(), start: -1, end: -1, selected: undefined, rowHeight: ROW_ESTIMATE_PX };
     return el(
       'div',
       { class: 'home-table-wrap' },
       el(
         'table',
-        { class: 'home-table', role: 'grid', 'aria-label': 'Entries' },
+        { class: 'home-table', role: 'grid', 'aria-label': 'Entries', 'aria-rowcount': String(matches.length + 1) },
         el('thead', {}, head),
-        el('tbody', {}, rows),
+        body,
       ),
     );
   }
 
-  /** The small line under a row's title: how long a drawer entry has left, or the search snippet. */
-  rowNote(entry, closed, today) {
-    if (this.inDrawer()) return el('span', { class: 'cell-snippet' }, removalNote(entry));
-    if (closed) return el('span', { class: 'cell-snippet' }, countdownText(entry, today));
-    if (!this.terms.length) return null;
-    return el('span', { class: 'cell-snippet' }, marked(snippetOf(entry, this.terms), this.terms));
-  }
-
-  /** The desk drawer: deleted entries in a list, with a line on how long they wait. */
-  drawer(matches) {
-    if (!this.trashed.length) {
-      return el(
-        'div',
-        { class: 'home-empty' },
-        iconNode('trash', 'empty-icon'),
-        el('h2', {}, 'The desk drawer is empty'),
-        el('p', {}, `Entries you delete land here. They wait ${TRASH_DAYS} days, and you can restore them until then.`),
-      );
-    }
-    if (!matches.length) return this.emptyMatches();
+  /** One row of the details list. `index` is its place in the sorted list. */
+  tableRow(set, entry, index) {
+    const { selectedId } = this.state;
+    const closed = isHidden(entry, set.today);
+    const selected = entry.id === selectedId;
+    const anchor = selectedId ?? set.matches[0]?.id;
     return el(
-      'div',
-      { class: 'drawer' },
+      'tr',
+      {
+        class: [closed && 'is-capsule', index % 2 === 1 && 'row-alt', selected && 'is-selected'].filter(Boolean).join(' ') || null,
+        'data-id': entry.id,
+        'aria-selected': String(selected),
+        'aria-rowindex': String(index + 2),
+        tabindex: entry.id === anchor ? '0' : '-1',
+        onClick: () => this.select(entry.id),
+        onDblclick: () => this.open(entry.id),
+        onKeydown: (event) => this.onKeydown(event),
+      },
       el(
-        'p',
-        { class: 'drawer-note' },
-        iconNode('trash'),
-        el('span', {}, `Deleted entries wait here for ${TRASH_DAYS} days, then they are removed for good. Restore puts one back in the library.`),
+        'td',
+        { class: 'col-title' },
+        el(
+          'span',
+          { class: 'cell-title' },
+          closed ? envelopeIcon() : iconNode('page'),
+          el('span', { class: 'cell-name' }, marked(displayTitle(entry), this.terms)),
+          flagIcons(entry),
+        ),
+        this.rowNote(entry, closed, set.today),
       ),
-      this.table(matches),
+      el('td', { class: 'col-date' }, formatShortDate(entry.date)),
+      el('td', { class: 'col-kind' }, kindLabel(entry.kind)),
+      el('td', { class: 'col-notebook' }, entry.notebook ?? ''),
+      el('td', { class: 'col-tags' }, entry.tags.join(', ')),
+      el('td', { class: 'col-feel' }, closed ? '' : feelText(entry)),
+      el('td', { class: 'col-words num' }, closed ? '—' : String(wordCountOf(entry))),
+      el('td', { class: 'col-modified' }, modifiedLabel(entry.updatedAt)),
     );
+  }
+
+  /** Where the table body starts, measured from the top of the scrolling list. */
+  bodyTop(set) {
+    return set.body.getBoundingClientRect().top - this.main.getBoundingClientRect().top + this.main.scrollTop;
+  }
+
+  /**
+   * Builds the rows that are on or near the screen and replaces the rest with
+   * two spacer rows of the right height. Runs on every scroll frame, so it only
+   * touches the DOM when the window of rows changes.
+   */
+  paintRows() {
+    const set = this.rowSet;
+    if (!set || !set.body.isConnected) return;
+    const { matches, body } = set;
+    const focused = document.activeElement?.closest?.('tr[data-id]');
+    const focusedId = focused && body.contains(focused) ? focused.dataset.id : null;
+    for (let pass = 0; pass < 2; pass++) {
+      const { start, end } = visibleRange({
+        count: matches.length,
+        rowHeight: set.rowHeight,
+        offset: this.main.scrollTop - this.bodyTop(set),
+        viewport: this.main.clientHeight,
+      });
+      // The selected row is always built, even when it is scrolled off screen, so keyboard focus is never lost.
+      const selected = set.position.get(this.state.selectedId);
+      const ranges = [[start, end]];
+      if (selected !== undefined && (selected < start || selected >= end)) ranges.push([selected, selected + 1]);
+      ranges.sort((a, b) => a[0] - b[0]);
+      if (start === set.start && end === set.end && selected === set.selected && pass === 0) return;
+      set.start = start;
+      set.end = end;
+      set.selected = selected;
+      const rows = [];
+      let cursor = 0;
+      for (const [from, to] of ranges) {
+        if (from > cursor) rows.push(spacerRow((from - cursor) * set.rowHeight));
+        for (let i = from; i < to; i++) rows.push(this.tableRow(set, matches[i], i));
+        cursor = Math.max(cursor, to);
+      }
+      if (cursor < matches.length) rows.push(spacerRow((matches.length - cursor) * set.rowHeight));
+      body.replaceChildren(...rows);
+      // The first real row gives the true height, so the spacers add up to the right scroll length. Measure again if it differs.
+      const sample = body.querySelector('tr[data-id]');
+      const measured = sample ? sample.getBoundingClientRect().height : 0;
+      if (!(measured > 0) || Math.abs(measured - set.rowHeight) < 0.5) break;
+      set.rowHeight = measured;
+      set.start = -1;
+    }
+    if (focusedId) body.querySelector(`tr[data-id="${CSS.escape(focusedId)}"]`)?.focus({ preventScroll: true });
+  }
+
+  onMainScroll() {
+    if (!this.rowSet || this.scrollFrame) return;
+    this.scrollFrame = requestAnimationFrame(() => {
+      this.scrollFrame = 0;
+      this.paintRows();
+    });
+  }
+
+  /** Scrolls the list just far enough to show a row, then builds it, so keyboard moves can reach any row. */
+  revealRow(id) {
+    const set = this.rowSet;
+    if (!set) return;
+    const index = set.matches.findIndex((entry) => entry.id === id);
+    if (index < 0) return;
+    const top = this.bodyTop(set) + index * set.rowHeight;
+    const bottom = top + set.rowHeight;
+    const headHeight = set.body.parentElement.tHead?.getBoundingClientRect().height ?? 0;
+    const view = this.main.scrollTop;
+    if (top < view + headHeight) this.main.scrollTop = top - headHeight;
+    else if (bottom > view + this.main.clientHeight) this.main.scrollTop = bottom - this.main.clientHeight;
+    this.paintRows();
   }
 
   // ---------- tiles ----------
 
   tileGrid(matches) {
-    return el(
+    this.inkObserver?.disconnect();
+    const byId = new Map();
+    const grid = el(
       'div',
       { class: 'home-tiles', role: 'listbox', 'aria-label': 'Entries' },
-      matches.map((entry) => this.tile(entry)),
+      matches.map((entry) => {
+        if (entry.ink.ops.length) byId.set(entry.id, entry);
+        return this.tile(entry);
+      }),
     );
+    // Ink is painted for the tiles near the screen, and again when they scroll into view.
+    this.inkObserver = new IntersectionObserver(
+      (changes) => {
+        for (const change of changes) {
+          if (!change.isIntersecting) continue;
+          const canvas = change.target;
+          const entry = byId.get(canvas.dataset.ink);
+          this.inkObserver.unobserve(canvas);
+          if (entry) paintInk(canvas.getContext('2d'), entry.ink.ops, entry.ink.layers, THUMB_PX / NORM_WIDTH);
+        }
+      },
+      { root: this.main, rootMargin: '400px 0px' },
+    );
+    for (const canvas of grid.querySelectorAll('canvas[data-ink]')) this.inkObserver.observe(canvas);
+    return grid;
   }
 
   tile(entry) {
@@ -1655,7 +1986,21 @@ export class HomeView {
 
   setFilter(filter) {
     this.state.filter = filter;
+    // A row picked from a collapsed section opens that section, so the active row is in view.
+    const section = sectionForFilter(filter.type);
+    if (section && !this.navOpen[section]) {
+      this.navOpen = { ...this.navOpen, [section]: true };
+      this.callbacks.onNavSectionsChange?.(this.navOpen);
+    }
     this.render();
+  }
+
+  /** Opens or closes one sidebar section and remembers it. Focus stays on the section's heading. */
+  toggleNavSection(id) {
+    this.navOpen = toggleNavSection(this.navOpen, id);
+    this.callbacks.onNavSectionsChange?.(this.navOpen);
+    this.renderNav();
+    this.nav.querySelector(`[aria-controls="nav-${id}"]`)?.focus();
   }
 
   setViewMode(view) {
@@ -1704,6 +2049,7 @@ export class HomeView {
 
   select(id) {
     this.state.selectedId = id;
+    this.revealRow(id);
     this.markSelection({ focus: true });
   }
 
@@ -1742,6 +2088,17 @@ export class HomeView {
     });
   }
 
+  placeEntry(entry) {
+    placeDialog({
+      entryName: displayTitle(entry),
+      places: countByPlace(this.entries).map((place) => place.name),
+      current: entry.place,
+      onSave: (place) => {
+        if (place !== entry.place) this.patch(entry.id, { place });
+      },
+    });
+  }
+
   /** Right-click on an entry: it becomes the selection, and its menu opens where the pointer is. */
   onContextMenu(event) {
     if (event.shiftKey) return;
@@ -1765,6 +2122,7 @@ export class HomeView {
       { label: entry.pinned ? 'Unpin from top' : 'Pin to top', action: () => this.patch(entry.id, { pinned: !entry.pinned }) },
       { label: entry.favorite ? 'Remove from favorites' : 'Add to favorites', action: () => this.patch(entry.id, { favorite: !entry.favorite }) },
       { label: 'Move to notebook…', action: () => this.moveEntry(entry) },
+      { label: entry.place ? 'Change place…' : 'Set place…', action: () => this.placeEntry(entry) },
       'sep',
       { label: 'Delete…', shortcut: 'Delete', action: () => this.callbacks.onDelete?.(entry.id) },
     ];
@@ -1796,7 +2154,7 @@ export class HomeView {
   }
 
   onKeydown(event) {
-    const ids = [...this.main.querySelectorAll('[data-id]')].map((node) => node.dataset.id);
+    const ids = this.currentMatches.map((entry) => entry.id);
     if (!ids.length) return;
     const index = ids.indexOf(this.state.selectedId);
     const moveTo = (next) => {

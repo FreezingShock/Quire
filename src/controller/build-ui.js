@@ -11,6 +11,7 @@ import { attachKeyboardPen } from '../keypen.js';
 import { renderLayerPanel } from '../layers.js';
 import { createMenuBar } from '../menubar.js';
 import { wireContextMenus } from '../contextmenu.js';
+import { wireTouchGestures } from '../touch.js';
 import { scopeItems } from './helpers.js';
 import { DEFAULT_PAGE_COLOR, formatLongDate, localISODate } from '../model.js';
 import { installState } from '../pwa.js';
@@ -143,9 +144,11 @@ export const buildUiMethods = {
           { label: 'New entry', shortcut: 'Ctrl+N', action: () => this.newEntry() },
           { label: "Today's entry", shortcut: 'Alt+T', action: () => this.openToday() },
           { label: 'Open entry…', shortcut: 'Ctrl+O', action: () => this.showEntries() },
+          { label: 'Random memory', action: () => this.randomMemory() },
           { scope: 'editor', label: 'Delete entry…', disabled: !this.entry, action: () => this.entry && this.deleteEntry(this.entry.id) },
           'sep',
           { scope: 'editor', label: 'Move to notebook…', disabled: !this.entry, action: () => this.entry && this.moveEntryToNotebook(this.entry.id) },
+          { scope: 'editor', label: 'Set place…', disabled: !this.entry, action: () => this.entry && this.setEntryPlace(this.entry.id) },
           {
             scope: 'editor',
             label: this.entry?.pinned ? 'Unpin from top' : 'Pin to top',
@@ -171,6 +174,7 @@ export const buildUiMethods = {
           'sep',
           { label: 'Back up all entries…', action: () => this.backup() },
           { label: 'Restore from backup…', action: () => this.restore() },
+          { label: 'Import entries…', action: () => this.importEntries() },
           ...(installState() === 'installed' ? [] : ['sep', { label: 'Install Quire…', action: () => this.installQuire() }]),
           'sep',
           { label: 'Passcode lock…', action: () => this.passcodeSettings() },
@@ -241,6 +245,7 @@ export const buildUiMethods = {
         items: () => [
           { label: 'Image…', disabled: !this.entry, action: () => this.pickImages() },
           { label: 'Sketch between paragraphs', disabled: !this.entry, action: () => this.insertSketch() },
+          { label: this.voice ? 'Stop voice note' : 'Voice note', disabled: !this.entry && !this.voice, action: () => this.toggleVoiceNote() },
           { label: 'Song for the mixtape…', disabled: !this.entry, action: () => this.addSong() },
           'sep',
           { label: 'Today’s date', action: () => this.insertText(formatLongDate(localISODate())) },
@@ -251,6 +256,7 @@ export const buildUiMethods = {
         label: 'View',
         items: () => [
           { label: 'Command palette…', shortcut: 'Ctrl+K', action: () => this.openPalette() },
+          { label: 'Year in review…', action: () => this.showYearRecap() },
           'sep',
           viewChoice('dashboard', 'Dashboard'),
           viewChoice('details', 'Details'),
@@ -410,6 +416,11 @@ export const buildUiMethods = {
     window.addEventListener('popstate', () => this.onRouteChange());
     document.addEventListener('contextmenu', (event) => this.onContextMenu(event));
     wireContextMenus();
+    wireTouchGestures({
+      canSwipeEntry: () => this.view === 'editor' && !this.draft && !this.textDraft && !document.querySelector('dialog[open]'),
+      onSwipeEntry: (step) => this.openNeighbourEntry(step),
+    });
+    document.addEventListener('keyup', (event) => this.onGlobalKeyup(event));
     window.addEventListener('unhandledrejection', (event) => {
       console.error(event.reason);
       this.showStatus(`Something went wrong: ${event.reason?.message ?? event.reason}`, true);

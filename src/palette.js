@@ -83,6 +83,8 @@ export function showCommandPalette({ items }) {
 
   input.addEventListener('input', render);
   input.addEventListener('keydown', (event) => {
+    // Once the palette has closed, focus can linger on its input for a moment. Its keys then belong to the page.
+    if (!dialog.open) return;
     // The app's own shortcuts wait while the palette is open. This also keeps Ctrl+K from reopening it.
     event.stopPropagation();
     if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {

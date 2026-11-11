@@ -15,6 +15,7 @@ export const GADGETS = Object.freeze([
   { id: 'word', label: 'Word of the day' },
   { id: 'note', label: 'Sticky note' },
   { id: 'slides', label: 'Drawing slideshow' },
+  { id: 'habits', label: 'Habit tracker' },
 ]);
 
 /** What a new library shows. The calendar is one click away in the Add menu, since the dashboard already has one. */

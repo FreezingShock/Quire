@@ -13,7 +13,7 @@
   border-bottom: 1px solid var(--panel-edge);
   font-family: var(--ui-font);
   font-size: 12px;
-  color: var(--raised-ink);
+  color: var(--text);
 }
 
 .mixtape-deck {
@@ -352,4 +352,15 @@
   .cassette.is-playing .cassette-reel {
     animation: none;
   }
+}
+
+/* An empty side: no blank cassette and no transport buttons, just the line that invites the first song. */
+.mixtape.is-empty {
+  padding-top: 8px;
+  padding-bottom: 8px;
+}
+
+.mixtape.is-empty .cassette,
+.mixtape.is-empty .mixtape-controls .btn:not(:last-child) {
+  display: none;
 }

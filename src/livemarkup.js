@@ -29,6 +29,7 @@ const INLINE = new RegExp(
     '(?<!\\w)_([^_\\n]+?)_(?!\\w)', // 7: italic
     '<span style="color:\\s?(#[0-9a-fA-F]{6})">', // 8: color open
     '<\\/span>', // color close
+    '\\[\\[([^[\\]\\n]{1,120})\\]\\]', // 9: entry link, [[Title]]
   ].join('|'),
   'g',
 );
@@ -39,7 +40,7 @@ function piece(text, role, color = null) {
 
 /**
  * Splits the inline text of one line. Roles: mk (a marker that can be hidden),
- * text, code, bold, italic, link. Color spans open and close as markers, and the
+ * text, code, bold, italic, link, wikilink. Color spans open and close as markers, and the
  * text inside them carries the color.
  */
 export function inlinePieces(text) {
@@ -80,6 +81,10 @@ export function inlinePieces(text) {
     } else if (match[8] !== undefined) {
       add(match[0], 'mk', false);
       color = match[8];
+    } else if (match[9] !== undefined) {
+      add('[[', 'mk', false);
+      add(match[9], 'wikilink');
+      add(']]', 'mk', false);
     } else {
       add(match[0], 'mk', false);
       color = null;
@@ -166,6 +171,9 @@ function pieceHtml({ text, role, color }) {
       return `<em${style}>${safe}</em>`;
     case 'link':
       return `<span class="lv-link"${style}>${safe}</span>`;
+    case 'wikilink':
+      // Ctrl+click follows the link (see livetext.js). A plain click still places the caret.
+      return `<span class="lv-wikilink" title="Ctrl+click to open this entry">${safe}</span>`;
     default:
       return color ? `<span${style}>${safe}</span>` : safe;
   }
@@ -178,6 +186,12 @@ function pieceHtml({ text, role, color }) {
  */
 function mediaHtml({ alt, kind, id }, resolve) {
   const found = resolve(kind, id);
+  if (kind === 'audio') {
+    // A voice note plays where it sits. Nothing here adds text, so the offsets stay right.
+    return found
+      ? `<span class="lv-media lv-audio" contenteditable="false"><audio controls preload="metadata" aria-label="${escapeHtml(alt || 'Voice note')}" src="${escapeHtml(found)}"></audio></span>`
+      : '<span class="lv-media lv-missing" contenteditable="false"></span>';
+  }
   if (kind === 'sketch') {
     // The editor mounts the live sketch pad into this slot.
     return found

@@ -1,88 +1,145 @@
 /**
  * Quire service worker. It caches the app shell so Quire opens with no
- * connection, and it keeps the cache fresh: every successful network answer
- * replaces the cached copy, so a normal online load always runs the newest files.
- * Entries never pass through here. They live in IndexedDB on the device.
+ * connection, and it keeps the cache fresh. A cached file answers at once, and
+ * the network fetches its newer copy in the background, which replaces the
+ * cached one. So a repeat visit starts without waiting for the network, and the
+ * visit after an update runs the new files. Entries never pass through here.
+ * They live in IndexedDB on the device.
  */
 
-const CACHE = 'quire-shell-v1';
+const CACHE = 'quire-shell-v2';
 
 // Installed up front so the first offline open works. Keep this in step with the
-// files the app loads. Anything missing here is cached the first time it loads.
+// files the app loads: tests/pwa.test.js fails when a file under src/, styles/ or
+// assets/ is missing from this list.
 const SHELL = [
   './',
   './index.html',
   './manifest.webmanifest',
-  './assets/quire-icon.svg',
+  './assets/aero-wallpaper.svg',
+  './assets/apple-touch-icon.png',
   './assets/favicon.svg',
-  './assets/icon-32.png',
   './assets/icon-192.png',
+  './assets/icon-32.png',
   './assets/icon-512.png',
   './assets/icon-maskable-512.png',
-  './assets/apple-touch-icon.png',
-  './assets/aero-wallpaper.svg',
   './assets/luna-hills.svg',
+  './assets/quire-icon.svg',
   './styles/app.css',
-  './styles/reader.css',
-  './styles/live.css',
-  './styles/home.css',
+  './styles/capsule.css',
+  './styles/dropdown.css',
+  './styles/focus.css',
   './styles/gadgets.css',
-  './styles/vista.css',
-  './styles/versions.css',
-  './styles/skins.css',
-  './styles/options.css',
-  './styles/pwa.css',
+  './styles/home.css',
+  './styles/live.css',
   './styles/lock.css',
   './styles/mixtape.css',
-  './styles/focus.css',
-  './styles/capsule.css',
+  './styles/navigation.css',
+  './styles/options.css',
+  './styles/print.css',
+  './styles/pwa.css',
+  './styles/reader.css',
   './styles/screensaver.css',
-  './src/main.js',
+  './styles/skins.css',
+  './styles/touch.css',
+  './styles/versions.css',
+  './styles/vista.css',
   './src/ambient.js',
   './src/app.js',
-  './src/gadgets.js',
-  './src/gadget-views.js',
+  './src/capsule-ui.js',
+  './src/capsule.js',
+  './src/contextmenu.js',
+  './src/controller/build-ui.js',
+  './src/controller/capsule-actions.js',
+  './src/controller/chrome.js',
+  './src/controller/constants.js',
+  './src/controller/entries.js',
+  './src/controller/export-actions.js',
+  './src/controller/focus-mode.js',
+  './src/controller/helpers.js',
+  './src/controller/ink-canvas.js',
+  './src/controller/keyboard.js',
+  './src/controller/layer-actions.js',
+  './src/controller/magnifier.js',
+  './src/controller/mixtape.js',
+  './src/controller/navigation.js',
+  './src/controller/routes.js',
+  './src/controller/routing.js',
+  './src/controller/saving.js',
+  './src/controller/selection.js',
+  './src/controller/shapes-spray.js',
+  './src/controller/text-boxes.js',
+  './src/controller/text-editing.js',
+  './src/controller/tool-modes.js',
+  './src/controller/toolbox-rows.js',
+  './src/controller/transforms.js',
+  './src/controller/version-actions.js',
+  './src/dashboard.js',
   './src/dialogs.js',
   './src/dom.js',
-  './src/focus.js',
   './src/drawing.js',
+  './src/dropdown.js',
   './src/export.js',
+  './src/focus.js',
+  './src/gadget-views.js',
+  './src/gadgets.js',
+  './src/gestures.js',
+  './src/habits.js',
   './src/history.js',
   './src/home.js',
-  './src/capsule.js',
-  './src/capsule-ui.js',
+  './src/icon-pixels.js',
   './src/icons.js',
+  './src/import.js',
   './src/journal.js',
+  './src/keypen.js',
   './src/layers.js',
   './src/library.js',
   './src/livemarkup.js',
   './src/livetext.js',
   './src/lock.js',
+  './src/main.js',
   './src/markdown.js',
   './src/media.js',
+  './src/memories.js',
   './src/menubar.js',
-  './src/options.js',
-  './src/model.js',
-  './src/mixtape.js',
   './src/mixtape-view.js',
+  './src/mixtape.js',
+  './src/model.js',
+  './src/nav-sections.js',
+  './src/onboarding.js',
+  './src/options.js',
+  './src/palette-search.js',
+  './src/palette.js',
+  './src/perf.js',
   './src/postcard.js',
-  './src/yearpixels.js',
   './src/prefs.js',
+  './src/print-docs.js',
+  './src/print-extras.js',
+  './src/printing.js',
   './src/prompts.js',
   './src/pwa.js',
-  './src/skins.js',
-  './src/screensaver.js',
+  './src/recap.js',
+  './src/savedsearches.js',
+  './src/screensaver-custom.js',
+  './src/screensaver-editor.js',
   './src/screensaver-scenes.js',
-  './src/snap.js',
+  './src/screensaver.js',
   './src/sketch.js',
+  './src/skins.js',
+  './src/snap.js',
   './src/sound.js',
   './src/splash.js',
-  './src/vault.js',
   './src/storage.js',
   './src/trash.js',
-  './src/tools.js',
   './src/textops.js',
+  './src/tools.js',
+  './src/touch.js',
+  './src/vault.js',
   './src/versions.js',
+  './src/virtual-rows.js',
+  './src/voice.js',
+  './src/wikilinks.js',
+  './src/yearpixels.js',
   './src/zip.js',
 ];
 
@@ -108,18 +165,24 @@ self.addEventListener('fetch', (event) => {
   const { request } = event;
   if (request.method !== 'GET') return;
   if (new URL(request.url).origin !== self.location.origin) return;
-  event.respondWith(networkFirst(request));
+  event.respondWith(staleWhileRevalidate(event, request));
 });
 
-async function networkFirst(request) {
+async function staleWhileRevalidate(event, request) {
   const cache = await caches.open(CACHE);
-  try {
-    const response = await fetch(request);
+  const cached = await cache.match(request, { ignoreSearch: true });
+  const refresh = fetch(request).then((response) => {
     if (response.ok && response.type === 'basic') cache.put(request, response.clone());
     return response;
+  });
+  if (cached) {
+    // Keep the worker alive until the newer copy is stored. A failed refresh leaves the cached copy in place.
+    event.waitUntil(refresh.catch(() => {}));
+    return cached;
+  }
+  try {
+    return await refresh;
   } catch {
-    const cached = await cache.match(request, { ignoreSearch: true });
-    if (cached) return cached;
     // An unknown page while offline falls back to the app itself, which then routes by hash.
     if (request.mode === 'navigate') {
       const shell = await cache.match('./index.html');

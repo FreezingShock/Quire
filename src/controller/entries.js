@@ -1,14 +1,18 @@
 /** Entry actions for the Quire controller: opening, creating, patching, moving, and deleting entries. Mixed into QuireApp. */
 
-import { contentKey } from './helpers.js';
+import { el } from '../dom.js';
+import { contentKey, paintSheet } from './helpers.js';
 import { entryRoute } from './routes.js';
-import { confirmDialog, entriesDialog, notebookDialog } from '../dialogs.js';
+import { mark } from '../perf.js';
+import { confirmDialog, entriesDialog, infoDialog, notebookDialog, placeDialog, recapList } from '../dialogs.js';
 import { Drawing, normalizeLayers } from '../drawing.js';
 import { todaysJournal } from '../journal.js';
-import { countByNotebook } from '../library.js';
+import { countByNotebook, countByPlace, sortEntries } from '../library.js';
+import { neighbourId } from '../gestures.js';
 import {
   createEntry,
   displayTitle,
+  formatShortDate,
   isBlankEntry,
   localISODate,
 } from '../model.js';
@@ -16,6 +20,9 @@ import { isHidden, redactSealed, capsuleStatus, unsealedEntry } from '../capsule
 import { unsealAnimation } from '../capsule-ui.js';
 import { playSound } from '../sound.js';
 import { TRASH_DAYS, splitExpired } from '../trash.js';
+import { pickRandomMemory } from '../memories.js';
+import { findLinkTarget, linkedFrom } from '../wikilinks.js';
+import { recapLines, yearRecap } from '../recap.js';
 
 export const entryMethods = {
   // ---------- entries ----------
@@ -64,15 +71,17 @@ export const entryMethods = {
     this.selection = new Set();
     this.lifted = null;
     this.index = null;
-    this.dom.sheet.style.backgroundColor = next.pageColor;
+    paintSheet(this.dom.sheet, next.pageColor);
     this.lastSurface = 'text';
     this.setView('editor');
+    mark('quire:entry-ready');
     this.writeRoute(entryRoute(id), mode);
     this.renderLayers();
     this.syncCanvas();
     this.rebuildInk();
     this.renderInkChip();
     this.updateChrome();
+    this.renderBacklinks(next);
     this.setPref({ lastEntryId: id });
     this.showStatus('');
     this.dom.editor.focus({ preventScroll: true });
@@ -112,6 +121,83 @@ export const entryMethods = {
     return { entries: await this.store.list(), trashed: kept };
   },
 
+  /** Ctrl+click on [[Title]]: opens the entry with that title, or starts a new entry with it. */
+  async followWikiLink(title) {
+    await this.persist();
+    const today = localISODate();
+    const target = findLinkTarget(await this.store.list(), title, today);
+    if (target) {
+      await this.openEntry(target.id);
+      return;
+    }
+    await this.newEntry({ title, date: today, kind: 'journal' });
+    this.showStatus(`Started “${title}”. Entries that link to it will show under it.`);
+  },
+
+  /** The Linked from panel under the page: entries whose text links to this one. Refreshed each time an entry opens. */
+  async renderBacklinks(entry) {
+    const panel = this.dom.backlinks;
+    if (!panel) return;
+    const sources = linkedFrom(await this.store.list(), entry, localISODate());
+    panel.hidden = sources.length === 0;
+    panel.replaceChildren(
+      el('h3', { class: 'backlinks-title' }, `Linked from (${sources.length})`),
+      el(
+        'ul',
+        { class: 'backlinks-list' },
+        sources.map((source) =>
+          el(
+            'li',
+            {},
+            el(
+              'button',
+              { class: 'backlink', type: 'button', onClick: () => this.openEntry(source.id) },
+              el('span', { class: 'backlink-title' }, displayTitle(source)),
+              el('span', { class: 'backlink-date' }, formatShortDate(source.date)),
+            ),
+          ),
+        ),
+      ),
+    );
+  },
+
+  /** View > Year in review: a recap of this calendar year, counting only days so far. */
+  async showYearRecap() {
+    await this.persist();
+    const today = localISODate();
+    const recap = yearRecap(await this.store.list(), Number(today.slice(0, 4)), today);
+    infoDialog(`Year in review, ${recap.year}`, recapList(recapLines(recap)));
+  },
+
+  /** Opens one past entry at random. Sealed capsules, the sample and blank entries are never picked. */
+  async randomMemory() {
+    await this.persist();
+    const pick = pickRandomMemory(await this.store.list(), localISODate());
+    if (!pick) {
+      this.showStatus('Write a few entries first. Random memory picks from them.');
+      return;
+    }
+    await this.openEntry(pick.id);
+  },
+
+  /**
+   * Opens the next or previous entry in the All entries order. `step` is +1 for
+   * the next (older) entry and -1 for the previous (newer). Used by the swipe
+   * gesture. Sealed time capsules are skipped, as on the lists.
+   */
+  async openNeighbourEntry(step) {
+    await this.persist();
+    const today = localISODate();
+    const visible = (await this.store.list()).filter((entry) => !isHidden(entry, today));
+    const ids = sortEntries(visible).map((entry) => entry.id);
+    const id = neighbourId(ids, this.entry?.id, step);
+    if (!id) {
+      this.showStatus(step > 0 ? 'This is the oldest entry.' : 'This is the newest entry.');
+      return;
+    }
+    await this.openEntry(id);
+  },
+
   showEntries() {
     entriesDialog({
       load: async () => {
@@ -126,7 +212,7 @@ export const entryMethods = {
   },
 
   /**
-   * Changes pin, favorite, or notebook on a stored entry. Any unsaved text of
+   * Changes pin, favorite, notebook, or place on a stored entry. Any unsaved text of
    * the open entry is written first, so this never drops an edit. The open
    * entry's copy is updated to match.
    */
@@ -136,7 +222,13 @@ export const entryMethods = {
     if (!current) return;
     const saved = await this.store.save({ ...current, ...fields });
     if (this.entry?.id === id) {
-      this.entry = { ...this.entry, notebook: saved.notebook, pinned: saved.pinned, favorite: saved.favorite };
+      this.entry = {
+        ...this.entry,
+        notebook: saved.notebook,
+        place: saved.place,
+        pinned: saved.pinned,
+        favorite: saved.favorite,
+      };
       this.renderEntryPath();
     }
     await this.refreshHome();
@@ -153,6 +245,21 @@ export const entryMethods = {
       current: current.notebook,
       onSave: (notebook) => {
         if (notebook !== current.notebook) this.patchEntry(id, { notebook });
+      },
+    });
+  },
+
+  async setEntryPlace(id) {
+    await this.persist();
+    const entries = await this.store.list();
+    const current = entries.find((entry) => entry.id === id);
+    if (!current) return;
+    placeDialog({
+      entryName: displayTitle(current),
+      places: countByPlace(entries).map((place) => place.name),
+      current: current.place,
+      onSave: (place) => {
+        if (place !== current.place) this.patchEntry(id, { place });
       },
     });
   },

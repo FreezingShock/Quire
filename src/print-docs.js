@@ -5,14 +5,18 @@
  * Node. printing.js owns the dialog and the print frame.
  *
  * Other modules add a kind with registerPrintKind({ id, label, defaultHeader,
- * scope, options, build }). `options` is [{ id, label, default }], and `build`
- * gets { entries, options, setup, today, range, inkUrl } and returns { body,
+ * scope, options, prepare, build }). `options` is [{ id, label, default }] for
+ * a yes-or-no choice, or [{ id, label, type: 'choice', choices, default }] for
+ * a pick from a list. `prepare({ entries, options })` may be async and returns
+ * the pictures the layout needs. `build` gets them as `prepared`, along with
+ * { entries, options, setup, today, range, inkUrl } and returns { body,
  * title?, empty? }. `inkUrl(entry)` gives a PNG data URL of the entry's drawing.
  */
 
 import { escapeHtml, renderMarkdown, wordCount } from './markdown.js';
 import { PAGE_WIDTH, inkHeightFor } from './export.js';
 import { mediaResolver } from './media.js';
+import { voiceLabel } from './voice.js';
 import { NORM_WIDTH } from './drawing.js';
 import { KINDS, MOODS, WEATHERS, displayTitle, formatLongDate, formatShortDate, localISODate } from './model.js';
 import {
@@ -207,7 +211,7 @@ function sheetHtml(entry, { inkUrl, setup, hasInk }) {
   return {
     head: `<header class="print-head"><h1>${escapeHtml(displayTitle(entry))}</h1><p>${escapeHtml(`${kind} · ${formatLongDate(entry.date)}`)}</p></header>`,
     sheet: `<div class="sheet" style="zoom: ${zoom.toFixed(4)}; background: ${escapeHtml(entry.pageColor)}; width: ${PAGE_WIDTH}px; padding: 56px 72px 72px 88px;">`
-      + `<div class="sheet-text">${renderMarkdown(entry.body, { media: mediaResolver(entry) })}</div>`
+      + `<div class="sheet-text">${renderMarkdown(entry.body, { media: mediaResolver(entry), printAudio: (id) => voiceLabel(entry.audioSeconds?.[id]) })}</div>`
       + (ink ? `<img class="sheet-ink" alt="" src="${ink}" style="width: ${PAGE_WIDTH}px; height: ${cssHeight}px; mix-blend-mode: multiply;">` : '')
       + '</div>',
   };
@@ -266,7 +270,7 @@ const logKind = {
           + `<p class="log-date">${escapeHtml(formatLongDate(entry.date))}</p>`
           + `<h2 class="log-title">${escapeHtml(displayTitle(entry))}</h2>`
           + meta
-          + `<div class="sheet-text">${renderMarkdown(entry.body, { media: mediaResolver(entry) })}</div>`
+          + `<div class="sheet-text">${renderMarkdown(entry.body, { media: mediaResolver(entry), printAudio: (id) => voiceLabel(entry.audioSeconds?.[id]) })}</div>`
           + ink
           + '</article>';
       })
@@ -345,7 +349,12 @@ export function kindById(id) {
 export function optionsFor(kind, saved = {}) {
   const out = {};
   for (const option of kind.options ?? []) {
-    out[option.id] = typeof saved[option.id] === 'boolean' ? saved[option.id] : Boolean(option.default);
+    if (option.type === 'choice') {
+      const picked = saved[option.id];
+      out[option.id] = option.choices.some((choice) => choice.id === picked) ? picked : option.default;
+    } else {
+      out[option.id] = typeof saved[option.id] === 'boolean' ? saved[option.id] : Boolean(option.default);
+    }
   }
   return out;
 }
@@ -365,10 +374,11 @@ export function buildPrintJob({
   fontStack,
   stylesheet,
   inkUrl,
+  prepared = {},
 }) {
   const kind = kindById(kindId) ?? entryKind;
   const setup = pageSetup(page);
-  const result = kind.build({ entries, options: optionsFor(kind, options), setup, today, range, inkUrl });
+  const result = kind.build({ entries, options: optionsFor(kind, options), setup, today, range, inkUrl, prepared });
   const chrome = {
     header: String(page.header ?? '').trim(),
     date: page.printDate ? `Printed ${formatLongDate(today)}` : '',

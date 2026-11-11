@@ -43,6 +43,10 @@ const DEFAULTS = Object.freeze({
   // Screensaver (see screensaver.js): the scene, or 'off', and the idle minutes before it starts.
   screensaver: 'off',
   screensaverMinutes: 5,
+  // Library sidebar: which collapsible sections are open (see nav-sections.js).
+  navSections: { library: true, notebooks: true, saved: true, tags: false, mood: false, weather: false },
+  // Custom screensavers made in the editor (see screensaver-custom.js), up to six.
+  screensavers: [],
 });
 
 export function loadPrefs() {
@@ -51,6 +55,21 @@ export function loadPrefs() {
   } catch {
     return { ...DEFAULTS };
   }
+}
+
+/**
+ * Removes keys from the saved prefs. Used for settings that moved into the
+ * sealed store, so they no longer sit in plain browser storage.
+ */
+export function forgetPrefs(keys) {
+  try {
+    const raw = JSON.parse(globalThis.localStorage?.getItem(KEY) ?? '{}');
+    for (const key of keys) delete raw[key];
+    globalThis.localStorage?.setItem(KEY, JSON.stringify(raw));
+  } catch {
+    // Storage is blocked. The old copy stays until a later start can remove it.
+  }
+  return loadPrefs();
 }
 
 export function savePrefs(patch) {

@@ -11,7 +11,8 @@ import { SKINS, isDark, normalizeAccent, skinOf } from './skins.js';
 import { playSound } from './sound.js';
 import { reminderRow } from './pwa.js';
 import { AMBIENT_SOUNDS, MAX_WORD_GOAL, normalizeAmbient, normalizeGoal } from './focus.js';
-import { MAX_IDLE_MINUTES, MIN_IDLE_MINUTES, SCREENSAVERS, normalizeIdleMinutes, normalizeScreensaver } from './screensaver.js';
+import { MAX_IDLE_MINUTES, MIN_IDLE_MINUTES, normalizeIdleMinutes, normalizeScreensaver, screensaverOptions } from './screensaver.js';
+import { CUSTOM_LIMIT, normalizeCustoms } from './screensaver-custom.js';
 
 /** The prefs this dialog reads or writes. Each one must have a default in prefs.js. */
 export const OPTION_PREFS = Object.freeze([
@@ -37,6 +38,7 @@ export const OPTION_PREFS = Object.freeze([
   'ambientVolume',
   'screensaver',
   'screensaverMinutes',
+  'screensavers',
 ]);
 
 const TABS = Object.freeze([
@@ -60,7 +62,7 @@ let lastTab = 'appearance';
  * `get()` returns the current prefs. `set(patch)` saves them and applies them.
  * `pickAccent(onChange)` opens the color chooser and calls `onChange` after each pick.
  */
-export function showOptions({ get, set, pickAccent, onPreview }) {
+export function showOptions({ get, set, pickAccent, onPreview, onCustomize }) {
   const refreshers = [];
   const sync = () => {
     const prefs = get();
@@ -140,6 +142,38 @@ export function showOptions({ get, set, pickAccent, onPreview }) {
       { class: 'options-item' },
       el('label', { class: 'options-field' }, el('span', {}, label), el('span', { class: 'options-range-row' }, input, value)),
       note ? el('p', { class: 'options-note options-note-first' }, note) : null,
+    );
+  }
+
+  /** Make, edit, or delete your own screensavers. Options closes first, and the editor reopens Options when it is done. */
+  function customRow() {
+    const customs = normalizeCustoms(get().screensavers);
+    const full = customs.length >= CUSTOM_LIMIT;
+    return el(
+      'div',
+      { class: 'options-item' },
+      el('p', { class: 'options-note options-note-first' }, `Make your own from your drawings, photos, and writing, with a message, speed, transition, and background. Up to ${CUSTOM_LIMIT}.`),
+      el(
+        'div',
+        { class: 'editor-custom-row' },
+        el('button', {
+          class: 'btn',
+          type: 'button',
+          disabled: full,
+          onClick: () => {
+            dialog.close();
+            onCustomize?.(null);
+          },
+        }, 'New custom screensaver…'),
+        customs.map((config) => el('button', {
+          class: 'btn',
+          type: 'button',
+          onClick: () => {
+            dialog.close();
+            onCustomize?.(config.id);
+          },
+        }, `Edit “${config.name}”…`)),
+      ),
     );
   }
 
@@ -251,12 +285,13 @@ export function showOptions({ get, set, pickAccent, onPreview }) {
       }),
       choices({
         legend: 'Screensaver',
-        note: 'Takes over the window after you have been idle. Any movement, click or key brings your page back. With the passcode lock on, Memories shows Aurora instead, so locked entries never drift past, and waking locks Quire again.',
+        note: 'Takes over the window after you have been idle. Any movement, click or key brings your page back. With the passcode lock on, Memories shows Aurora instead, and a custom screensaver shows only its background and message, so locked entries never drift past. Waking locks Quire again.',
         name: 'screensaver',
-        options: SCREENSAVERS,
-        read: (prefs) => normalizeScreensaver(prefs.screensaver),
+        options: screensaverOptions(get().screensavers),
+        read: (prefs) => normalizeScreensaver(prefs.screensaver, prefs.screensavers),
         write: (id) => ({ screensaver: id }),
       }),
+      customRow(),
       numberField({
         label: 'Start after this many idle minutes',
         note: `From ${MIN_IDLE_MINUTES} to ${MAX_IDLE_MINUTES} minutes.`,

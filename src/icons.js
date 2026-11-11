@@ -1,3 +1,5 @@
+import { PIXELS } from './icon-pixels.js';
+
 /** Inline 16px stroke icons for tool buttons. */
 
 const PATHS = {
@@ -59,8 +61,32 @@ const PATHS = {
   rotate: '<path d="M13 8.2A5 5 0 1 1 11.6 4.4"/><path d="M12.6 1.8v3h-3"/>',
   resize: '<path d="M2.5 13.5v-4M2.5 13.5h4M13.5 2.5v4M13.5 2.5h-4M2.5 13.5l11-11"/>',
   envelope: '<rect x="2.2" y="3.9" width="11.6" height="8.6" rx=".6"/><path d="M2.6 4.6L8 8.9l5.4-4.3"/>',
+  place: '<path d="M8 14.2s-4.4-4.2-4.4-7.4a4.4 4.4 0 0 1 8.8 0c0 3.2-4.4 7.4-4.4 7.4z"/><circle cx="8" cy="6.8" r="1.6"/>',
 };
 
+/**
+ * The icon as an inline SVG with three layers: a soft glow under the drawing,
+ * the drawing, a highlight over it, and a pixel version for Classic 98. Each skin shows the layers it needs and
+ * styles them (styles/skins.css, "icon sets"), so a skin change restyles icons
+ * already on the page without redrawing them. The name is kept on data-ic.
+ */
 export function icon(name) {
-  return `<svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round">${PATHS[name] ?? ''}</svg>`;
+  const body = PATHS[name] ?? '';
+  return `<svg class="qi" data-ic="${name}" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><g class="qi-glow">${body}</g><g class="qi-main">${body}</g><g class="qi-shine">${body}</g><g class="qi-pixel"><path d="${PIXELS[name] ?? ''}"/></g></svg>`;
+}
+
+const ICON_NODES = new Map();
+
+/**
+ * The icon as a DOM node. Each name is parsed once and cloned after that, so a
+ * list with thousands of rows does not parse the same markup thousands of times.
+ */
+export function iconElement(name) {
+  let template = ICON_NODES.get(name);
+  if (!template) {
+    template = document.createElement('template');
+    template.innerHTML = icon(name);
+    ICON_NODES.set(name, template);
+  }
+  return template.content.firstElementChild.cloneNode(true);
 }

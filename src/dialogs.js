@@ -1,9 +1,10 @@
 /** Modal dialogs built on the native <dialog> element. */
 
 import { el } from './dom.js';
+import { createDropdown } from './dropdown.js';
 import { KINDS, displayTitle, formatShortDate } from './model.js';
 import { wordCount } from './markdown.js';
-import { resolveNotebookName } from './library.js';
+import { resolveNotebookName, resolvePlaceName } from './library.js';
 
 /*
  * Every shortcut the app answers to, grouped the way the menus are. Keep this
@@ -125,6 +126,15 @@ export function confirmDialog({ title, message, confirmLabel = 'OK', danger = fa
   });
 }
 
+/** A recap as label and value pairs, two columns. Used by Year in review. */
+export function recapList(lines) {
+  return el(
+    'dl',
+    { class: 'recap-list' },
+    lines.flatMap(([label, value]) => [el('dt', { class: 'recap-label' }, label), el('dd', { class: 'recap-value' }, value)]),
+  );
+}
+
 export function infoDialog(title, content) {
   const dialog = el(
     'dialog',
@@ -147,13 +157,15 @@ const NEW_NOTEBOOK = '__new__';
  * `onSave(name)` gets the trimmed name, or null for no notebook.
  */
 export function notebookDialog({ title = 'Move to notebook', entryName, notebooks, current = null, onSave }) {
-  const select = el(
-    'select',
-    { class: 'dialog-select', 'aria-label': 'Notebook' },
-    el('option', { value: '' }, 'No notebook'),
-    notebooks.map((name) => el('option', { value: name }, name)),
-    el('option', { value: NEW_NOTEBOOK }, 'New notebook…'),
-  );
+  const select = createDropdown({
+    label: 'Notebook',
+    className: 'dialog-dd',
+    options: [
+      { value: '', label: 'No notebook' },
+      ...notebooks.map((name) => ({ value: name, label: name })),
+      { value: NEW_NOTEBOOK, label: 'New notebook…' },
+    ],
+  });
   const nameInput = el('input', {
     class: 'dialog-input',
     type: 'text',
@@ -210,6 +222,120 @@ export function notebookDialog({ title = 'Move to notebook', entryName, notebook
   select.addEventListener('keydown', (event) => event.stopPropagation());
   showDialog(dialog);
   select.focus();
+  return dialog;
+}
+
+/**
+ * Sets where an entry was written: a name typed by hand, with the places already
+ * in use offered as suggestions. An empty name clears the place. `onSave(name)`
+ * gets the trimmed name, or null for no place.
+ */
+export function placeDialog({ entryName, places = [], current = null, onSave }) {
+  const input = el('input', {
+    class: 'dialog-input',
+    type: 'text',
+    maxlength: 60,
+    placeholder: 'Place name',
+    'aria-label': 'Place name',
+    autocomplete: 'off',
+    list: 'place-options',
+  });
+  input.value = current ?? '';
+  const suggestions = el(
+    'datalist',
+    { id: 'place-options' },
+    places.map((name) => el('option', { value: name })),
+  );
+  const dialog = el(
+    'dialog',
+    { class: 'dialog' },
+    el(
+      'form',
+      {
+        class: 'dialog-form',
+        onSubmit: (event) => {
+          event.preventDefault();
+          onSave(resolvePlaceName(input.value, places) || null);
+          dialog.close();
+        },
+      },
+      el('h2', { class: 'dialog-title' }, 'Set place'),
+      el(
+        'p',
+        { class: 'dialog-text' },
+        entryName ? `Where was “${entryName}” written? Leave it empty to clear the place.` : 'Where was this written? Leave it empty to clear the place.',
+      ),
+      input,
+      suggestions,
+      el(
+        'div',
+        { class: 'dialog-actions' },
+        el('button', { class: 'btn', type: 'button', onClick: () => dialog.close() }, 'Cancel'),
+        el('button', { class: 'btn btn-primary', type: 'submit' }, 'Save'),
+      ),
+    ),
+  );
+  input.addEventListener('keydown', (event) => event.stopPropagation());
+  showDialog(dialog);
+  input.focus();
+  input.select();
+  return dialog;
+}
+
+/**
+ * Names the current search or filter so it can be saved. `check(name)` returns
+ * a problem to show, or null. `onSave(name)` gets the trimmed name.
+ */
+export function saveSearchDialog({ suggested = '', check, onSave }) {
+  const nameInput = el('input', {
+    class: 'dialog-input',
+    type: 'text',
+    maxlength: 40,
+    value: suggested,
+    placeholder: 'Name for this search',
+    'aria-label': 'Saved search name',
+    autocomplete: 'off',
+  });
+  const error = el('p', { class: 'dialog-error', role: 'alert' });
+  const dialog = el(
+    'dialog',
+    { class: 'dialog' },
+    el(
+      'form',
+      {
+        class: 'dialog-form',
+        onSubmit: (event) => {
+          event.preventDefault();
+          const name = nameInput.value.trim();
+          const problem = check(name);
+          if (problem) {
+            error.textContent = problem;
+            nameInput.focus();
+            return;
+          }
+          onSave(name);
+          dialog.close();
+        },
+      },
+      el('h2', { class: 'dialog-title' }, 'Save this search'),
+      el('p', { class: 'dialog-text' }, 'Saved searches stay in this browser and show in the sidebar.'),
+      nameInput,
+      error,
+      el(
+        'div',
+        { class: 'dialog-actions' },
+        el('button', { class: 'btn', type: 'button', onClick: () => dialog.close() }, 'Cancel'),
+        el('button', { class: 'btn btn-primary', type: 'submit' }, 'Save'),
+      ),
+    ),
+  );
+  nameInput.addEventListener('keydown', (event) => event.stopPropagation());
+  nameInput.addEventListener('input', () => {
+    error.textContent = '';
+  });
+  showDialog(dialog);
+  nameInput.focus();
+  nameInput.select();
   return dialog;
 }
 
@@ -326,12 +452,11 @@ export function entriesDialog({ load, currentId, onOpen, onNew, onDelete }) {
     'aria-label': 'Search entries',
     autocomplete: 'off',
   });
-  const kind = el(
-    'select',
-    { class: 'input', 'aria-label': 'Filter by kind' },
-    el('option', { value: '' }, 'All kinds'),
-    KINDS.map((k) => el('option', { value: k.id }, k.label)),
-  );
+  const kind = createDropdown({
+    label: 'Filter by kind',
+    className: 'dialog-dd',
+    options: [{ value: '', label: 'All kinds' }, ...KINDS],
+  });
   const tbody = el('tbody');
   const count = el('p', { class: 'dialog-note', 'aria-live': 'polite' });
   const openBtn = el('button', { class: 'btn btn-primary', type: 'button', disabled: true }, 'Open');

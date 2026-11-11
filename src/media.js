@@ -68,7 +68,7 @@ export function imageFiles(list) {
 /** The media ids a text refers to, in order of first use. */
 export function mediaRefsIn(text) {
   const seen = new Map();
-  for (const match of String(text ?? '').matchAll(/!\[[^\]\n]*\]\(quire-(image|sketch):([A-Za-z0-9_-]+)\)/g)) {
+  for (const match of String(text ?? '').matchAll(/!\[[^\]\n]*\]\(quire-(image|sketch|audio):([A-Za-z0-9_-]+)\)/g)) {
     const key = `${match[1]}:${match[2]}`;
     if (!seen.has(key)) seen.set(key, { kind: match[1], id: match[2] });
   }
@@ -84,6 +84,8 @@ export function mediaResolver(entry) {
     let src = null;
     if (kind === 'image' && Object.hasOwn(entry?.images ?? {}, id)) {
       src = entry.images[id];
+    } else if (kind === 'audio' && Object.hasOwn(entry?.audio ?? {}, id)) {
+      src = entry.audio[id];
     } else if (kind === 'sketch' && Object.hasOwn(entry?.sketches ?? {}, id)) {
       src = sketchDataUrl(entry.sketches[id], entry.pageColor, SKETCH_PRINT_WIDTH);
     }
@@ -98,7 +100,7 @@ export function sketchDataUrl(sketch, pageColor, pixelWidth = SKETCH_PRINT_WIDTH
   return canvas.toDataURL('image/png');
 }
 
-function readAsDataUrl(file) {
+export function readAsDataUrl(file) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = () => resolve(reader.result);

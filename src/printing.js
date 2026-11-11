@@ -8,6 +8,8 @@
  */
 
 import { el } from './dom.js';
+import { createDropdown } from './dropdown.js';
+import './print-extras.js';
 import { showDialog } from './dialogs.js';
 import { renderInkCanvas } from './drawing.js';
 import { inkHeightFor } from './export.js';
@@ -107,19 +109,15 @@ export function openPrintDialog({ entries, current = null, fontStack, stylesheet
     },
   );
 
-  const notebookSelect = el(
-    'select',
-    {
-      class: 'dialog-select print-notebook',
-      'aria-label': 'Notebook',
-      onChange: () => {
-        state.notebook = notebookSelect.value;
-        update();
-      },
+  const notebookSelect = createDropdown({
+    label: 'Notebook',
+    className: 'dialog-dd print-notebook',
+    options: [{ value: '', label: 'All notebooks' }, ...notebooks.map((name) => ({ value: name, label: name }))],
+    onChange: () => {
+      state.notebook = notebookSelect.value;
+      update();
     },
-    el('option', { value: '' }, 'All notebooks'),
-    notebooks.map((name) => el('option', { value: name }, name)),
-  );
+  });
   notebookSelect.value = state.notebook;
 
   const dateField = (label, key) => {
@@ -155,29 +153,39 @@ export function openPrintDialog({ entries, current = null, fontStack, stylesheet
     const kind = kindById(state.kind);
     const values = optionsFor(kind, state.options[kind.id]);
     state.options[kind.id] = values;
-    const boxes = (kind.options ?? []).map((option) =>
-      checkBox(option.label, values[option.id], (on) => {
+    const boxes = (kind.options ?? []).map((option) => {
+      if (option.type === 'choice') {
+        const select = createDropdown({
+          label: option.label,
+          className: 'dialog-dd',
+          options: option.choices.map((choice) => ({ value: choice.id, label: choice.label })),
+          onChange: () => {
+            state.options[kind.id] = { ...state.options[kind.id], [option.id]: select.value };
+            update();
+          },
+        });
+        select.value = values[option.id];
+        return el('label', { class: 'options-field' }, el('span', {}, option.label), select);
+      }
+      return checkBox(option.label, values[option.id], (on) => {
         state.options[kind.id] = { ...state.options[kind.id], [option.id]: on };
         update();
-      }).node,
-    );
+      }).node;
+    });
     optionsBox.replaceChildren(...(boxes.length ? boxes : [el('p', { class: 'options-note options-note-first' }, 'This kind has no options.')]));
     // Notebook and date limits do not apply to a single entry.
     entriesGroup.disabled = kind.scope === 'current';
   }
 
-  const paperSelect = el(
-    'select',
-    {
-      class: 'dialog-select print-paper',
-      'aria-label': 'Paper size',
-      onChange: () => {
-        state.page.paper = paperSelect.value;
-        update();
-      },
+  const paperSelect = createDropdown({
+    label: 'Paper size',
+    className: 'dialog-dd print-paper',
+    options: PAPERS.map((paper) => ({ value: paper.id, label: paper.label })),
+    onChange: () => {
+      state.page.paper = paperSelect.value;
+      update();
     },
-    PAPERS.map((paper) => el('option', { value: paper.id }, paper.label)),
-  );
+  });
   paperSelect.value = state.page.paper;
 
   const orientation = radioGroup(
@@ -258,26 +266,31 @@ export function openPrintDialog({ entries, current = null, fontStack, stylesheet
     fitPreview();
   });
 
-  function buildCurrentJob() {
+  /** The job for the current choices. Kinds that draw pictures (postcards, the year) prepare them first. */
+  async function buildCurrentJob() {
     const kind = kindById(state.kind);
     const scoped = kind.scope === 'current' ? (current ? [current] : []) : selectEntries(entries, state);
+    const options = optionsFor(kind, state.options[kind.id]);
+    const prepared = kind.prepare ? await kind.prepare({ entries: scoped, options }) : {};
     const job = buildPrintJob({
       kindId: state.kind,
       entries: scoped,
-      options: state.options[state.kind],
+      options,
       page: { ...state.page, header: headerFor() },
       range: { from: state.from, to: state.to },
       today,
       fontStack,
       stylesheet,
       inkUrl,
+      prepared,
     });
     return { kind, scoped, job };
   }
 
   let previewTimer = 0;
-  /** Updates the notes and the preview. The preview waits briefly, so typing does not rebuild it on every key. */
-  function update() {
+  let generation = 0;
+  /** Updates the notes and the preview. The preview waits briefly, so typing does not rebuild it on every key. Only the latest update is shown. */
+  async function update() {
     savePrefs({
       printSettings: {
         kind: state.kind,
@@ -289,7 +302,19 @@ export function openPrintDialog({ entries, current = null, fontStack, stylesheet
         headerTouched: state.headerTouched,
       },
     });
-    const { kind, scoped, job } = buildCurrentJob();
+    const turn = ++generation;
+    let built;
+    try {
+      built = await buildCurrentJob();
+    } catch (error) {
+      if (turn === generation) {
+        previewStatus.textContent = `Could not prepare this print: ${error.message}`;
+        printButton.disabled = true;
+      }
+      return;
+    }
+    if (turn !== generation) return;
+    const { kind, scoped, job } = built;
     countNote.textContent = kind.scope === 'current' ? '' : `${scoped.length} ${scoped.length === 1 ? 'entry' : 'entries'} selected.`;
     previewStatus.textContent = job.empty ? 'Nothing to print with these settings.' : `${kind.label}, ${state.page.paper.toUpperCase()}`;
     printButton.disabled = job.empty;
@@ -300,8 +325,8 @@ export function openPrintDialog({ entries, current = null, fontStack, stylesheet
     }, 90);
   }
 
-  function printNow() {
-    const { job } = buildCurrentJob();
+  async function printNow() {
+    const { job } = await buildCurrentJob();
     if (job.empty) return;
     printHtml(job.html);
     dialog.close();

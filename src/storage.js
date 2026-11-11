@@ -20,6 +20,8 @@
  *   reseal(vault | null)       -> Promise<void>       rewrites every row, picture and version under that cipher, in one transaction
  *   getMeta / setMeta / removeMeta(key)  -> small records kept beside the rows (the passcode lock lives here)
  *   getNote / setNote(text)    -> the sticky note's text, sealed with the rows when the lock is on
+ *   getHabits / setHabits(state) -> the habit tracker's list and checks, sealed the same way
+ *   getSavedSearches / setSavedSearches(list) -> the sidebar's saved searches, sealed the same way
  *   clear()                    -> Promise<void>       erases every row and record
  *
  * Pictures and sketches live in their own `media` store, so the entries list
@@ -47,6 +49,12 @@ const LOCKED = Symbol('locked');
 
 /** The sticky note's record in the meta store. Its text is sealed like entries when the lock is on. */
 const NOTE_META = 'sticky-note';
+/** The habit tracker's record in the meta store. Sealed like the note when the lock is on. */
+const HABITS_META = 'habits';
+/** The saved searches in the sidebar. They can hold words from the entries, so they are sealed like the rest. */
+const SAVED_SEARCHES_META = 'saved-searches';
+// Set once the voice notes older versions copied have moved into the entries. See migrateVersionClips.
+const VOICE_CLIPS_META = 'voice-clips-moved';
 
 /** Live entries are the ones not in the desk drawer. */
 const isLive = (entry) => !entry.deletedAt;
@@ -71,13 +79,18 @@ export const mediaKey = (entryId, kind, id) => `${entryId}/${kind}/${id}`;
 export function rowOf(entry) {
   const row = { ...normalizeEntry(entry) };
   delete row.images;
+  delete row.audio;
   delete row.sketches;
   return row;
 }
 
-/** Store records for an entry's pictures and sketches. */
+/** Store records for an entry's pictures, voice notes and sketches. */
 export function imageRecord(entryId, id, src) {
   return { key: mediaKey(entryId, 'image', id), entryId, kind: 'image', id, src };
+}
+
+export function audioRecord(entryId, id, src) {
+  return { key: mediaKey(entryId, 'audio', id), entryId, kind: 'audio', id, src };
 }
 
 export function sketchRecord(entryId, id, sketch) {
@@ -87,12 +100,14 @@ export function sketchRecord(entryId, id, sketch) {
 /** Rebuilds a full entry from its row and its media records. Shared by both stores and by the upgrade. */
 export function entryFromStorage(row, records = []) {
   const images = {};
+  const audio = {};
   const sketches = {};
   for (const record of records) {
     if (record.kind === 'image') images[record.id] = record.src;
+    else if (record.kind === 'audio') audio[record.id] = record.src;
     else sketches[record.id] = { h: record.h, ops: record.ops };
   }
-  return normalizeEntry({ ...row, images, sketches });
+  return normalizeEntry({ ...row, images, audio, sketches });
 }
 
 /**
@@ -158,6 +173,28 @@ function createCodec() {
       const { text } = await openSealed('note', NOTE_META, stored.sealed);
       return text ?? '';
     },
+    async encodeHabits(state) {
+      const vault = active();
+      return vault ? { sealed: await vault.seal('habits', HABITS_META, { state }) } : { state };
+    },
+    /** The habit state, or null when none is saved. */
+    async decodeHabits(stored) {
+      if (!stored) return null;
+      if (!stored.sealed) return stored.state ?? null;
+      const { state } = await openSealed('habits', HABITS_META, stored.sealed);
+      return state ?? null;
+    },
+    async encodeSavedSearches(list) {
+      const vault = active();
+      return vault ? { sealed: await vault.seal('saved-searches', SAVED_SEARCHES_META, { list }) } : { list };
+    },
+    /** The saved searches list, or null when none is saved. */
+    async decodeSavedSearches(stored) {
+      if (!stored) return null;
+      if (!stored.sealed) return stored.list ?? null;
+      const { list } = await openSealed('saved-searches', SAVED_SEARCHES_META, stored.sealed);
+      return list ?? null;
+    },
   };
 }
 
@@ -188,6 +225,10 @@ async function encodeMediaFor(codec, entry, storedKeys) {
   }
   for (const [id, src] of Object.entries(entry.images ?? {})) {
     if (!storedKeys.has(mediaKey(entry.id, 'image', id))) out.push(await codec.encodeMedia(imageRecord(entry.id, id, src)));
+  }
+  // A voice note is written once, like a picture. Its bytes never change after it is recorded.
+  for (const [id, src] of Object.entries(entry.audio ?? {})) {
+    if (!storedKeys.has(mediaKey(entry.id, 'audio', id))) out.push(await codec.encodeMedia(audioRecord(entry.id, id, src)));
   }
   return out;
 }
@@ -288,27 +329,35 @@ function createIndexedDBStore(db) {
       codec.ready();
       const previous = codec.current();
       try {
-        const { rows, records, versions, note } = await readTransaction(db, [STORE, MEDIA, VERSIONS, META], async (tx) => ({
+        const { rows, records, versions, note, habits, savedSearches } = await readTransaction(db, [STORE, MEDIA, VERSIONS, META], async (tx) => ({
           rows: await requestToPromise(tx.objectStore(STORE).getAll()),
           records: await requestToPromise(tx.objectStore(MEDIA).getAll()),
           versions: await requestToPromise(tx.objectStore(VERSIONS).getAll()),
           note: await requestToPromise(tx.objectStore(META).get(NOTE_META)),
+          habits: await requestToPromise(tx.objectStore(META).get(HABITS_META)),
+          savedSearches: await requestToPromise(tx.objectStore(META).get(SAVED_SEARCHES_META)),
         }));
         const plainRows = await Promise.all(rows.map((row) => codec.decodeRow(row)));
         const plainRecords = await Promise.all(records.map((record) => codec.decodeMedia(record)));
         const plainVersions = await Promise.all(versions.map((version) => codec.decodeVersion(version)));
         const plainNote = note ? await codec.decodeNote(note) : null;
+        const plainHabits = habits ? await codec.decodeHabits(habits) : null;
+        const plainSavedSearches = savedSearches ? await codec.decodeSavedSearches(savedSearches) : null;
         codec.set(next);
         const sealedRows = await Promise.all(plainRows.map((row) => codec.encodeRow(row)));
         const sealedRecords = await Promise.all(plainRecords.map((record) => codec.encodeMedia(record)));
         const sealedVersions = await Promise.all(plainVersions.map((version) => codec.encodeVersion(version)));
         const sealedNote = plainNote === null ? null : await codec.encodeNote(plainNote);
+        const sealedHabits = plainHabits === null ? null : await codec.encodeHabits(plainHabits);
+        const sealedSavedSearches = plainSavedSearches === null ? null : await codec.encodeSavedSearches(plainSavedSearches);
         // One transaction: either every row moves to the new cipher or none does.
         await writeTransaction(db, [STORE, MEDIA, VERSIONS, META], (tx) => {
           for (const row of sealedRows) tx.objectStore(STORE).put(row);
           for (const record of sealedRecords) tx.objectStore(MEDIA).put(record);
           for (const version of sealedVersions) tx.objectStore(VERSIONS).put(version);
           if (sealedNote) tx.objectStore(META).put(sealedNote, NOTE_META);
+          if (sealedHabits) tx.objectStore(META).put(sealedHabits, HABITS_META);
+          if (sealedSavedSearches) tx.objectStore(META).put(sealedSavedSearches, SAVED_SEARCHES_META);
         });
       } catch (error) {
         codec.set(previous); // rows still hold the old cipher, so keep writing with it
@@ -416,6 +465,39 @@ function createIndexedDBStore(db) {
     async removeVersion(id) {
       await writeTransaction(db, VERSIONS, (tx) => tx.objectStore(VERSIONS).delete(id));
     },
+    /**
+     * One-time move of voice notes out of version snapshots. Older versions kept
+     * their own copy of each clip. A clip now lives in the media store, and a
+     * version refers to it by id, the way a picture does. A clip the entry does
+     * not hold yet is written first, so nothing is lost. Each step can run again:
+     * a clip already stored is skipped, and the flag is set last. Returns how many
+     * clips were moved.
+     */
+    async migrateVersionClips() {
+      codec.ready();
+      const flag = await readTransaction(db, META, (tx) => requestToPromise(tx.objectStore(META).get(VOICE_CLIPS_META)));
+      if (flag) return 0;
+      const rows = await readTransaction(db, VERSIONS, (tx) => requestToPromise(tx.objectStore(VERSIONS).getAll()));
+      let moved = 0;
+      for (const row of rows) {
+        const version = await codec.decodeVersion(row);
+        const { audio, ...content } = version.content ?? {};
+        if (!audio) continue;
+        for (const [id, src] of Object.entries(audio)) {
+          const key = mediaKey(version.entryId, 'audio', id);
+          const held = await readTransaction(db, MEDIA, (tx) => requestToPromise(tx.objectStore(MEDIA).get(key)));
+          if (!held) {
+            const record = await codec.encodeMedia(audioRecord(version.entryId, id, src));
+            await writeTransaction(db, MEDIA, (tx) => tx.objectStore(MEDIA).put(record));
+            moved += 1;
+          }
+        }
+        const stripped = await codec.encodeVersion({ ...version, content });
+        await writeTransaction(db, VERSIONS, (tx) => tx.objectStore(VERSIONS).put(stripped));
+      }
+      await writeTransaction(db, META, (tx) => tx.objectStore(META).put(true, VOICE_CLIPS_META));
+      return moved;
+    },
     async getMeta(key) {
       return (await readTransaction(db, META, (tx) => requestToPromise(tx.objectStore(META).get(key)))) ?? null;
     },
@@ -432,6 +514,22 @@ function createIndexedDBStore(db) {
     async setNote(text) {
       const sealed = await codec.encodeNote(text);
       await writeTransaction(db, META, (tx) => tx.objectStore(META).put(sealed, NOTE_META));
+    },
+    async getHabits() {
+      const stored = await readTransaction(db, META, (tx) => requestToPromise(tx.objectStore(META).get(HABITS_META)));
+      return codec.decodeHabits(stored);
+    },
+    async setHabits(state) {
+      const sealed = await codec.encodeHabits(state);
+      await writeTransaction(db, META, (tx) => tx.objectStore(META).put(sealed, HABITS_META));
+    },
+    async getSavedSearches() {
+      const stored = await readTransaction(db, META, (tx) => requestToPromise(tx.objectStore(META).get(SAVED_SEARCHES_META)));
+      return codec.decodeSavedSearches(stored);
+    },
+    async setSavedSearches(list) {
+      const sealed = await codec.encodeSavedSearches(list);
+      await writeTransaction(db, META, (tx) => tx.objectStore(META).put(sealed, SAVED_SEARCHES_META));
     },
     async clear() {
       await writeTransaction(db, [STORE, VERSIONS, MEDIA, META], (tx) => {
@@ -464,11 +562,15 @@ export function createMemoryStore() {
         const plainRecords = await Promise.all([...media.values()].map((record) => codec.decodeMedia(clone(record))));
         const plainVersions = await Promise.all([...versions.values()].map((version) => codec.decodeVersion(clone(version))));
         const plainNote = metas.has(NOTE_META) ? await codec.decodeNote(clone(metas.get(NOTE_META))) : null;
+        const plainHabits = metas.has(HABITS_META) ? await codec.decodeHabits(clone(metas.get(HABITS_META))) : null;
+        const plainSavedSearches = metas.has(SAVED_SEARCHES_META) ? await codec.decodeSavedSearches(clone(metas.get(SAVED_SEARCHES_META))) : null;
         codec.set(next);
         const sealedRows = await Promise.all(plainRows.map((row) => codec.encodeRow(row)));
         const sealedRecords = await Promise.all(plainRecords.map((record) => codec.encodeMedia(record)));
         const sealedVersions = await Promise.all(plainVersions.map((version) => codec.encodeVersion(version)));
         const sealedNote = plainNote === null ? null : await codec.encodeNote(plainNote);
+        const sealedHabits = plainHabits === null ? null : await codec.encodeHabits(plainHabits);
+        const sealedSavedSearches = plainSavedSearches === null ? null : await codec.encodeSavedSearches(plainSavedSearches);
         rows.clear();
         media.clear();
         versions.clear();
@@ -476,6 +578,8 @@ export function createMemoryStore() {
         for (const record of sealedRecords) media.set(record.key, clone(record));
         for (const version of sealedVersions) versions.set(version.id, clone(version));
         if (sealedNote) metas.set(NOTE_META, clone(sealedNote));
+        if (sealedHabits) metas.set(HABITS_META, clone(sealedHabits));
+        if (sealedSavedSearches) metas.set(SAVED_SEARCHES_META, clone(sealedSavedSearches));
       } catch (error) {
         codec.set(previous);
         throw error;
@@ -547,6 +651,27 @@ export function createMemoryStore() {
     async removeVersion(id) {
       versions.delete(id);
     },
+    /** Same move as the IndexedDB store. See there for what it does. */
+    async migrateVersionClips() {
+      codec.ready();
+      if (metas.has(VOICE_CLIPS_META)) return 0;
+      let moved = 0;
+      for (const [versionId, row] of [...versions.entries()]) {
+        const version = await codec.decodeVersion(clone(row));
+        const { audio, ...content } = version.content ?? {};
+        if (!audio) continue;
+        for (const [id, src] of Object.entries(audio)) {
+          const key = mediaKey(version.entryId, 'audio', id);
+          if (!media.has(key)) {
+            media.set(key, clone(await codec.encodeMedia(audioRecord(version.entryId, id, src))));
+            moved += 1;
+          }
+        }
+        versions.set(versionId, clone(await codec.encodeVersion({ ...version, content })));
+      }
+      metas.set(VOICE_CLIPS_META, true);
+      return moved;
+    },
     async getMeta(key) {
       return metas.has(key) ? clone(metas.get(key)) : null;
     },
@@ -561,6 +686,18 @@ export function createMemoryStore() {
     },
     async setNote(text) {
       metas.set(NOTE_META, await codec.encodeNote(text));
+    },
+    async getHabits() {
+      return codec.decodeHabits(metas.get(HABITS_META) ?? null);
+    },
+    async setHabits(state) {
+      metas.set(HABITS_META, await codec.encodeHabits(state));
+    },
+    async getSavedSearches() {
+      return codec.decodeSavedSearches(metas.get(SAVED_SEARCHES_META) ?? null);
+    },
+    async setSavedSearches(list) {
+      metas.set(SAVED_SEARCHES_META, await codec.encodeSavedSearches(list));
     },
     async clear() {
       rows.clear();

@@ -393,6 +393,13 @@ async function goHome(page) {
   await page.waitForFunction(() => document.querySelector('.app')?.dataset.view === 'home');
 }
 
+/** Picks an option from a drop-down by the mouse: open it, then click the option's name. */
+async function pickFromDropdown(page, label, option) {
+  await page.locator(`.dd-trigger[aria-label="${label}"]`).click();
+  // An empty value is the "No notebook" choice, which is named for what it means.
+  await page.getByRole('option', { name: option === '' ? 'No notebook' : option, exact: true }).click();
+}
+
 /** Moves the open entry into a notebook through File > Move to notebook. */
 async function moveOpenEntryTo(page, { existing = null, typed = null }) {
   await page.click('.menu-title:has-text("File")');
@@ -400,10 +407,10 @@ async function moveOpenEntryTo(page, { existing = null, typed = null }) {
   const dialog = page.locator('dialog[open]');
   await dialog.waitFor();
   if (typed !== null) {
-    await dialog.locator('select').selectOption('__new__');
+    await pickFromDropdown(page, 'Notebook', 'New notebook…');
     await dialog.locator('input').fill(typed);
   } else {
-    await dialog.locator('select').selectOption(existing);
+    await pickFromDropdown(page, 'Notebook', existing);
   }
   await dialog.locator('button[type="submit"]').click();
   await page.waitForSelector('dialog[open]', { state: 'detached' });
@@ -591,6 +598,194 @@ test('moving the last entry out of a notebook returns the list to All entries', 
     await page.close();
   }
 });
+
+/** Sends one touch gesture as pointer events: a press at `from`, a move through `to`, and a lift. */
+async function touchGesture(page, from, to, { holdMs = 0, steps = 6 } = {}) {
+  await page.evaluate(
+    async ({ from, to, holdMs, steps }) => {
+      const send = (type, x, y) => {
+        const target = document.elementFromPoint(x, y) ?? document.body;
+        target.dispatchEvent(new PointerEvent(type, { bubbles: true, cancelable: true, pointerId: 9, pointerType: 'touch', isPrimary: true, clientX: x, clientY: y, buttons: type === 'pointerup' ? 0 : 1 }));
+      };
+      send('pointerdown', from.x, from.y);
+      if (holdMs) await new Promise((resolve) => setTimeout(resolve, holdMs));
+      for (let i = 1; i <= steps; i++) {
+        send('pointermove', from.x + ((to.x - from.x) * i) / steps, from.y + ((to.y - from.y) * i) / steps);
+        await new Promise((resolve) => setTimeout(resolve, 8));
+      }
+      send('pointerup', to.x, to.y);
+    },
+    { from, to, holdMs, steps },
+  );
+}
+
+test('F10 moves focus to the menu bar and ArrowDown opens the first menu', async () => {
+  const page = await freshPage();
+  try {
+    await openQuire(page);
+    await page.locator('.dash-hero').first().waitFor();
+    await page.keyboard.press('F10');
+    assert.equal(await page.evaluate(() => document.activeElement?.textContent?.trim()), 'File');
+    await page.keyboard.press('ArrowDown');
+    assert.ok(await page.$('.menu-panel[role="menu"]'), 'the File menu opened');
+    await page.keyboard.press('Escape');
+    expectNoErrors(page);
+  } finally {
+    await page.close();
+  }
+});
+
+test('a long-press on a list row opens its context menu, and the click after it does nothing', async () => {
+  const page = await freshPage({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
+  try {
+    await openQuire(page);
+    const row = page.locator('.dash-recent-item').first();
+    await row.waitFor();
+    await row.scrollIntoViewIfNeeded();
+    const box = await row.boundingBox();
+    const point = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+    await touchGesture(page, point, point, { holdMs: 650, steps: 1 });
+    assert.ok(await page.$('.context-menu'), 'the long-press opened the context menu');
+    assert.equal(await page.getAttribute('.app', 'data-view'), 'home', 'the lift did not open the entry');
+    expectNoErrors(page);
+  } finally {
+    await page.close();
+  }
+});
+
+test('a quick sideways swipe in the editor opens the next older entry', async () => {
+  const page = await freshPage({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
+  try {
+    await openQuire(page);
+    await newEntry(page);
+    await renameEntry(page, 'Older one');
+    await page.fill('#entry-date', '2026-10-02');
+    await page.dispatchEvent('#entry-date', 'change');
+    await waitForSaved(page);
+    // The home button is hidden while an entry is open, so start the second entry with Ctrl+N.
+    await page.keyboard.press('Control+n');
+    await page.waitForFunction(() => document.querySelector('.app')?.dataset.view === 'editor' && document.querySelector('#window-title')?.textContent.trim() === 'Untitled');
+    await renameEntry(page, 'Newer one');
+    // Dated after 'Older one' but before the sample entry, which is dated today, so the order is fixed.
+    await page.fill('#entry-date', '2026-10-05');
+    await page.dispatchEvent('#entry-date', 'change');
+    await waitForSaved(page);
+    // Start on the mixtape strip: a swipe that begins in a field is left to the field.
+    const box = await page.locator('#mixtape').boundingBox();
+    const y = box.y + box.height / 2;
+    await touchGesture(page, { x: 320, y }, { x: 90, y: y + 4 });
+    await page.waitForFunction(() => /Older one/.test(document.querySelector('#window-title')?.textContent ?? ''));
+    expectNoErrors(page);
+  } finally {
+    await page.close();
+  }
+});
+
+test('a downward swipe on a dialog title closes the dialog', async () => {
+  const page = await freshPage({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
+  try {
+    await openQuire(page);
+    await page.keyboard.press('F1');
+    await page.waitForSelector('dialog[open] .dialog-title');
+    const box = await page.locator('dialog[open] .dialog-title').boundingBox();
+    const from = { x: box.x + 20, y: box.y + box.height / 2 };
+    await touchGesture(page, from, { x: from.x, y: from.y + 160 });
+    await page.waitForFunction(() => !document.querySelector('dialog[open]'));
+    expectNoErrors(page);
+  } finally {
+    await page.close();
+  }
+});
+
+test('the mood drop-down works from the keyboard and keeps the choice after a reload', async () => {
+  const page = await freshPage();
+  try {
+    await openQuire(page);
+    await newEntry(page);
+    const mood = page.locator('#entry-mood');
+    await page.locator('#entry-mood .dd-trigger').focus();
+    await page.keyboard.press('ArrowDown');
+    assert.equal(await page.getAttribute('#entry-mood .dd-trigger', 'aria-expanded'), 'true', 'the list opens');
+    await page.keyboard.press('ArrowDown');
+    // Wait for the save this choice starts, so the "Saved" status we wait for is the one it produces.
+    const unsaved = page.waitForFunction(() => /Unsaved/.test(document.querySelector('#save-status')?.textContent ?? ''));
+    await page.keyboard.press('Enter');
+    assert.equal(await page.getAttribute('#entry-mood .dd-trigger', 'aria-expanded'), 'false', 'the list closes on a choice');
+    assert.equal(await mood.evaluate((node) => node.value), 'great');
+    assert.equal((await page.innerText('#entry-mood .dd-value')).trim(), 'Great');
+    await unsaved;
+    await waitForSaved(page);
+
+    await page.reload({ waitUntil: 'load' });
+    await page.waitForSelector('#splash', { state: 'detached', timeout: 15000 });
+    assert.equal(await page.locator('#entry-mood').evaluate((node) => node.value), 'great');
+    expectNoErrors(page);
+  } finally {
+    await page.close();
+  }
+});
+
+test('Escape closes a drop-down without choosing, and the dialog around it stays open', async () => {
+  const page = await freshPage();
+  try {
+    await openQuire(page);
+    await newEntry(page);
+    await page.locator('#entry-weather .dd-trigger').focus();
+    await page.keyboard.press('Enter');
+    await page.keyboard.press('ArrowDown');
+    await page.keyboard.press('Escape');
+    assert.equal(await page.getAttribute('#entry-weather .dd-trigger', 'aria-expanded'), 'false');
+    assert.equal(await page.locator('#entry-weather').evaluate((node) => node.value), '', 'nothing was chosen');
+    // Typing a letter with the list shut picks the first option that starts with it.
+    await page.keyboard.press('r');
+    assert.equal(await page.locator('#entry-weather').evaluate((node) => node.value), 'rain');
+    expectNoErrors(page);
+  } finally {
+    await page.close();
+  }
+});
+
+test('the library sidebar folds its sections, and the folds are remembered after a reload', async () => {
+  const page = await freshPage();
+  try {
+    await openQuire(page);
+    await page.waitForSelector('.home-nav');
+    const tags = page.locator('.nav-group-toggle', { hasText: 'Tags' });
+    assert.equal(await tags.getAttribute('aria-expanded'), 'false', 'Tags starts folded');
+    await tags.click();
+    assert.equal(await tags.getAttribute('aria-expanded'), 'true');
+    assert.equal(await page.locator('#nav-tags').isVisible(), true);
+
+    await page.reload({ waitUntil: 'load' });
+    await page.waitForSelector('.home-nav');
+    assert.equal(await page.locator('.nav-group-toggle', { hasText: 'Tags' }).getAttribute('aria-expanded'), 'true', 'still open after a reload');
+    await page.locator('.nav-group-toggle', { hasText: 'Library' }).click();
+    assert.equal(await page.locator('#nav-library').isHidden(), true, 'the Library list folds away');
+    expectNoErrors(page);
+  } finally {
+    await page.close();
+  }
+});
+
+test('the entry header drop-downs fit a phone and their lists stay on screen', async () => {
+  const page = await freshPage({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
+  try {
+    await openQuire(page);
+    await newEntry(page);
+    await page.locator('#entry-kind .dd-trigger').tap();
+    const list = page.locator('#entry-kind .dd-list');
+    await list.waitFor({ state: 'visible' });
+    const box = await list.boundingBox();
+    assert.ok(box.x >= 0 && box.x + box.width <= 390, 'the list fits the width of the phone');
+    await page.keyboard.press('Escape');
+    const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+    assert.ok(overflow <= 0, `no horizontal page scroll (overflow ${overflow}px)`);
+    expectNoErrors(page);
+  } finally {
+    await page.close();
+  }
+});
+
 
 test('a deleted entry waits in the desk drawer until it is restored or deleted for good', async () => {
   const page = await freshPage();
