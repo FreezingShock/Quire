@@ -541,9 +541,11 @@ test('the command palette runs a command on Enter, and Escape closes it without 
     await page.keyboard.press('Escape');
     assert.equal(await page.getAttribute('.app', 'data-view'), 'home', 'Escape leaves the list alone');
     assert.equal(await page.locator('dialog[open]').count(), 0);
+    // The closed palette is removed on its close event, so wait for that before the next Ctrl+K.
+    await page.waitForFunction(() => !document.querySelector('.palette-dialog'));
 
     await page.keyboard.press('Control+k');
-    await page.waitForSelector('.palette-option');
+    await page.waitForSelector('dialog[open] .palette-option');
     await page.keyboard.type('new entry');
     await page.keyboard.press('Enter');
     await page.waitForFunction(() => document.querySelector('.app')?.dataset.view === 'editor');
