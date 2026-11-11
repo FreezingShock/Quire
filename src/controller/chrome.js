@@ -47,6 +47,10 @@ export const chromeMethods = {
       showTips: !this.prefs.tipsDismissed,
       showGadgets: this.prefs.showGadgets !== false,
       gadgets: this.prefs.gadgets,
+      name: this.prefs.name,
+      showWelcome: this.prefs.showWelcome !== false,
+      welcomeSeenDay: this.prefs.welcomeSeenDay,
+      customPrompts: this.prefs.customPrompts,
     });
     const ribbonHidden = Boolean(this.prefs.ribbonHidden);
     this.dom.app.dataset.ribbon = ribbonHidden ? 'minimized' : 'shown';

@@ -47,6 +47,11 @@ const DEFAULTS = Object.freeze({
   navSections: { library: true, notebooks: true, saved: true, tags: false, mood: false, weather: false },
   // Custom screensavers made in the editor (see screensaver-custom.js), up to six.
   screensavers: [],
+  // Personal (see personal.js): the name in the greeting, the welcome-back card and the day it was hidden, and your own prompts.
+  name: '',
+  showWelcome: true,
+  welcomeSeenDay: null,
+  customPrompts: [],
 });
 
 export function loadPrefs() {

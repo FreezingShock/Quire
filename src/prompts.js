@@ -67,9 +67,13 @@ function dayNumber(iso) {
 /**
  * The prompt for the day `iso`. `skip` moves forward through the list, so the
  * "Another" button can offer the next one without changing the day's order.
+ * `own` is your own prompts (see personal.js). They are mixed into the same
+ * cycle, ahead of the built-in list, so they come up as often as the cycle
+ * brings them round.
  */
-export function promptFor(iso, skip = 0) {
-  const count = PROMPTS.length;
+export function promptFor(iso, skip = 0, own = []) {
+  const pool = own.length ? [...own, ...PROMPTS] : PROMPTS;
+  const count = pool.length;
   const index = (((dayNumber(iso) + skip) % count) + count) % count;
-  return PROMPTS[index];
+  return pool[index];
 }

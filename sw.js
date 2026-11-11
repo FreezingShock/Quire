@@ -111,6 +111,7 @@ const SHELL = [
   './src/palette-search.js',
   './src/palette.js',
   './src/perf.js',
+  './src/personal.js',
   './src/postcard.js',
   './src/prefs.js',
   './src/print-docs.js',
