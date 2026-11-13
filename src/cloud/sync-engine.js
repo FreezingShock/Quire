@@ -23,6 +23,7 @@
 import { normalizeEntry } from '../model.js';
 import { MAX_VERSIONS, makeVersion } from '../versions.js';
 import { decodeSealed, encodeSealed, sameLock } from './codec.js';
+import { isVaultEntryId } from '../vault-sync.js';
 
 const CHECK_SCOPE = 'sync-check';
 const CHECK_ID = 'quire';
@@ -88,11 +89,13 @@ export async function syncOnce({ local, remote, vault, lock, state = {}, now = (
 
   summary.lockAdopted = await keyStep({ remote, vault, lock });
 
-  const byId = new Map((await local.listFull()).map((entry) => [entry.id, entry]));
+  // Vault entries are plain files on this computer. They never leave it, in either direction.
+  const byId = new Map((await local.listFull()).filter((entry) => !isVaultEntryId(entry.id)).map((entry) => [entry.id, entry]));
 
   for (const row of await remote.pullEntries(cursor)) {
     cursor = Math.max(cursor, row.revision);
     const id = row.entry_id;
+    if (isVaultEntryId(id)) continue;
     const here = byId.get(id) ?? null;
     const localChanged = here ? known[id] !== here.updatedAt : false;
 
@@ -140,7 +143,7 @@ export async function syncOnce({ local, remote, vault, lock, state = {}, now = (
 
   const outgoing = [];
   for (const id of Object.keys(known)) {
-    if (!byId.has(id)) outgoing.push({ entry_id: id, client_updated_at: known[id], deleted: true, payload: null });
+    if (!byId.has(id) && !isVaultEntryId(id)) outgoing.push({ entry_id: id, client_updated_at: known[id], deleted: true, payload: null });
   }
   for (const entry of byId.values()) {
     if (known[entry.id] === entry.updatedAt) continue;

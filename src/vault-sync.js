@@ -20,6 +20,8 @@ import { mediaRefsIn } from './media.js';
 
 /** The entry id for a vault file. It stays the same every time the file is read, so an entry is never duplicated. */
 export const vaultEntryId = (folderId, name) => `vault-${folderId}-${hashText(name)}`;
+/** Whether an entry id belongs to a vault. Vault entries are plain files on disk, so sync never sends them to the account. */
+export const isVaultEntryId = (id) => String(id ?? '').startsWith('vault-');
 
 /** Whether an entry holds anything the Markdown file cannot carry. */
 export function hasMedia(entry) {
