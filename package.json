@@ -7,13 +7,18 @@
   "scripts": {
     "start": "node scripts/serve.js",
     "test": "node --test tests/*.test.js",
-    "test:e2e": "node --test e2e/*.e2e.mjs"
+    "test:e2e": "node --test e2e/*.e2e.mjs",
+    "desktop:web": "node scripts/build-desktop.js",
+    "desktop:dev": "tauri dev",
+    "desktop:build": "tauri build",
+    "tauri": "tauri"
   },
   "engines": {
     "node": ">=18.17"
   },
   "license": "UNLICENSED",
   "devDependencies": {
+    "@tauri-apps/cli": "2.12.4",
     "playwright": "1.63.0"
   }
 }

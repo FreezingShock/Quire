@@ -1,0 +1,68 @@
+name: Desktop installers
+
+# Builds the Quire desktop installers and attaches them to a GitHub Release.
+# Builds Windows (NSIS) and macOS (universal .dmg) installers. Runs when a version tag
+# (v1.2.3) is pushed, or on demand from the Actions tab (on demand builds only
+# upload workflow artifacts, with no release).
+# Installers are unsigned until a code-signing certificate is added. See docs/desktop.md.
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            args: ''
+          - os: macos-latest
+            args: '--target universal-apple-darwin --bundles dmg'
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.os == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - name: Install dependencies
+        run: npm install --no-package-lock --no-audit --no-fund
+
+      - name: Build installers
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tauriScript: npx tauri
+          args: ${{ matrix.args }}
+          releaseDraft: false
+          prerelease: false
+          includeUpdaterJson: false
+          tagName: ${{ github.ref_name }}
+          releaseName: 'Quire ${{ github.ref_name }}'
+          releaseBody: 'Desktop installers for Quire. Windows: the .exe installs for the current user. macOS: the universal .dmg (Intel and Apple silicon). Builds are not code-signed yet.'
+
+      - name: Keep the bundles as workflow artifacts
+        if: github.ref_type != 'tag'
+        uses: actions/upload-artifact@v4
+        with:
+          name: quire-desktop-${{ matrix.os }}
+          path: src-tauri/target/**/bundle/*
+          if-no-files-found: warn

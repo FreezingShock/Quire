@@ -3,3 +3,6 @@ node_modules/
 *.log
 coverage/
 test-results/
+dist-desktop/
+src-tauri/target/
+src-tauri/gen/

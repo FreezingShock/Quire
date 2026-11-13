@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "The Quire window. The web code makes no Tauri IPC calls yet; grant new permissions here, one at a time.",
+  "windows": ["main"],
+  "permissions": ["core:default"]
+}
