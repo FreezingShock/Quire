@@ -50,6 +50,7 @@ import { focusMethods } from './controller/focus-mode.js';
 import { navigationMethods } from './controller/navigation.js';
 import { capsuleActionMethods } from './controller/capsule-actions.js';
 import { mixtapeMethods } from './controller/mixtape.js';
+import { accountMethods } from './controller/account-actions.js';
 import { MixtapeView } from './mixtape-view.js';
 import { mark } from './perf.js';
 
@@ -215,6 +216,8 @@ export class QuireApp {
     this.home.setNote((await this.store.getNote()) ?? '');
     this.home.setHabits(await this.store.getHabits());
     this.home.setSavedSearches(await this.loadSavedSearches());
+    // Finishes a sign-in that came back from a redirect, and starts background sync. Not awaited, so the first paint does not wait on the network.
+    this.startAccount().catch((error) => console.warn('Account sync could not start.', error));
     startPwa({ onReady: () => this.showStatus('Quire is ready to work offline', false, 'saved') });
     startReminders({
       getReminder: () => this.prefs.reminder ?? REMINDER_DEFAULTS,
@@ -301,3 +304,5 @@ Object.assign(QuireApp.prototype, navigationMethods);
 Object.assign(QuireApp.prototype, capsuleActionMethods);
 
 Object.assign(QuireApp.prototype, mixtapeMethods);
+
+Object.assign(QuireApp.prototype, accountMethods);

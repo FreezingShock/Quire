@@ -1,0 +1,3 @@
+# Sign-in redirect for accounts. See src-tauri/src/oauth.rs.
+listen
+open_in_browser
