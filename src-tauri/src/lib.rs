@@ -10,6 +10,7 @@ mod quiretray;
 mod quireupdater;
 mod shortcut;
 mod app;
+mod fonts;
 
 use tauri::{Url, WebviewUrl, WebviewWindowBuilder};
 use tauri_plugin_opener::OpenerExt;
@@ -50,7 +51,9 @@ pub fn run() {
         .plugin(quirenotify::init())
         .plugin(quirefiles::init())
         .plugin(quireupdater::init())
-        .plugin(app::init())        .setup(|app| {
+        .plugin(app::init())
+        .plugin(fonts::init())
+        .setup(|app| {
             let handle = app.handle().clone();
             WebviewWindowBuilder::new(app, "main", WebviewUrl::App("index.html".into()))
                 .title("Quire")
