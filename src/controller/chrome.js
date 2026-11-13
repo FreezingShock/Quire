@@ -100,6 +100,8 @@ export const chromeMethods = {
     this.prefs = savePrefs(patch);
     this.applyPrefs();
     this.requestSync();
+    // The launch and tray settings live in the shell too, so they are written there as they change.
+    if ('launchAtLogin' in patch || 'trayIcon' in patch) this.applyShellSettings();
   },
 
   async openOptions() {
