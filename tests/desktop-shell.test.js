@@ -98,3 +98,18 @@ test('the updater public key, when set, is a base64 minisign key, and the privat
   if (key !== '') assert.match(key, /^[A-Za-z0-9+/=]{40,}$/, 'a base64 public key from `tauri signer generate`');
   assert.equal(read('src-tauri/tauri.conf.json').includes('PRIVATE KEY'), false);
 });
+
+test('every feature plugin has its Rust module, registration, command list and capability', () => {
+  const lib = read('src-tauri/src/lib.rs');
+  const features = readdirSync(join(ROOT, 'src-tauri', 'features')).filter((name) => name.endsWith('.commands'));
+  assert.ok(features.includes('app.commands'));
+  for (const file of features) {
+    const name = file.slice(0, -'.commands'.length);
+    assert.ok(existsSync(join(ROOT, 'src-tauri', 'src', `${name}.rs`)), `src-tauri/src/${name}.rs is missing`);
+    assert.match(lib, new RegExp(`^mod ${name};$`, 'm'), `lib.rs needs mod ${name};`);
+    assert.match(lib, new RegExp(`\\.plugin\\(${name}::init\\(\\)\\)`), `lib.rs needs .plugin(${name}::init())`);
+    assert.ok(existsSync(join(ROOT, 'src-tauri', 'capabilities', `${name}.json`)), `capabilities/${name}.json is missing`);
+    const commands = read(`src-tauri/features/${file}`).split('\n').map((line) => line.trim()).filter((line) => line && !line.startsWith('#'));
+    assert.ok(commands.length > 0, `${file} lists no commands`);
+  }
+});

@@ -46,19 +46,30 @@ Do not depend on `window.Quire`. Use `__QUIRE_DESKTOP__` or `src/desktop.js`.
 
 ## Adding native features (one feature, one set of files)
 
-Each desktop feature lives in its own files so threads do not collide:
+Each feature is a Tauri plugin defined in this crate. Give it a name, such as
+`fonts`, and use that name everywhere below. Commands called from page code
+need a permission, which build.rs generates from a small list. Commands that only
+Rust calls need no list.
 
-1. **Rust:** write a Tauri plugin in `src-tauri/src/<feature>.rs` with
-   `tauri::plugin::Builder`, and put its `#[tauri::command]` functions there.
-   Register it in `lib.rs` with one `.plugin(...)` line. Plugin commands get
-   their own permissions, so `build.rs` does not need editing.
-2. **Permissions:** add `src-tauri/capabilities/<feature>.json` that lists only
-   that feature's permissions for the `main` window.
-3. **JavaScript:** put page code in `src/<feature>.js` and call it through
-   `desktopInvoke('plugin:<feature>|<command>', args)`, or stay inside
-   `isDesktop()` checks.
-4. **Window and chrome** changes belong to the window-chrome feature, and
-   tray, shortcuts, notifications and updates belong to native integration.
+1. **Rust plugin:** `src-tauri/src/<name>.rs` exports
+   `pub fn init<R: Runtime>() -> TauriPlugin<R>`, built with
+   `tauri::plugin::Builder::new("<name>").invoke_handler(tauri::generate_handler![...])`.
+   See `src-tauri/src/app.rs` for a working example.
+2. **Command list:** `src-tauri/features/<name>.commands`, one command name per
+   line in snake_case (`#` starts a comment). build.rs reads every file in
+   `features/` and generates `<name>:allow-<command>` and `<name>:default` for it.
+   Do not edit build.rs.
+3. **Registration:** in `src-tauri/src/lib.rs`, add `mod <name>;` and
+   `.plugin(<name>::init())`.
+4. **Capability:** `src-tauri/capabilities/<name>.json` grants the feature to the
+   `main` window, for example `"permissions": ["<name>:default"]`. Window
+   permissions for the chrome (for example `core:window:allow-start-dragging`) go
+   in their own capability file, one per feature.
+5. **Page code:** `src/<name>.js` calls `desktopInvoke('plugin:<name>|<command>', args)`,
+   after an `isDesktop()` check.
+
+Each thread touches only its own files, plus one `mod` line and one `.plugin` line
+in lib.rs. The web app is not changed for a native-only feature.
 
 ## Window behavior
 
