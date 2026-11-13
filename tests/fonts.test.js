@@ -141,6 +141,24 @@ test('listSystemFonts without a browser font API and without a canvas reports no
   assert.equal(result.access, 'unsupported');
 });
 
+test('in the desktop shell, the fonts plugin lists the system fonts', async () => {
+  const calls = [];
+  globalThis.__QUIRE_DESKTOP__ = Object.freeze({ shell: 'tauri', version: '0.1.0', platform: 'windows' });
+  globalThis.__TAURI_INTERNALS__ = { invoke: async (command) => {
+    calls.push(command);
+    return ['Zeta', 'Alpha', 'Alpha'];
+  } };
+  try {
+    const result = await listSystemFonts();
+    assert.equal(result.source, 'app');
+    assert.deepEqual(result.families, ['Alpha', 'Zeta']);
+    assert.deepEqual(calls, ['plugin:fonts|list_system_fonts']);
+  } finally {
+    delete globalThis.__QUIRE_DESKTOP__;
+    delete globalThis.__TAURI_INTERNALS__;
+  }
+});
+
 test('a lister that throws falls through to the browser path instead of breaking the picker', async () => {
   useFontLister(() => {
     throw new Error('no shell');

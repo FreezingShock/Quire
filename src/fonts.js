@@ -1,3 +1,5 @@
+import { desktopInvoke, isDesktop } from './desktop.js';
+
 /**
  * Fonts on this computer. A writing font or a text box can be any font
  * installed here, not only the three built in. A chosen font is stored by
@@ -175,6 +177,12 @@ export function detectInstalled(candidates, measure) {
 
 let externalLister = null;
 
+/** In the desktop shell, the fonts plugin lists the system fonts (see src-tauri/src/fonts.rs). Null in a browser. */
+function shellLister() {
+  if (!isDesktop()) return null;
+  return () => desktopInvoke('plugin:fonts|list_system_fonts');
+}
+
 /**
  * A desktop shell can register its own font list, such as a native command,
  * for WebViews that cannot list fonts. `lister` returns family names, or a
@@ -213,9 +221,10 @@ function canvasMeasure() {
  */
 export async function listSystemFonts({ allowPrompt = false } = {}) {
   let access = await localFontAccess();
-  if (externalLister) {
+  const lister = externalLister ?? shellLister();
+  if (lister) {
     try {
-      return { source: 'app', families: listFamilies(await externalLister()) };
+      return { source: 'app', families: listFamilies(await lister()) };
     } catch {
       // Fall through to the browser's own way.
     }
