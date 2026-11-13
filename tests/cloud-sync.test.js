@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { createEntry } from '../src/model.js';
 import { createMemoryStore } from '../src/storage.js';
 import { createLock, unlockLock } from '../src/vault.js';
-import { decodeLock, encodeLock } from '../src/cloud/codec.js';
+import { decodeLock, encodeLock, encodeSealed } from '../src/cloud/codec.js';
 import { KeyMismatchError, syncOnce } from '../src/cloud/sync-engine.js';
 
 const ITER = 1000;
@@ -233,4 +233,24 @@ test('a refused push leaves the entry unsynced so the next pass pulls the newer 
 
   assert.equal(summary.refused, 1);
   assert.notEqual(a.state.known.e1, '2026-11-03T10:00:00.000Z');
+});
+
+test('vault entries never leave the computer, in either direction', async () => {
+  const server = fakeServer();
+  const { lock, vault } = await newLock('correct horse');
+  const a = device(vault, lock);
+  const b = device(vault, lock);
+  await a.store.save(entry({ id: 'vault-f1-abc123', title: 'From a folder', updatedAt: '2026-11-01T10:00:00.000Z' }));
+  await a.store.save(entry({ id: 'e9', title: 'Ordinary', updatedAt: '2026-11-01T10:00:00.000Z' }));
+
+  const summary = await sync(a, server);
+  assert.equal(summary.pushed, 1);
+  assert.equal(server.rows.has('vault-f1-abc123'), false);
+
+  // A row with a vault id, however it got there, is ignored on pull.
+  const sealed = encodeSealed(await vault.seal('sync', 'vault-f1-zzz', entry({ id: 'vault-f1-zzz', title: 'Injected' })));
+  server.rows.set('vault-f1-zzz', { entry_id: 'vault-f1-zzz', revision: 99, client_updated_at: '2026-11-01T10:00:00.000Z', deleted: false, payload: sealed });
+  await sync(b, server);
+  const ids = (await b.store.listFull()).map((item) => item.id);
+  assert.deepEqual(ids, ['e9']);
 });
