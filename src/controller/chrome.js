@@ -110,6 +110,7 @@ export const chromeMethods = {
       pickAccent: (onChange) => this.pickAccent(onChange),
       onPreview: () => this.screensaver?.preview(),
       onCustomize: (id) => this.editCustomScreensaver(id),
+      onFolders: () => this.linkedFolders(),
     });
   },
 

@@ -67,7 +67,7 @@ let lastTab = 'appearance';
  * `get()` returns the current prefs. `set(patch)` saves them and applies them.
  * `pickAccent(onChange)` opens the color chooser and calls `onChange` after each pick.
  */
-export function showOptions({ get, set, pickAccent, onPreview, onCustomize }) {
+export function showOptions({ get, set, pickAccent, onPreview, onCustomize, onFolders }) {
   const refreshers = [];
   const sync = () => {
     const prefs = get();
@@ -147,6 +147,23 @@ export function showOptions({ get, set, pickAccent, onPreview, onCustomize }) {
       { class: 'options-item' },
       el('label', { class: 'options-field' }, el('span', {}, label), el('span', { class: 'options-range-row' }, input, value)),
       note ? el('p', { class: 'options-note options-note-first' }, note) : null,
+    );
+  }
+
+  /** Opens the linked folders list. Options closes first, so the two dialogs never stack. */
+  function foldersRow() {
+    return el(
+      'div',
+      { class: 'options-item' },
+      el('p', { class: 'options-note options-note-first' }, 'Link folders on this computer to insert their pictures, import their text, sync a vault, or keep backups.'),
+      el('div', { class: 'editor-custom-row' }, el('button', {
+        class: 'btn',
+        type: 'button',
+        onClick: () => {
+          dialog.close();
+          onFolders?.();
+        },
+      }, 'Linked folders…')),
     );
   }
 
@@ -281,6 +298,7 @@ export function showOptions({ get, set, pickAccent, onPreview, onCustomize }) {
 
   const panels = {
     general: [
+      foldersRow(),
       toggle({
         label: 'Show the startup splash',
         note: 'Plays while Quire loads.',

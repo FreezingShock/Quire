@@ -88,6 +88,7 @@ const SHELL = [
   './src/export.js',
   './src/folders.js',
   './src/folders-dialog.js',
+  './src/vault-sync.js',
   './src/focus.js',
   './src/gadget-views.js',
   './src/gadgets.js',
