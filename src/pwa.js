@@ -8,6 +8,7 @@
 import { el } from './dom.js';
 import { infoDialog } from './dialogs.js';
 import { localISODate } from './model.js';
+import { isDesktop } from './desktop.js';
 
 const TAG_PREFIX = 'quire-reminder';
 const DEFAULT_TIME = '20:00';
@@ -29,7 +30,7 @@ function isIOS() {
 
 /** 'installed', 'available' (the browser offered its own install prompt), or 'manual' (the user follows the browser's steps). */
 export function installState() {
-  if (installed || isStandalone()) return 'installed';
+  if (installed || isStandalone() || isDesktop()) return 'installed';
   return installPrompt ? 'available' : 'manual';
 }
 
@@ -77,6 +78,8 @@ export function startPwa({ onReady } = {}) {
     installPrompt = null;
   });
 
+  // The desktop shell loads its files from the app bundle, so it needs no service worker.
+  if (isDesktop()) return;
   const sw = globalThis.navigator?.serviceWorker;
   if (!sw) return;
   const register = async () => {
