@@ -84,8 +84,9 @@ export const buildUiMethods = {
     );
     this.dom.stampRow = this.buildStampRow();
     this.dom.xformRow = this.buildXformRow();
+    this.dom.fontRow = this.buildFontRow();
     this.dom.layers = el('div', { class: 'layer-panel', 'aria-label': 'Layers' });
-    this.dom.toolbox.replaceChildren(tools, sizes, this.dom.stampRow, this.dom.xformRow, format, this.dom.layers);
+    this.dom.toolbox.replaceChildren(tools, sizes, this.dom.stampRow, this.dom.xformRow, this.dom.fontRow, format, this.dom.layers);
     this.renderLayers();
   },
 
@@ -275,6 +276,7 @@ export const buildUiMethods = {
           'sep',
           { label: 'Focus mode', shortcut: 'F11', check: true, checked: this.focusMode, disabled: !this.entry, action: () => this.toggleFocusMode() },
           'sep',
+          { label: 'Writing font…', action: () => this.openFontPicker('writing') },
           { label: 'Options…', shortcut: 'Ctrl+,', action: () => this.openOptions() },
         ],
       },

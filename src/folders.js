@@ -15,6 +15,7 @@
  */
 
 import { localISODate } from './model.js';
+import { normalizeVaultIndex } from './vault-sync.js';
 
 /** Quire reads at most this many linked folders. Enough for a few archives and a backup folder. */
 export const FOLDER_LIMIT = 8;
@@ -59,6 +60,11 @@ export function normalizeFolderList(value) {
     };
     if (backup && typeof raw.lastBackupAt === 'string' && !Number.isNaN(Date.parse(raw.lastBackupAt))) {
       folder.lastBackupAt = raw.lastBackupAt;
+    }
+    // A vault keeps its files' sync records beside it. Only a vault has any.
+    if (raw.vault === true) {
+      folder.vault = true;
+      folder.files = normalizeVaultIndex(raw.files);
     }
     out.push(folder);
     if (out.length >= FOLDER_LIMIT) break;

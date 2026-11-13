@@ -13,7 +13,10 @@ const LEAVES_LIST = new Set(['pictures', 'import']);
 /** Most pictures the picker draws at once. A folder with more shows the first of them. */
 const PICTURE_LIMIT = 120;
 
-const when = (iso) => new Date(iso).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
+const when = (iso) => {
+  const time = new Date(iso);
+  return Number.isNaN(time.getTime()) ? 'at an unknown time' : time.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
+};
 
 /**
  * `load()` returns the rows: { id, name, backup, accessible, pictures, texts, lastBackupAt }.
@@ -53,7 +56,8 @@ export function linkedFoldersDialog({ supported, load, act }) {
     status.textContent = '';
     if (LEAVES_LIST.has(action)) dialog.close();
     try {
-      await act(action, id, value);
+      const message = await act(action, id, value);
+      if (typeof message === 'string' && dialog.open) status.textContent = message;
     } catch (error) {
       if (dialog.open) status.textContent = error.message || 'That did not work.';
       return;
@@ -69,11 +73,15 @@ export function linkedFoldersDialog({ supported, load, act }) {
       buttons.push(el('button', { class: 'btn', type: 'button', onClick: () => run('pictures', folder.id) }, 'Insert picture…'));
       buttons.push(el('button', { class: 'btn', type: 'button', onClick: () => run('import', folder.id) }, 'Import text…'));
     }
+    if (folder.accessible && folder.vault) {
+      buttons.push(el('button', { class: 'btn', type: 'button', onClick: () => run('sync', folder.id) }, 'Sync now'));
+    }
     buttons.push(el('button', { class: 'btn', type: 'button', onClick: () => run('unlink', folder.id) }, 'Unlink'));
 
     const notes = [];
     if (!folder.accessible) notes.push('Quire cannot read this folder right now. Allow access again, or unlink it.');
     else notes.push(contentsLine(folder));
+    if (folder.vault) notes.push('Two-way vault: changes sync with the files');
     if (folder.backup) {
       notes.push(folder.lastBackupAt ? `Last backup ${when(folder.lastBackupAt)}` : 'No backup written yet');
     }
@@ -83,6 +91,11 @@ export function linkedFoldersDialog({ supported, load, act }) {
       checked: folder.backup,
       onChange: (event) => run('backup', folder.id, event.target.checked),
     });
+    const vaultBox = el('input', {
+      type: 'checkbox',
+      checked: folder.vault === true,
+      onChange: (event) => run('vault', folder.id, event.target.checked),
+    });
 
     return el(
       'li',
@@ -91,7 +104,12 @@ export function linkedFoldersDialog({ supported, load, act }) {
         'div',
         { class: 'folder-head' },
         el('strong', { class: 'folder-name' }, folder.name),
-        el('label', { class: 'folder-backup' }, backupBox, ' Use for backups'),
+        el(
+          'div',
+          { class: 'folder-toggles' },
+          el('label', { class: 'folder-backup' }, vaultBox, ' Two-way vault'),
+          el('label', { class: 'folder-backup' }, backupBox, ' Use for backups'),
+        ),
       ),
       el('p', { class: 'folder-note' }, notes.join(' · ')),
       el('div', { class: 'folder-actions' }, buttons),
@@ -200,4 +218,51 @@ export function folderPicturesDialog({ folders, load, onPick }) {
   showDialog(dialog);
   if (folders.length) show(folders[0].id);
   return dialog;
+}
+
+/**
+ * Files changed on both sides since the last sync. `conflicts` is
+ * [{ name, quireUpdated, fileModified }]. Resolves to a Map of name to 'quire'
+ * or 'file'. Files left without a choice stay as they are.
+ */
+export function vaultConflictDialog(conflicts) {
+  return new Promise((resolve) => {
+    const choices = new Map();
+    let settled = false;
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      resolve(choices);
+    };
+    const rows = conflicts.map(({ name, quireUpdated, fileModified }) => {
+      const note = el('p', { class: 'folder-note' }, `Changed in Quire ${when(quireUpdated)}, and in the file ${when(new Date(fileModified).toISOString())}.`);
+      const actions = el('div', { class: 'folder-actions' });
+      const choose = (value, label) => {
+        choices.set(name, value);
+        actions.replaceChildren(el('span', { class: 'folder-note' }, label));
+      };
+      actions.append(
+        el('button', { class: 'btn', type: 'button', onClick: () => choose('quire', 'Keeping Quire’s version') }, 'Keep Quire’s version'),
+        el('button', { class: 'btn', type: 'button', onClick: () => choose('file', 'Keeping the file’s version') }, 'Keep the file’s version'),
+      );
+      return el('li', { class: 'folder-row' }, el('strong', { class: 'folder-name' }, name), note, actions);
+    });
+    const dialog = el(
+      'dialog',
+      { class: 'dialog dialog-wide folder-dialog' },
+      el(
+        'div',
+        { class: 'dialog-form' },
+        el('h2', { class: 'dialog-title' }, 'Files changed in both places'),
+        el('p', { class: 'dialog-text' }, 'Pick the version to keep for each file. Quire writes that version to the other side.'),
+        el('ul', { class: 'folder-list' }, rows),
+        el('div', { class: 'dialog-actions' }, el('button', { class: 'btn btn-primary', type: 'button', onClick: () => dialog.close() }, 'Done')),
+      ),
+    );
+    dialog.addEventListener('close', () => {
+      finish();
+      dialog.remove();
+    }, { once: true });
+    showDialog(dialog);
+  });
 }

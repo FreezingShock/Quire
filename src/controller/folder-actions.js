@@ -2,7 +2,9 @@
 
 import { makeBackup } from '../export.js';
 import { folderAccessSupported, FOLDER_LIMIT, backupFileName, backupFolderOf, hasAccess, isBackupDue, newFolderId, normalizeFolderList, pickFolder, requestAccess, scanFolder, writeFileTo } from '../folders.js';
-import { folderPicturesDialog, linkedFoldersDialog } from '../folders-dialog.js';
+import { folderPicturesDialog, linkedFoldersDialog, vaultConflictDialog } from '../folders-dialog.js';
+import { normalizeEntry, localISODate } from '../model.js';
+import { entryFromVaultFile, planVaultSync, recordFor, vaultMarkdown } from '../vault-sync.js';
 
 export const folderMethods = {
   // ---------- linked folders ----------
@@ -36,7 +38,7 @@ export const folderMethods = {
     return Promise.all(
       list.map(async (folder) => {
         const handle = handles[folder.id];
-        const base = { id: folder.id, name: folder.name, backup: folder.backup, lastBackupAt: folder.lastBackupAt ?? null };
+        const base = { id: folder.id, name: folder.name, backup: folder.backup, vault: folder.vault === true, lastBackupAt: folder.lastBackupAt ?? null };
         if (!(await hasAccess(handle, folder.backup ? 'readwrite' : 'read'))) return { ...base, accessible: false, pictures: 0, texts: 0 };
         try {
           const { pictures, texts } = await scanFolder(handle);
@@ -58,6 +60,8 @@ export const folderMethods = {
     if (action === 'link') return this.linkFolder();
     if (action === 'pictures') return this.pictureFromFolder(id);
     if (action === 'import') return this.importFromFolder(id);
+    if (action === 'vault') return this.setVault(id, value);
+    if (action === 'sync') return (await this.syncVaults({ only: id, interactive: true })).summary;
 
     const { list, handles } = await this.linkedState();
     const folder = list.find((item) => item.id === id);
@@ -189,7 +193,9 @@ export const folderMethods = {
   startFolderBackups() {
     if (!this.folderSupported()) return;
     document.addEventListener('visibilitychange', () => {
-      if (document.visibilityState === 'hidden') this.autoBackup();
+      if (document.visibilityState !== 'hidden') return;
+      this.autoBackup();
+      this.syncVaults().catch(() => {});
     });
   },
 
@@ -205,4 +211,159 @@ export const folderMethods = {
       if (error?.name !== 'LockedError') console.warn('Quire: the automatic backup did not run.', error);
     }
   },
+
+  /**
+   * Turns two-way sync on or off. Turning it on needs write access, and then the
+   * folder is read in at once. Turning it off keeps the entries in Quire, and
+   * stops the sync records.
+   */
+  async setVault(id, on) {
+    const { list, handles } = await this.linkedState();
+    const folder = list.find((item) => item.id === id);
+    const handle = folder ? handles[folder.id] : null;
+    if (!folder || !handle) throw new Error('That folder is no longer linked.');
+    if (!on) {
+      await this.saveLinkedState(
+        list.map((item) => {
+          if (item.id !== id) return item;
+          const { vault, files, ...rest } = item;
+          return rest;
+        }),
+        handles,
+      );
+      return `${folder.name} is no longer a vault. Its entries stay in Quire.`;
+    }
+    if (!(await requestAccess(handle, 'readwrite'))) throw new Error(`Quire needs permission to write to ${folder.name} to keep it in sync.`);
+    await this.saveLinkedState(list.map((item) => (item.id === id ? { ...item, vault: true, files: {} } : item)), handles);
+    return (await this.syncVaults({ only: id, interactive: true })).summary;
+  },
+
+  /**
+   * Syncs the vault folders Quire can write to right now (`only` limits it to one).
+   * Interactive runs ask about files changed on both sides. Background runs leave
+   * those alone for next time.
+   */
+  async syncVaults({ only = null, interactive = false } = {}) {
+    const { list, handles } = await this.linkedState();
+    const vaults = list.filter((folder) => folder.vault && (!only || folder.id === only));
+    if (!vaults.length) return { summary: '', ids: [] };
+    await this.persist();
+    const results = new Map();
+    const summaries = [];
+    const ids = [];
+    for (const folder of vaults) {
+      const handle = handles[folder.id];
+      if (!handle || !(await hasAccess(handle, 'readwrite'))) {
+        if (interactive) summaries.push(`Allow write access to ${folder.name} to keep it in sync.`);
+        continue;
+      }
+      const result = await this.syncOneVault(folder, handle, interactive);
+      results.set(folder.id, result.folder);
+      ids.push(...result.ids);
+      summaries.push(vaultSummary(folder.name, result.counts));
+    }
+    if (results.size) {
+      const fresh = await this.linkedState();
+      await this.saveLinkedState(fresh.list.map((item) => results.get(item.id) ?? item), fresh.handles);
+    }
+    if (ids.length) {
+      await this.refreshHome();
+      if (this.entry && ids.includes(this.entry.id)) await this.openEntry(this.entry.id, { history: 'none' });
+    }
+    const summary = summaries.join(' ');
+    if (interactive && summary) this.showStatus(summary);
+    return { summary: summary || 'Nothing to sync.', ids };
+  },
+
+  /** One vault folder: plans the sync from the disk, the store and the last records, then does it. */
+  async syncOneVault(folder, handle, interactive) {
+    const { texts } = await scanFolder(handle);
+    const disk = new Map();
+    const files = new Map();
+    for (const text of texts) {
+      const file = await text.getFile();
+      disk.set(text.name, { modified: file.lastModified, size: file.size });
+      files.set(text.name, file);
+    }
+    const index = folder.files ?? {};
+    const entries = new Map();
+    for (const record of Object.values(index)) {
+      if (record.removed) continue;
+      const entry = await this.store.get(record.entryId);
+      if (entry && !entry.deletedAt) entries.set(record.entryId, entry);
+    }
+    let actions = planVaultSync({ disk, index, entries });
+    const counts = { imported: 0, exported: 0, mediaSkipped: 0, unresolved: 0, retired: 0, forgotten: 0 };
+
+    const conflicts = actions.filter((action) => action.type === 'conflict');
+    if (conflicts.length) {
+      const choices = interactive
+        ? await vaultConflictDialog(
+            conflicts.map((action) => ({
+              name: action.name,
+              quireUpdated: entries.get(index[action.name].entryId)?.updatedAt ?? '',
+              fileModified: disk.get(action.name).modified,
+            })),
+          )
+        : new Map();
+      actions = actions.flatMap((action) => {
+        if (action.type !== 'conflict') return [action];
+        const pick = choices.get(action.name);
+        if (pick === 'quire') return [{ type: 'export', name: action.name }];
+        if (pick === 'file') return [{ type: 'import', name: action.name, why: 'chosen' }];
+        counts.unresolved += 1;
+        return [];
+      });
+    }
+
+    const next = { ...index };
+    const ids = [];
+    for (const action of actions) {
+      if (action.type === 'import') {
+        const file = files.get(action.name);
+        const parsed = entryFromVaultFile(folder.id, action.name, await file.text(), localISODate());
+        const existing = await this.store.get(parsed.id);
+        const merged = normalizeEntry({
+          ...parsed,
+          images: existing?.images ?? {},
+          audio: existing?.audio ?? {},
+          sketches: existing?.sketches ?? {},
+          createdAt: existing?.createdAt ?? parsed.createdAt,
+          updatedAt: new Date().toISOString(),
+        });
+        await this.store.save(merged);
+        next[action.name] = recordFor({ entryId: merged.id, modified: file.lastModified, size: file.size, entryUpdatedAt: merged.updatedAt });
+        ids.push(merged.id);
+        counts.imported += 1;
+      } else if (action.type === 'export') {
+        const entry = entries.get(index[action.name].entryId);
+        await writeFileTo(handle, action.name, new Blob([vaultMarkdown(entry)], { type: 'text/markdown' }));
+        const written = await (await handle.getFileHandle(action.name)).getFile();
+        next[action.name] = recordFor({ entryId: entry.id, modified: written.lastModified, size: written.size, entryUpdatedAt: entry.updatedAt });
+        counts.exported += 1;
+      } else if (action.type === 'skip') {
+        counts.mediaSkipped += 1;
+      } else if (action.type === 'retire') {
+        next[action.name] = { ...next[action.name], removed: true };
+        counts.retired += 1;
+      } else if (action.type === 'forget') {
+        delete next[action.name];
+        counts.forgotten += 1;
+      }
+    }
+    const { files: _old, ...rest } = folder;
+    return { folder: { ...rest, vault: true, files: next }, counts, ids };
+  },
 };
+
+/** One line for a vault's sync, such as "Notes: 2 read from the folder, 1 written back." */
+function vaultSummary(name, counts) {
+  const parts = [];
+  if (counts.imported) parts.push(`${counts.imported} read from the folder`);
+  if (counts.exported) parts.push(`${counts.exported} written back`);
+  if (counts.unresolved) parts.push(`${counts.unresolved} left for later`);
+  if (counts.mediaSkipped) parts.push(`${counts.mediaSkipped} kept in Quire only (they have pictures or sketches)`);
+  if (counts.retired) parts.push(`${counts.retired} whose entries were removed`);
+  if (counts.forgotten) parts.push(`${counts.forgotten} no longer in the folder`);
+  return parts.length ? `${name}: ${parts.join(', ')}.` : `${name} is up to date.`;
+}

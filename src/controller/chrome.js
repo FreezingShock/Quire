@@ -1,7 +1,7 @@
 /** Window chrome for the Quire controller: preferences, skin and accent, status text, and the title bar. Mixed into QuireApp. */
 
-import { FONT_STACKS } from './constants.js';
 import { el } from '../dom.js';
+import { addRecent, fontLabel, fontStackFor } from '../fonts.js';
 import { icon } from '../icons.js';
 import { readingMinutes, wordCount } from '../markdown.js';
 import { displayTitle, formatLongDate } from '../model.js';
@@ -34,7 +34,8 @@ export const chromeMethods = {
       else root.style.removeProperty(`--${name}`);
     }
     root.dataset.accent = accent ? 'custom' : 'skin';
-    root.style.setProperty('--page-font', FONT_STACKS[this.prefs.font] ?? FONT_STACKS.serif);
+    root.style.setProperty('--page-font', fontStackFor(this.prefs.font));
+    this.renderFontRow?.();
     const source = Boolean(this.prefs.source);
     this.dom.editorEl.classList.toggle('is-source', source);
     this.dom.grid.hidden = !this.prefs.showGrid;
@@ -102,6 +103,26 @@ export const chromeMethods = {
     this.requestSync();
   },
 
+  /**
+   * Opens the font picker. `target` is 'writing' for the editor font or 'text' for new text boxes.
+   * Choosing a font saves it, and the font goes to the front of the recents.
+   */
+  async openFontPicker(target = 'writing') {
+    const { showFontPicker } = await import('../font-picker.js');
+    const text = target === 'text';
+    showFontPicker({
+      title: text ? 'Font for new text boxes' : 'Writing font',
+      current: text ? this.prefs.textFont ?? null : this.prefs.font,
+      recents: this.prefs.fontRecents,
+      matchLabel: text ? `Same as the page (${fontLabel(this.prefs.font)})` : null,
+      onPick: (id) => {
+        const patch = text ? { textFont: id } : { font: id };
+        if (id) patch.fontRecents = addRecent(this.prefs.fontRecents, id);
+        this.setPref(patch);
+      },
+    });
+  },
+
   async openOptions() {
     const { showOptions } = await import('../options.js');
     showOptions({
@@ -110,6 +131,7 @@ export const chromeMethods = {
       pickAccent: (onChange) => this.pickAccent(onChange),
       onPreview: () => this.screensaver?.preview(),
       onCustomize: (id) => this.editCustomScreensaver(id),
+      onFolders: () => this.linkedFolders(),
     });
   },
 

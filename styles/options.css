@@ -285,3 +285,84 @@
   color: var(--muted);
   font-variant-numeric: tabular-nums;
 }
+
+/* Font picker: a dialog of fonts, each name drawn in its own face. Colors come from the shared tokens, so every skin and dark mode follow. */
+
+.font-dialog { width: min(520px, calc(100vw - 32px)); }
+
+.font-status { margin: 0 0 8px; }
+
+.font-load { margin: 0 0 8px; }
+.font-load:empty { display: none; }
+
+.font-search { width: 100%; margin: 0 0 8px; box-sizing: border-box; }
+
+.font-sample {
+  margin: 0 0 8px;
+  padding: 8px 10px;
+  min-height: 2.6em;
+  border: 1px solid var(--field-edge);
+  border-radius: 3px;
+  background: var(--field);
+  color: var(--text);
+  font-size: 18px;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.font-lists {
+  max-height: min(48vh, 360px);
+  overflow-y: auto;
+  padding-right: 2px;
+}
+
+.font-section + .font-section { margin-top: 10px; }
+
+.font-section-title {
+  margin: 0 0 4px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.font-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 3px;
+}
+
+.font-item {
+  min-height: 28px;
+  padding: 3px 8px;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  background: var(--tile-hi);
+  color: var(--text);
+  font-size: 15px;
+  line-height: 1.25;
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+}
+
+.font-item:hover { border-color: var(--hover-edge); background: var(--glow-hi); }
+
+.font-item:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+.font-item[aria-pressed="true"] {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+
+.font-empty { margin: 8px 0; font-size: 13px; color: var(--muted); }
+
+.options-group .btn { max-width: 100%; }
+
+@media (max-width: 400px) {
+  .font-grid { grid-template-columns: 1fr; }
+}

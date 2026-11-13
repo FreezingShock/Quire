@@ -22,6 +22,7 @@ export const toolModeMethods = {
     this.dom.hint.textContent = tool?.hint ?? '';
     if (this.dom.stampRow) this.dom.stampRow.hidden = id !== 'stamp';
     if (this.dom.xformRow) this.dom.xformRow.hidden = id !== 'select';
+    if (this.dom.fontRow) this.dom.fontRow.hidden = id !== 'text';
     if (id !== 'select' && this.selection.size) {
       this.selection = new Set();
       this.requestRedraw();
