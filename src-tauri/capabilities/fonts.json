@@ -1,0 +1,11 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "fonts",
+  "description": "Lists the fonts installed on this computer, for the writing font and text box font pickers.",
+  "windows": [
+    "main"
+  ],
+  "permissions": [
+    "fonts:default"
+  ]
+}
