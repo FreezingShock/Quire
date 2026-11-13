@@ -32,6 +32,7 @@
   <link rel="stylesheet" href="styles/print.css">
   <link rel="stylesheet" href="styles/dropdown.css">
   <link rel="stylesheet" href="styles/touch.css">
+  <link rel="stylesheet" href="styles/window-chrome.css">
   <!-- Startup modules, fetched in parallel. tests/shell.test.js keeps this list in step with the imports from src/main.js. -->
   <link rel="modulepreload" href="src/ambient.js">
   <link rel="modulepreload" href="src/app.js">
@@ -64,8 +65,10 @@
   <link rel="modulepreload" href="src/controller/toolbox-rows.js">
   <link rel="modulepreload" href="src/controller/transforms.js">
   <link rel="modulepreload" href="src/controller/version-actions.js">
+  <link rel="modulepreload" href="src/controller/window-chrome.js">
   <link rel="modulepreload" href="src/dashboard.js">
   <link rel="modulepreload" href="src/desktop.js">
+  <link rel="modulepreload" href="src/desktop-shell.js">
   <link rel="modulepreload" href="src/dialogs.js">
   <link rel="modulepreload" href="src/dom.js">
   <link rel="modulepreload" href="src/drawing.js">
@@ -154,6 +157,12 @@
         <input id="entry-title" class="entry-title" type="text" placeholder="Untitled" aria-label="Entry title" maxlength="120" autocomplete="off" spellcheck="false">
       </div>
       <div class="titlebar-status" id="save-status" role="status" aria-live="polite"></div>
+      <!-- Desktop shell only (styles/window-chrome.css). The icons are added by controller/window-chrome.js. -->
+      <div class="window-controls" id="window-controls" role="group" aria-label="Window">
+        <button type="button" class="wc-btn wc-min" data-wc="minimize" title="Minimize" aria-label="Minimize"></button>
+        <button type="button" class="wc-btn wc-max" data-wc="maximize" title="Maximize" aria-label="Maximize"></button>
+        <button type="button" class="wc-btn wc-close" data-wc="close" title="Close" aria-label="Close"></button>
+      </div>
     </header>
 
     <div class="menubar-row">
@@ -224,6 +233,15 @@
       <span class="focus-hud-hint">F11 or Esc to exit</span>
     </div>
   </div>
+  <!-- Resize edges for the desktop shell. They drag the window's own edges, and are hidden when it is maximized. -->
+  <div class="resize-edge" data-edge="n" aria-hidden="true"></div>
+  <div class="resize-edge" data-edge="s" aria-hidden="true"></div>
+  <div class="resize-edge" data-edge="e" aria-hidden="true"></div>
+  <div class="resize-edge" data-edge="w" aria-hidden="true"></div>
+  <div class="resize-edge" data-edge="ne" aria-hidden="true"></div>
+  <div class="resize-edge" data-edge="nw" aria-hidden="true"></div>
+  <div class="resize-edge" data-edge="se" aria-hidden="true"></div>
+  <div class="resize-edge" data-edge="sw" aria-hidden="true"></div>
   <script type="module" src="src/main.js"></script>
 </body>
 </html>
