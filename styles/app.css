@@ -1517,3 +1517,110 @@ kbd {
   font-size: 11px;
   color: var(--muted);
 }
+
+/* Linked folders: the folder list and the picture picker. Colors come from the skin's tokens. */
+.folder-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: min(52vh, 420px);
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.folder-row,
+.folder-empty {
+  padding: 10px 12px;
+  border: 1px solid var(--field-edge);
+  border-radius: 3px;
+  background: var(--field);
+}
+
+.folder-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.folder-name {
+  overflow-wrap: anywhere;
+  font-size: 14px;
+}
+
+.folder-backup {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--muted);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.folder-note,
+.folder-status {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.folder-status:empty {
+  display: none;
+}
+
+.folder-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.folder-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(116px, 1fr));
+  gap: 8px;
+  max-height: min(56vh, 480px);
+  overflow-y: auto;
+}
+
+.folder-thumb {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  padding: 6px;
+  border: 1px solid var(--field-edge);
+  border-radius: 3px;
+  background: var(--field);
+  color: var(--text);
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.folder-thumb:hover,
+.folder-thumb:focus-visible {
+  border-color: var(--accent);
+}
+
+.folder-thumb img {
+  width: 100%;
+  height: 84px;
+  object-fit: contain;
+  background: var(--page, transparent);
+}
+
+.folder-thumb-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 520px) {
+  .folder-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}

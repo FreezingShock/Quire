@@ -43,6 +43,7 @@ import { savingMethods } from './controller/saving.js';
 import { entryMethods } from './controller/entries.js';
 import { versionActionMethods } from './controller/version-actions.js';
 import { exportMethods } from './controller/export-actions.js';
+import { folderMethods } from './controller/folder-actions.js';
 import { keyboardMethods } from './controller/keyboard.js';
 import { focusMethods } from './controller/focus-mode.js';
 import { navigationMethods } from './controller/navigation.js';
@@ -206,6 +207,7 @@ export class QuireApp {
     // Nothing is read until the passcode, if there is one, is typed.
     this.passcodeOn = await unlockStore(this.store);
     mark('quire:unlocked');
+    this.startFolderBackups();
     // Older versions kept their own copy of each voice note. This moves those clips into the entries, once.
     this.store.migrateVersionClips().catch((error) => console.warn('Voice notes could not be moved out of old versions.', error));
     this.home.setNote((await this.store.getNote()) ?? '');
@@ -287,6 +289,7 @@ Object.assign(QuireApp.prototype, entryMethods);
 Object.assign(QuireApp.prototype, versionActionMethods);
 
 Object.assign(QuireApp.prototype, exportMethods);
+Object.assign(QuireApp.prototype, folderMethods);
 
 Object.assign(QuireApp.prototype, keyboardMethods);
 
