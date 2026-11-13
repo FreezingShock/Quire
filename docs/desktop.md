@@ -86,16 +86,44 @@ the computer does not have it.
 
 ## Releases
 
-`.github/workflows/desktop-release.yml` runs on every `v*` tag (and on demand).
-It builds the Windows installer and a universal macOS `.dmg` (Intel and Apple
-silicon), and attaches them to a GitHub Release. The download page can link to
-`https://github.com/FreezingShock/Quire/releases/latest`.
+Push a version tag (`v0.1.0`) to run `.github/workflows/desktop-release.yml`. It
+builds the Windows installer and two macOS disk images, one per architecture,
+and attaches them to a GitHub Release. Asset names follow Tauri's defaults and
+carry the architecture:
 
-Builds are **unsigned**. Windows will show a SmartScreen warning ("More info",
+- `Quire_<version>_x64-setup.exe` (Windows, current user install)
+- `Quire_<version>_aarch64.dmg` (macOS, Apple silicon)
+- `Quire_<version>_x64.dmg` (macOS, Intel)
+
+Each release also gets `latest.json` and signed update archives. The in-app
+updater reads `https://github.com/FreezingShock/Quire/releases/latest/download/latest.json`.
+
+### Updater key (one time, optional)
+
+The in-app updater checks that each update was signed with a Tauri updater key.
+This is separate from OS code signing. Until the key is set up, releases build
+normally and publish installers only, with no `latest.json`. Setting it up turns
+on the updater with no workflow change. Create the key once, and keep the private key safe:
+
+1. On any computer with Node 22, run `npx @tauri-apps/cli@2.12.4 signer generate -w quire-updater.key`
+   and choose a password. It writes `quire-updater.key` (private) and
+   `quire-updater.key.pub` (public).
+2. In GitHub, open the repository, then Settings, Secrets and variables, Actions, and add two
+   repository secrets: `TAURI_SIGNING_PRIVATE_KEY` (the whole contents of `quire-updater.key`)
+   and `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` (the password).
+3. Put the contents of `quire-updater.key.pub` into `plugins.updater.pubkey` in
+   `src-tauri/tauri.conf.json` (it is empty until then). The public key is not secret.
+   The workflow turns updater signing on automatically when the secret exists.
+4. Delete the local private key once the secrets are set. If the private key or its
+   password is lost, installed copies can no longer receive updates, and the key
+   must be replaced in a manual install.
+
+Builds are **not code-signed by the OS** yet. Windows will show a SmartScreen warning ("More info",
 then "Run anyway"). On macOS, Gatekeeper blocks the first launch with a message
 that Quire cannot be opened. Since macOS 15 the right-click Open shortcut no
 longer bypasses this, so the user opens System Settings, Privacy & Security,
-scrolls to the Quire message, and chooses Open Anyway. Signing needs:
+scrolls to the Quire message, and chooses Open Anyway. The updater key does not
+change either of these. Signing needs:
 
 - Windows: an OV or EV code-signing certificate (EV builds avoid the warning
   sooner), used through `signCommand` or a signing service.

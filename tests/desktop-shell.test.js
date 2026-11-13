@@ -74,9 +74,27 @@ test('the app shell opens the desktop window with the desktop flag before page s
 
 test('the desktop release workflow builds Windows and macOS installers and attaches them to a release', () => {
   const wf = read('.github/workflows/desktop-release.yml');
-  for (const os of ['windows-latest', 'macos-latest']) assert.match(wf, new RegExp(os));
+  for (const os of ['windows-latest', 'macos-latest', 'macos-15-intel']) assert.match(wf, new RegExp(os));
   assert.doesNotMatch(wf, /ubuntu/, 'Linux is not a release target');
   assert.match(wf, /tauri-apps\/tauri-action@/);
   assert.match(wf, /releaseDraft:\s*false/);
   assert.match(wf, /contents:\s*write/);
+  assert.match(wf, /includeUpdaterJson:\s*\$\{\{ steps\.updater\.outputs\.enabled == 'true' \}\}/, 'updater output is only on when the key is set');
+  assert.match(wf, /--config src-tauri\/tauri\.updater\.conf\.json/);
+  assert.match(wf, /TAURI_SIGNING_PRIVATE_KEY:\s*\$\{\{ secrets\.TAURI_SIGNING_PRIVATE_KEY \}\}/);
+});
+
+test('the updater reads latest.json from the latest release, and the bundles are built with updater archives', () => {
+  const updater = conf.plugins.updater;
+  assert.deepEqual(updater.endpoints, ['https://github.com/FreezingShock/Quire/releases/latest/download/latest.json']);
+  assert.equal(conf.bundle.createUpdaterArtifacts, undefined, 'the overlay turns this on only when the key is set');
+  const overlay = JSON.parse(read('src-tauri/tauri.updater.conf.json'));
+  assert.equal(overlay.bundle.createUpdaterArtifacts, true);
+  assert.equal(updater.windows.installMode, 'passive');
+});
+
+test('the updater public key, when set, is a base64 minisign key, and the private key is never in the repo', () => {
+  const key = conf.plugins.updater.pubkey;
+  if (key !== '') assert.match(key, /^[A-Za-z0-9+/=]{40,}$/, 'a base64 public key from `tauri signer generate`');
+  assert.equal(read('src-tauri/tauri.conf.json').includes('PRIVATE KEY'), false);
 });
