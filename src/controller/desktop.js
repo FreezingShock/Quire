@@ -11,13 +11,12 @@
 
 import { confirmDialog } from '../dialogs.js';
 import { localISODate } from '../model.js';
+import { desktopShell, isDesktop } from '../desktop.js';
 import {
   DOWNLOAD_URL,
   RELEASES_API,
   baseName,
-  desktopShell,
   invokeShell,
-  isDesktop,
   normalizeIntent,
   openKind,
   shouldCheckUpdate,
@@ -32,7 +31,7 @@ export const desktopMethods = {
       this.handleShellIntent(event.detail).catch((error) => this.showStatus(`Quire could not do that: ${error.message}`, true));
     });
     await this.applyShellSettings();
-    const queued = (await invokeShell('desktop_take_intents')) ?? [];
+    const queued = (await invokeShell('plugin:quire-intents|take')) ?? [];
     for (const raw of queued) await this.handleShellIntent(raw);
     this.checkForDesktopUpdate().catch((error) => console.warn('Update check failed:', error));
   },
@@ -40,8 +39,8 @@ export const desktopMethods = {
   /** Writes the launch-at-login and tray settings to the shell. Called at start and after each change. */
   async applyShellSettings() {
     if (!isDesktop()) return;
-    await invokeShell('desktop_set_autostart', { enabled: Boolean(this.prefs.launchAtLogin) });
-    await invokeShell('desktop_set_tray', { enabled: this.prefs.trayIcon === true });
+    await invokeShell('plugin:quire-autostart|set_enabled', { enabled: Boolean(this.prefs.launchAtLogin) });
+    await invokeShell('plugin:quire-tray|set_enabled', { enabled: this.prefs.trayIcon === true });
   },
 
   async handleShellIntent(raw) {
@@ -60,7 +59,7 @@ export const desktopMethods = {
       this.showStatus(`Quire cannot open ${name || 'that file'}. Choose a Quire backup, a Day One export, or Markdown.`, true);
       return;
     }
-    const text = await invokeShell('desktop_read_file', { path });
+    const text = await invokeShell('plugin:quire-files|read_text', { path });
     if (typeof text !== 'string') {
       this.showStatus(`Quire could not read ${name}.`, true);
       return;

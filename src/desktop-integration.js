@@ -5,21 +5,21 @@
  * `quire:intent` window event listed below, and every function here does
  * nothing in the browser build.
  *
- * Shell contract:
- * - `window.__QUIRE_DESKTOP__` is set before any page script runs: { shell, version, platform }.
- * - Commands (invoked through `__TAURI_INTERNALS__.invoke`):
- *   desktop_take_intents() -> [intent] queued while Quire was not ready (a tray click, a
- *     shortcut, a file opened from the file manager, a second launch).
- *   desktop_notify({ title, body, tag })
- *   desktop_set_autostart({ enabled })
- *   desktop_set_tray({ enabled })
- *   desktop_read_file({ path }) -> text of a file the user opened, read by the shell.
- * - Window event `quire:intent`, with `detail` an intent object, for intents while Quire runs.
+ * Detection and invoke come from src/desktop.js (see docs/desktop.md). The native
+ * features are one Rust plugin each in src-tauri/src/, and their commands are:
+ *   plugin:quire-intents|take -> [intent] queued while the page was locked or loading
+ *   plugin:quire-notify|send({ title, body, tag })
+ *   plugin:quire-autostart|set_enabled({ enabled })
+ *   plugin:quire-tray|set_enabled({ enabled })
+ *   plugin:quire-files|read_text({ path }) -> text of a file the user opened
+ * Live intents arrive as the window event `quire:intent`, with `detail` the intent.
  *
  * An intent is { name: 'new-entry' } | { name: 'quick-note' } | { name: 'open-file', path }.
  * The app only handles intents after the passcode is typed (see controller/desktop.js),
  * so the tray and the shortcut never write an entry past the lock.
  */
+
+import { desktopInvoke, isDesktop } from './desktop.js';
 
 /** Prefs this module reads or writes. Each one has a default in prefs.js. */
 export const DESKTOP_DEFAULTS = Object.freeze({
@@ -44,27 +44,11 @@ export const RELEASES_API = 'https://api.github.com/repos/FreezingShock/Quire/re
 const INTENT_NAMES = new Set(['new-entry', 'quick-note', 'open-file']);
 const VERSION = /^\d+(\.\d+){0,3}$/;
 
-/** The shell's details, or null in the browser. `scope` is injectable for tests. */
-export function desktopShell(scope = globalThis) {
-  const shell = scope?.__QUIRE_DESKTOP__;
-  if (!shell || typeof shell !== 'object') return null;
-  return Object.freeze({
-    shell: String(shell.shell ?? 'tauri'),
-    version: String(shell.version ?? '0.0.0'),
-    platform: String(shell.platform ?? ''),
-  });
-}
-
-export function isDesktop(scope = globalThis) {
-  return desktopShell(scope) !== null;
-}
-
-/** Calls a shell command. Resolves to undefined in the browser, and when the shell refuses. */
+/** Calls a native command of the shell. Resolves to undefined outside the shell, and when the shell refuses. */
 export async function invokeShell(command, args = {}, scope = globalThis) {
-  const invoke = scope?.__TAURI_INTERNALS__?.invoke;
-  if (!isDesktop(scope) || typeof invoke !== 'function') return undefined;
+  if (!isDesktop(scope)) return undefined;
   try {
-    return await invoke(command, args);
+    return await desktopInvoke(command, args, scope);
   } catch (error) {
     console.warn(`Desktop command ${command} failed:`, error);
     return undefined;

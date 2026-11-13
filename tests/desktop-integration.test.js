@@ -4,9 +4,7 @@ import {
   DESKTOP_DEFAULTS,
   DOWNLOAD_URL,
   baseName,
-  desktopShell,
   invokeShell,
-  isDesktop,
   isNewerVersion,
   normalizeIntent,
   openKind,
@@ -15,29 +13,16 @@ import {
   updateNotice,
   wantsNativeNotice,
 } from '../src/desktop-integration.js';
+import { desktopShell, isDesktop } from '../src/desktop.js';
 import { loadPrefs } from '../src/prefs.js';
 import { OPTION_PREFS } from '../src/options.js';
 
 const shellScope = { __QUIRE_DESKTOP__: { shell: 'tauri', version: '0.4.0', platform: 'windows' } };
 
-test('the browser build is not the desktop app', () => {
-  assert.equal(desktopShell({}), null);
-  assert.equal(isDesktop({}), false);
-  assert.equal(isDesktop(undefined), false);
-});
-
-test('the shell flag is read, frozen, and filled with safe defaults', () => {
-  const shell = desktopShell(shellScope);
-  assert.deepEqual({ ...shell }, { shell: 'tauri', version: '0.4.0', platform: 'windows' });
-  assert.ok(Object.isFrozen(shell));
-  assert.deepEqual({ ...desktopShell({ __QUIRE_DESKTOP__: {} }) }, { shell: 'tauri', version: '0.0.0', platform: '' });
-  assert.equal(desktopShell({ __QUIRE_DESKTOP__: 'yes' }), null);
-});
-
 test('shell commands do nothing in the browser', async () => {
   let called = false;
   const scope = { __TAURI_INTERNALS__: { invoke: async () => { called = true; return 'x'; } } };
-  assert.equal(await invokeShell('desktop_take_intents', {}, scope), undefined);
+  assert.equal(await invokeShell('plugin:quire-intents|take', {}, scope), undefined);
   assert.equal(called, false);
 });
 
@@ -47,14 +32,14 @@ test('shell commands go through the internals and survive a refusal', async () =
     ...shellScope,
     __TAURI_INTERNALS__: { invoke: async (command, args) => { calls.push([command, args]); return ['ok']; } },
   };
-  assert.deepEqual(await invokeShell('desktop_take_intents', {}, scope), ['ok']);
-  assert.deepEqual(calls, [['desktop_take_intents', {}]]);
+  assert.deepEqual(await invokeShell('plugin:quire-intents|take', {}, scope), ['ok']);
+  assert.deepEqual(calls, [['plugin:quire-intents|take', {}]]);
 
   const failing = { ...shellScope, __TAURI_INTERNALS__: { invoke: async () => { throw new Error('denied'); } } };
   const warn = console.warn;
   console.warn = () => {};
   try {
-    assert.equal(await invokeShell('desktop_notify', { title: 'Quire' }, failing), undefined);
+    assert.equal(await invokeShell('plugin:quire-notify|send', { title: 'Quire' }, failing), undefined);
   } finally {
     console.warn = warn;
   }

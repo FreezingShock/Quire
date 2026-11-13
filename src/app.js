@@ -224,7 +224,7 @@ export class QuireApp {
       // In the desktop app, reminders go out through the shell's notice area when the pref is on.
       native: {
         enabled: () => wantsNativeNotice(this.prefs),
-        send: (body, tag) => invokeShell('desktop_notify', { title: 'Quire', body, tag }),
+        send: (body, tag) => invokeShell('plugin:quire-notify|send', { title: 'Quire', body, tag }),
       },
     });
     this.screensaver = startScreensaver({
