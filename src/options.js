@@ -13,6 +13,8 @@ import { reminderRow } from './pwa.js';
 import { AMBIENT_SOUNDS, MAX_WORD_GOAL, normalizeAmbient, normalizeGoal } from './focus.js';
 import { MAX_IDLE_MINUTES, MIN_IDLE_MINUTES, normalizeIdleMinutes, normalizeScreensaver, screensaverOptions } from './screensaver.js';
 import { CUSTOM_LIMIT, normalizeCustoms } from './screensaver-custom.js';
+import { addRecent, familyName, fontStackFor, isSystemFont } from './fonts.js';
+import { showFontPicker } from './font-picker.js';
 import { NAME_MAX, PROMPT_MAX_COUNT, PROMPT_MAX_LENGTH, formatPromptLines, normalizeName, normalizePrompts, parsePromptLines } from './personal.js';
 
 /** The prefs this dialog reads or writes. Each one must have a default in prefs.js. */
@@ -24,6 +26,7 @@ export const OPTION_PREFS = Object.freeze([
   'motion',
   'wallpaper',
   'font',
+  'fontRecents',
   'source',
   'showGrid',
   'snapGrid',
@@ -89,6 +92,49 @@ export function showOptions({ get, set, pickAccent, onPreview, onCustomize }) {
       { class: 'options-item' },
       el('label', { class: 'options-check' }, input, el('span', {}, label)),
       note ? el('p', { class: 'options-note' }, note) : null,
+    );
+  }
+
+  /**
+   * The writing font: the built-in faces, the font from this computer when one is in use, and a button
+   * to choose from every font on this computer. The picker opens over Options and saves as it chooses.
+   */
+  function fontRow() {
+    const builtIns = FONTS.map(({ id, label }) => {
+      const input = el('input', { type: 'radio', name: 'font', value: id, onChange: () => change({ font: id }) });
+      refreshers.push((prefs) => {
+        input.checked = prefs.font === id;
+      });
+      return el('label', { class: 'options-radio' }, input, el('span', { style: 'font-family: ' + fontStackFor(id) }, label));
+    });
+    const customInput = el('input', { type: 'radio', name: 'font', value: 'custom' });
+    const customName = el('span', {});
+    const custom = el('label', { class: 'options-radio', hidden: true }, customInput, customName);
+    refreshers.push((prefs) => {
+      const system = isSystemFont(prefs.font);
+      custom.hidden = !system;
+      customInput.checked = system;
+      customName.textContent = familyName(prefs.font);
+      customName.style.fontFamily = system ? fontStackFor(prefs.font) : '';
+    });
+    const more = el('button', {
+      class: 'btn',
+      type: 'button',
+      onClick: () => showFontPicker({
+        title: 'Writing font',
+        current: get().font,
+        recents: get().fontRecents,
+        onPick: (id) => change(isSystemFont(id) ? { font: id, fontRecents: addRecent(get().fontRecents, id) } : { font: id }),
+      }),
+    }, 'More fonts from this computer…');
+    return el(
+      'fieldset',
+      { class: 'options-group' },
+      el('legend', { class: 'options-legend' }, 'Writing font'),
+      el('p', { class: 'options-note options-note-first' }, 'Shown on the page as you write, and used for new text boxes unless you pick another in the drawing tools.'),
+      builtIns,
+      custom,
+      el('div', { class: 'options-item' }, more),
     );
   }
 
@@ -377,13 +423,7 @@ export function showOptions({ get, set, pickAccent, onPreview, onCustomize }) {
       previewRow(),
     ],
     writing: [
-      choices({
-        legend: 'Writing font',
-        name: 'font',
-        options: FONTS,
-        read: (prefs) => prefs.font,
-        write: (id) => ({ font: id }),
-      }),
+      fontRow(),
       toggle({
         label: 'Source mode',
         note: 'Show every Markdown marker as you type, instead of the live preview.',

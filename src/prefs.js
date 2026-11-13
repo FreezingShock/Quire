@@ -6,6 +6,9 @@
 const KEY = 'quire:prefs';
 const DEFAULTS = Object.freeze({
   font: 'serif',
+  // Font for new text boxes (see fonts.js). null means the writing font. Recent fonts from this computer, newest first.
+  textFont: null,
+  fontRecents: [],
   dark: false,
   source: false,
   lastEntryId: null,

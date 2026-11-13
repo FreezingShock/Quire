@@ -75,6 +75,8 @@ const SHELL = [
   './src/controller/transforms.js',
   './src/controller/version-actions.js',
   './src/dashboard.js',
+  './src/font-picker.js',
+  './src/fonts.js',
   './src/dialogs.js',
   './src/dom.js',
   './src/drawing.js',
