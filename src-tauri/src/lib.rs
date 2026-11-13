@@ -3,6 +3,7 @@
 //! as it does in the browser, offline included.
 
 mod app;
+mod fonts;
 mod oauth;
 
 use tauri::{Url, WebviewUrl, WebviewWindowBuilder};
@@ -34,10 +35,11 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(app::init())
+        .plugin(fonts::init())
         .plugin(oauth::init())
         .setup(|app| {
             let handle = app.handle().clone();
-            WebviewWindowBuilder::new(app, "main", WebviewUrl::App("index.html".into()))
+            let window = WebviewWindowBuilder::new(app, "main", WebviewUrl::App("index.html".into()))
                 .title("Quire")
                 .inner_size(1100.0, 760.0)
                 .min_inner_size(360.0, 480.0)
@@ -51,8 +53,14 @@ pub fn run() {
                         let _ = handle.opener().open_url(url.as_str(), None::<&str>);
                         false
                     }
-                })
-                .build()?;
+                });
+            // Quire draws its own title bar (styles/window-chrome.css). On macOS the
+            // system keeps the traffic lights, drawn over the page at top left.
+            #[cfg(target_os = "macos")]
+            let window = window.title_bar_style(tauri::TitleBarStyle::Overlay).hidden_title(true);
+            #[cfg(not(target_os = "macos"))]
+            let window = window.decorations(false);
+            window.build()?;
             Ok(())
         })
         .run(tauri::generate_context!())

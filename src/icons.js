@@ -65,6 +65,22 @@ const PATHS = {
 };
 
 /**
+ * Caption glyphs for the desktop title bar. They are plain strokes, with no glow
+ * or pixel layers, so the caption buttons stay crisp in every skin.
+ */
+const CAPTION_PATHS = {
+  minimize: '<path d="M3.5 11.5h9"/>',
+  maximize: '<path d="M3.5 3.5h9v9h-9z"/><path d="M3.5 5h9"/>',
+  restore: '<path d="M5.5 3.5h7v7"/><path d="M3.5 5.5h7v7h-7z"/>',
+  close: '<path d="M4 4l8 8M12 4l-8 8"/>',
+};
+
+export function captionIcon(name) {
+  const body = CAPTION_PATHS[name] ?? '';
+  return `<svg class="wc-glyph" data-glyph="${name}" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="square" stroke-linejoin="miter">${body}</svg>`;
+}
+
+/**
  * The icon as an inline SVG with three layers: a soft glow under the drawing,
  * the drawing, a highlight over it, and a pixel version for Classic 98. Each skin shows the layers it needs and
  * styles them (styles/skins.css, "icon sets"), so a skin change restyles icons

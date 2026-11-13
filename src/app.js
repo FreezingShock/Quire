@@ -27,6 +27,7 @@ import { $, fillSelect } from './controller/helpers.js';
 import { mountDropdown } from './dropdown.js';
 import { routeEntryId } from './controller/routes.js';
 import { chromeMethods } from './controller/chrome.js';
+import { windowChromeMethods } from './controller/window-chrome.js';
 import { routingMethods } from './controller/routing.js';
 import { buildUiMethods } from './controller/build-ui.js';
 import { toolModeMethods } from './controller/tool-modes.js';
@@ -157,6 +158,7 @@ export class QuireApp {
     fillSelect(this.dom.mood, MOODS, 'Not set');
     fillSelect(this.dom.weather, WEATHERS, 'Not set');
     this.applyPrefs();
+    this.initWindowChrome();
     this.buildToolbox();
     this.buildSwatches();
     this.buildMenus();
@@ -260,6 +262,7 @@ export class QuireApp {
 }
 
 Object.assign(QuireApp.prototype, chromeMethods);
+Object.assign(QuireApp.prototype, windowChromeMethods);
 
 Object.assign(QuireApp.prototype, routingMethods);
 
