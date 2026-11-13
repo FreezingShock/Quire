@@ -1,9 +1,6 @@
 /** Timings, sizes, and labels shared by the Quire controller. */
 
-import { TEXT_FONTS } from '../drawing.js';
-
 export const SAVE_DELAY_MS = 400;
-export const FONT_STACKS = TEXT_FONTS;
 export const NUDGE = 5;
 export const NUDGE_FAST = 25;
 /** Elements that tick when the mouse reaches them. */

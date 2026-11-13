@@ -3,10 +3,10 @@
 import { el } from '../dom.js';
 import {
   DEFAULT_TEXT_WIDTH,
-  TEXT_FONTS,
   TEXT_SIZES,
   hitOp,
 } from '../drawing.js';
+import { fontStackFor, isKnownFont, normalizeFontId } from '../fonts.js';
 import { snapToGrid } from '../snap.js';
 
 export const textBoxMethods = {
@@ -31,7 +31,8 @@ export const textBoxMethods = {
     const x0 = Math.min(a[0], b[0]);
     const x1 = Math.max(a[0], b[0]);
     const width = x1 - x0 < 40 ? DEFAULT_TEXT_WIDTH : x1 - x0;
-    const font = TEXT_FONTS[this.prefs.font] ? this.prefs.font : 'serif';
+    // A new box uses the font picked for text boxes, or the writing font when none is picked.
+    const font = normalizeFontId(isKnownFont(this.prefs.textFont) ? this.prefs.textFont : this.prefs.font);
     this.openTextDraft({
       id: null,
       a: [x0, a[1]],
@@ -79,7 +80,7 @@ export const textBoxMethods = {
     node.style.top = `${draft.a[1] * f}px`;
     node.style.width = `${Math.max(60, Math.abs(draft.b[0] - draft.a[0])) * f}px`;
     node.style.fontSize = `${draft.s * f}px`;
-    node.style.fontFamily = TEXT_FONTS[draft.f] ?? TEXT_FONTS.serif;
+    node.style.fontFamily = fontStackFor(draft.f);
     node.style.color = draft.c;
     this.sizeTextDraft();
   },

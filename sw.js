@@ -81,6 +81,8 @@ const SHELL = [
   './src/controller/version-actions.js',
   './src/dashboard.js',
   './src/desktop.js',
+  './src/font-picker.js',
+  './src/fonts.js',
   './src/dialogs.js',
   './src/dom.js',
   './src/drawing.js',

@@ -19,6 +19,9 @@
  */
 
 import { GRID_STEP } from './snap.js';
+import { fontStackFor, TEXT_FONTS } from './fonts.js';
+
+export { TEXT_FONTS };
 
 export const NORM_WIDTH = 1000;
 export const BASE_LAYER = 'base';
@@ -29,13 +32,6 @@ const MARKER_ALPHA = 0.35;
 const TEXT_LINE_SPACING = 1.25;
 const MIN_TEXT_WIDTH = 60;
 const HIT_PAD = 4;
-
-/** Font stacks for text boxes, keyed the same way as the writing font preference. */
-export const TEXT_FONTS = {
-  serif: '"Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif',
-  sans: 'system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
-  mono: 'ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace',
-};
 
 /** Font size in normalized units for the three size buttons (1, 3, 6). */
 export const TEXT_SIZES = { 1: 20, 3: 34, 6: 56 };
@@ -414,7 +410,7 @@ function wrapText(ctx, text, maxWidth, scale) {
  */
 export function textLayout(ctx, op, scale = 1) {
   const size = Number(op.s) || TEXT_SIZES[3];
-  ctx.font = `${size * scale}px ${TEXT_FONTS[op.f] ?? TEXT_FONTS.serif}`;
+  ctx.font = `${size * scale}px ${fontStackFor(op.f)}`;
   const width = Math.max(MIN_TEXT_WIDTH, Math.abs(op.b[0] - op.a[0]));
   const lines = wrapText(ctx, op.text ?? '', width, scale);
   const lineHeight = size * TEXT_LINE_SPACING;
