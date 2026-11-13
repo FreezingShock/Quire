@@ -1624,3 +1624,40 @@ kbd {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
+
+/* Text box font: one button in the toolbox, shown only with the text tool. */
+.font-row { display: grid; }
+.font-row[hidden] { display: none; }
+
+.font-pick-btn {
+  height: 30px;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 8px;
+  border: 1px solid var(--panel-edge);
+  border-radius: 3px;
+  background: linear-gradient(to bottom, var(--tile-hi), var(--tile-lo));
+  color: var(--text);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  min-width: 0;
+}
+
+.font-pick-btn:hover { border-color: var(--hover-edge); }
+.font-pick-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+.font-pick-aa { font-size: 16px; line-height: 1; color: var(--text); }
+
+.font-pick-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 760px) {
+  .font-row { flex: none; }
+}

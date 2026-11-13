@@ -1,7 +1,7 @@
 /** Export, print, backup, and restore actions for the Quire controller: Markdown and drawing exports, the Print dialog, and whole-library backup and restore. Mixed into QuireApp. */
 
-import { FONT_STACKS } from './constants.js';
 import { el } from '../dom.js';
+import { fontStackFor } from '../fonts.js';
 import {
   downloadBlob,
   exportDrawingPng,
@@ -55,7 +55,7 @@ export const exportMethods = {
     openPrintDialog({
       entries,
       current,
-      fontStack: FONT_STACKS[this.prefs.font] ?? FONT_STACKS.serif,
+      fontStack: fontStackFor(this.prefs.font),
       stylesheet: new URL('../../styles/reader.css', import.meta.url).href,
     });
   },
