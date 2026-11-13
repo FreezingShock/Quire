@@ -24,6 +24,8 @@
  *   getSavedSearches / setSavedSearches(list) -> the sidebar's saved searches, sealed the same way
  *   getLinkedFolders / setLinkedFolders({ list, handles }) -> the folders linked from the computer. The list (names, roles) is sealed like the rest.
  *                              The handles are the browser's folder permissions, which cannot be sealed, so they are readable only while unlocked
+ *   getAccount / setAccount(value | null)  -> the signed-in account's session and sync state, sealed the same way
+ *   cipher()                   -> the open vault, or null when the lock is off or the store is locked
  *   clear()                    -> Promise<void>       erases every row and record
  *
  * Pictures and sketches live in their own `media` store, so the entries list
@@ -57,6 +59,8 @@ const HABITS_META = 'habits';
 const SAVED_SEARCHES_META = 'saved-searches';
 /** The folders linked from this computer: their list is sealed like the rest, and their handles are kept beside it. */
 const LINKED_FOLDERS_META = 'linked-folders';
+/** The account record: session tokens and what the last sync saw. Sealed like the rest when the lock is on. */
+const ACCOUNT_META = 'account';
 // Set once the voice notes older versions copied have moved into the entries. See migrateVersionClips.
 const VOICE_CLIPS_META = 'voice-clips-moved';
 
@@ -211,6 +215,17 @@ function createCodec() {
       const { list } = await openSealed('folders', LINKED_FOLDERS_META, stored.sealed);
       return { list: list ?? [], handles: stored.handles ?? {} };
     },
+    async encodeAccount(value) {
+      const vault = active();
+      return vault ? { sealed: await vault.seal('account', ACCOUNT_META, { value }) } : { value };
+    },
+    /** The account record, or null when signed out. */
+    async decodeAccount(stored) {
+      if (!stored) return null;
+      if (!stored.sealed) return stored.value ?? null;
+      const { value } = await openSealed('account', ACCOUNT_META, stored.sealed);
+      return value ?? null;
+    },
   };
 }
 
@@ -341,11 +356,15 @@ function createIndexedDBStore(db) {
   return {
     kind: 'indexeddb',
     setCipher: (vault) => codec.set(vault),
+    cipher() {
+      const current = codec.current();
+      return current && current !== LOCKED ? current : null;
+    },
     async reseal(next) {
       codec.ready();
       const previous = codec.current();
       try {
-        const { rows, records, versions, note, habits, savedSearches, folders } = await readTransaction(db, [STORE, MEDIA, VERSIONS, META], async (tx) => ({
+        const { rows, records, versions, note, habits, savedSearches, folders, account } = await readTransaction(db, [STORE, MEDIA, VERSIONS, META], async (tx) => ({
           rows: await requestToPromise(tx.objectStore(STORE).getAll()),
           records: await requestToPromise(tx.objectStore(MEDIA).getAll()),
           versions: await requestToPromise(tx.objectStore(VERSIONS).getAll()),
@@ -353,6 +372,7 @@ function createIndexedDBStore(db) {
           habits: await requestToPromise(tx.objectStore(META).get(HABITS_META)),
           savedSearches: await requestToPromise(tx.objectStore(META).get(SAVED_SEARCHES_META)),
           folders: await requestToPromise(tx.objectStore(META).get(LINKED_FOLDERS_META)),
+          account: await requestToPromise(tx.objectStore(META).get(ACCOUNT_META)),
         }));
         const plainRows = await Promise.all(rows.map((row) => codec.decodeRow(row)));
         const plainRecords = await Promise.all(records.map((record) => codec.decodeMedia(record)));
@@ -361,6 +381,7 @@ function createIndexedDBStore(db) {
         const plainHabits = habits ? await codec.decodeHabits(habits) : null;
         const plainSavedSearches = savedSearches ? await codec.decodeSavedSearches(savedSearches) : null;
         const plainFolders = folders ? await codec.decodeFolders(folders) : null;
+        const plainAccount = account ? { value: await codec.decodeAccount(account) } : null;
         codec.set(next);
         const sealedRows = await Promise.all(plainRows.map((row) => codec.encodeRow(row)));
         const sealedRecords = await Promise.all(plainRecords.map((record) => codec.encodeMedia(record)));
@@ -369,6 +390,7 @@ function createIndexedDBStore(db) {
         const sealedHabits = plainHabits === null ? null : await codec.encodeHabits(plainHabits);
         const sealedSavedSearches = plainSavedSearches === null ? null : await codec.encodeSavedSearches(plainSavedSearches);
         const sealedFolders = plainFolders === null ? null : await codec.encodeFolders(plainFolders);
+        const sealedAccount = plainAccount ? await codec.encodeAccount(plainAccount.value) : null;
         // One transaction: either every row moves to the new cipher or none does.
         await writeTransaction(db, [STORE, MEDIA, VERSIONS, META], (tx) => {
           for (const row of sealedRows) tx.objectStore(STORE).put(row);
@@ -378,6 +400,7 @@ function createIndexedDBStore(db) {
           if (sealedHabits) tx.objectStore(META).put(sealedHabits, HABITS_META);
           if (sealedSavedSearches) tx.objectStore(META).put(sealedSavedSearches, SAVED_SEARCHES_META);
           if (sealedFolders) tx.objectStore(META).put(sealedFolders, LINKED_FOLDERS_META);
+          if (sealedAccount) tx.objectStore(META).put(sealedAccount, ACCOUNT_META);
         });
       } catch (error) {
         codec.set(previous); // rows still hold the old cipher, so keep writing with it
@@ -560,6 +583,14 @@ function createIndexedDBStore(db) {
       const sealed = await codec.encodeFolders(record);
       await writeTransaction(db, META, (tx) => tx.objectStore(META).put(sealed, LINKED_FOLDERS_META));
     },
+    async getAccount() {
+      const stored = await readTransaction(db, META, (tx) => requestToPromise(tx.objectStore(META).get(ACCOUNT_META)));
+      return codec.decodeAccount(stored);
+    },
+    async setAccount(value) {
+      const sealed = await codec.encodeAccount(value);
+      await writeTransaction(db, META, (tx) => tx.objectStore(META).put(sealed, ACCOUNT_META));
+    },
     async clear() {
       await writeTransaction(db, [STORE, VERSIONS, MEDIA, META], (tx) => {
         for (const name of [STORE, VERSIONS, MEDIA, META]) tx.objectStore(name).clear();
@@ -583,6 +614,10 @@ export function createMemoryStore() {
   return {
     kind: 'memory',
     setCipher: (vault) => codec.set(vault),
+    cipher() {
+      const current = codec.current();
+      return current && current !== LOCKED ? current : null;
+    },
     async reseal(next) {
       codec.ready();
       const previous = codec.current();
@@ -594,6 +629,7 @@ export function createMemoryStore() {
         const plainHabits = metas.has(HABITS_META) ? await codec.decodeHabits(clone(metas.get(HABITS_META))) : null;
         const plainSavedSearches = metas.has(SAVED_SEARCHES_META) ? await codec.decodeSavedSearches(clone(metas.get(SAVED_SEARCHES_META))) : null;
         const plainFolders = metas.has(LINKED_FOLDERS_META) ? await codec.decodeFolders(clone(metas.get(LINKED_FOLDERS_META))) : null;
+        const plainAccount = metas.has(ACCOUNT_META) ? { value: await codec.decodeAccount(clone(metas.get(ACCOUNT_META))) } : null;
         codec.set(next);
         const sealedRows = await Promise.all(plainRows.map((row) => codec.encodeRow(row)));
         const sealedRecords = await Promise.all(plainRecords.map((record) => codec.encodeMedia(record)));
@@ -602,6 +638,7 @@ export function createMemoryStore() {
         const sealedHabits = plainHabits === null ? null : await codec.encodeHabits(plainHabits);
         const sealedSavedSearches = plainSavedSearches === null ? null : await codec.encodeSavedSearches(plainSavedSearches);
         const sealedFolders = plainFolders === null ? null : await codec.encodeFolders(plainFolders);
+        const sealedAccount = plainAccount ? await codec.encodeAccount(plainAccount.value) : null;
         rows.clear();
         media.clear();
         versions.clear();
@@ -612,6 +649,7 @@ export function createMemoryStore() {
         if (sealedHabits) metas.set(HABITS_META, clone(sealedHabits));
         if (sealedSavedSearches) metas.set(SAVED_SEARCHES_META, clone(sealedSavedSearches));
         if (sealedFolders) metas.set(LINKED_FOLDERS_META, clone(sealedFolders));
+        if (sealedAccount) metas.set(ACCOUNT_META, clone(sealedAccount));
       } catch (error) {
         codec.set(previous);
         throw error;
@@ -737,6 +775,12 @@ export function createMemoryStore() {
     },
     async setLinkedFolders(record) {
       metas.set(LINKED_FOLDERS_META, await codec.encodeFolders(record));
+    },
+    async getAccount() {
+      return codec.decodeAccount(metas.get(ACCOUNT_META) ?? null);
+    },
+    async setAccount(value) {
+      metas.set(ACCOUNT_META, await codec.encodeAccount(value));
     },
     async clear() {
       rows.clear();
