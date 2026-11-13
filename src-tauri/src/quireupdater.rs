@@ -10,6 +10,8 @@
 
 use std::sync::Mutex;
 
+use serde_json::{json, Value};
+
 use tauri::{
     plugin::{Builder, TauriPlugin},
     AppHandle, Manager, Runtime, State,
@@ -20,22 +22,24 @@ use tauri_plugin_updater::{Update, UpdaterExt};
 #[derive(Default)]
 pub struct Pending(Mutex<Option<Update>>);
 
-/// The version of a newer build, or null when there is none. Never fails the page: a failed check is just no update.
+/// Looks for a newer signed build. `configured` is false until the updater has its endpoint and key,
+/// so the page knows to fall back to the download-page notice. A failed check reports no update
+/// rather than an error, so the page never shows a failure for a quiet background check.
 #[tauri::command]
-async fn check<R: Runtime>(app: AppHandle<R>, pending: State<'_, Pending>) -> Result<Option<String>, String> {
+async fn check<R: Runtime>(app: AppHandle<R>, pending: State<'_, Pending>) -> Result<Value, String> {
     let Ok(updater) = app.updater() else {
-        return Ok(None);
+        return Ok(json!({ "configured": false, "version": null }));
     };
     let update = match updater.check().await {
         Ok(update) => update,
         Err(error) => {
             eprintln!("update check failed: {error}");
-            return Ok(None);
+            None
         }
     };
     let version = update.as_ref().map(|found| found.version.clone());
     *pending.0.lock().unwrap_or_else(|poisoned| poisoned.into_inner()) = update;
-    Ok(version)
+    Ok(json!({ "configured": true, "version": version }))
 }
 
 /// Downloads and installs the update found by `check`, then restarts Quire.

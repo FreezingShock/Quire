@@ -79,14 +79,15 @@ export const desktopMethods = {
     const today = localISODate();
     if (!shouldCheckUpdate(this.prefs.updateCheckDay, today)) return;
     this.setPref({ updateCheckDay: today });
-    const version = await invokeShell('plugin:quireupdater|check');
-    if (version) {
-      this.showStatus(`Quire ${version} is installing. It will restart to finish.`);
+    const result = await invokeShell('plugin:quireupdater|check');
+    if (result?.version) {
+      this.showStatus(`Quire ${result.version} is installing. It will restart to finish.`);
       await this.persist();
       await invokeShell('plugin:quireupdater|install');
       return;
     }
-    await this.offerDownloadNotice();
+    // Only when the shell says its updater is not set up yet. A shell that has no answer is not asked for one.
+    if (result?.configured === false) await this.offerDownloadNotice();
   },
 
   /** Asks GitHub for the latest release and offers the download page when it is newer. */
