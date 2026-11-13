@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "app",
+  "description": "Desktop shell facts (version, platform) for the Quire window.",
+  "windows": ["main"],
+  "permissions": ["app:default"]
+}

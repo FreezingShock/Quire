@@ -2,6 +2,8 @@
 //! native window. Entries stay in the webview's IndexedDB, so the app behaves
 //! as it does in the browser, offline included.
 
+mod app;
+
 use tauri::{Url, WebviewUrl, WebviewWindowBuilder};
 use tauri_plugin_opener::OpenerExt;
 
@@ -30,6 +32,7 @@ fn is_app_url(url: &Url) -> bool {
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
+        .plugin(app::init())
         .setup(|app| {
             let handle = app.handle().clone();
             let window = WebviewWindowBuilder::new(app, "main", WebviewUrl::App("index.html".into()))
