@@ -1,8 +1,10 @@
 import { QuireApp } from './app.js';
 import { startSplash } from './splash.js';
 import { mark } from './perf.js';
+import { markDesktopShell } from './desktop.js';
 
 mark('quire:boot');
+markDesktopShell();
 const splash = startSplash();
 const app = new QuireApp();
 app
