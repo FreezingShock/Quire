@@ -4,23 +4,28 @@ import { makeBackup } from '../export.js';
 import { folderAccessSupported, FOLDER_LIMIT, backupFileName, backupFolderOf, hasAccess, isBackupDue, newFolderId, normalizeFolderList, pickFolder, requestAccess, scanFolder, writeFileTo } from '../folders.js';
 import { folderPicturesDialog, linkedFoldersDialog, vaultConflictDialog } from '../folders-dialog.js';
 import { normalizeEntry, localISODate } from '../model.js';
+import { forgetNativeFolder, nativeFoldersAvailable, nativeRecord, pickNativeFolder, reviveHandle } from '../folders-native.js';
 import { entryFromVaultFile, planVaultSync, recordFor, vaultMarkdown } from '../vault-sync.js';
 
 export const folderMethods = {
   // ---------- linked folders ----------
 
+  /** Linked folders work with the browser's folder picker, or with the desktop shell's native one. */
   folderSupported() {
-    return folderAccessSupported(globalThis);
+    return folderAccessSupported(globalThis) || nativeFoldersAvailable(globalThis);
   },
 
   /** The linked folders, normalized, with their handles. Throws while the store is locked. */
   async linkedState() {
     const { list, handles } = await this.store.getLinkedFolders();
-    return { list: normalizeFolderList(list), handles: handles ?? {} };
+    const revived = Object.fromEntries(Object.entries(handles ?? {}).map(([id, handle]) => [id, reviveHandle(handle)]));
+    return { list: normalizeFolderList(list), handles: revived };
   },
 
+  /** Saves the list and handles. Native folders are stored as plain records, not as the objects that act on them. */
   async saveLinkedState(list, handles) {
-    await this.store.setLinkedFolders({ list, handles });
+    const stored = Object.fromEntries(Object.entries(handles).map(([id, handle]) => [id, handle?.native ? nativeRecord(handle) : handle]));
+    await this.store.setLinkedFolders({ list, handles: stored });
   },
 
   /** Menu: File > Linked folders. The dialog lists each folder with what Quire found in it. */
@@ -77,6 +82,7 @@ export const folderMethods = {
     if (action === 'unlink') {
       const rest = { ...handles };
       delete rest[folder.id];
+      if (handle.native) await forgetNativeFolder(handle).catch(() => {});
       await this.saveLinkedState(list.filter((item) => item.id !== folder.id), rest);
       this.showStatus(`Unlinked ${folder.name}`);
       return undefined;
@@ -100,7 +106,8 @@ export const folderMethods = {
 
   /** Opens the browser's picker and links the folder it returns. */
   async linkFolder() {
-    const handle = await pickFolder((options) => globalThis.showDirectoryPicker(options));
+    const picker = folderAccessSupported(globalThis) ? (options) => globalThis.showDirectoryPicker(options) : () => pickNativeFolder();
+    const handle = await pickFolder(picker);
     if (!handle) return;
     const { list, handles } = await this.linkedState();
     for (const folder of list) {

@@ -3,6 +3,7 @@
 //! as it does in the browser, offline included.
 
 mod app;
+mod folders;
 
 use tauri::{Url, WebviewUrl, WebviewWindowBuilder};
 use tauri_plugin_opener::OpenerExt;
@@ -33,6 +34,8 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(app::init())
+        .plugin(tauri_plugin_dialog::init())
+        .plugin(folders::init())
         .setup(|app| {
             let handle = app.handle().clone();
             WebviewWindowBuilder::new(app, "main", WebviewUrl::App("index.html".into()))
