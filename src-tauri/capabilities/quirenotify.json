@@ -1,0 +1,11 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "quirenotify",
+  "description": "Native feature quirenotify for the Quire window. Grants only this plugin's commands.",
+  "windows": [
+    "main"
+  ],
+  "permissions": [
+    "quirenotify:default"
+  ]
+}

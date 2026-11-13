@@ -1,0 +1,11 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "quireupdater",
+  "description": "Native feature quireupdater for the Quire window. Grants only this plugin's commands.",
+  "windows": [
+    "main"
+  ],
+  "permissions": [
+    "quireupdater:default"
+  ]
+}

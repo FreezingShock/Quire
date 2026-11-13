@@ -50,6 +50,8 @@ import { focusMethods } from './controller/focus-mode.js';
 import { navigationMethods } from './controller/navigation.js';
 import { capsuleActionMethods } from './controller/capsule-actions.js';
 import { mixtapeMethods } from './controller/mixtape.js';
+import { desktopMethods } from './controller/desktop.js';
+import { invokeShell, wantsNativeNotice } from './desktop-integration.js';
 import { accountMethods } from './controller/account-actions.js';
 import { MixtapeView } from './mixtape-view.js';
 import { mark } from './perf.js';
@@ -224,6 +226,11 @@ export class QuireApp {
       saveReminder: (reminder) => this.setPref({ reminder }),
       hasEntryOn: async (day) => (await this.store.list()).some((entry) => entry.date === day),
       onCapsuleCheck: (send) => this.announceArrivedCapsules(send),
+      // In the desktop app, reminders go out through the shell's notice area when the pref is on.
+      native: {
+        enabled: () => wantsNativeNotice(this.prefs),
+        send: (body, tag) => invokeShell('plugin:quirenotify|send', { title: 'Quire', body, tag }),
+      },
     });
     this.screensaver = startScreensaver({
       getPrefs: () => this.prefs,
@@ -242,6 +249,8 @@ export class QuireApp {
     } else {
       await this.showHome({ history: 'replace', entries });
     }
+    // Tray, shortcut and file-open intents wait until the library is open. That keeps them behind the passcode.
+    this.startDesktop().catch((error) => console.warn('Desktop integration could not start:', error));
     mark('quire:ready');
   }
 
@@ -305,4 +314,5 @@ Object.assign(QuireApp.prototype, capsuleActionMethods);
 
 Object.assign(QuireApp.prototype, mixtapeMethods);
 
+Object.assign(QuireApp.prototype, desktopMethods);
 Object.assign(QuireApp.prototype, accountMethods);

@@ -10,6 +10,8 @@ import { showDialog } from './dialogs.js';
 import { SKINS, isDark, normalizeAccent, skinOf } from './skins.js';
 import { playSound } from './sound.js';
 import { reminderRow } from './pwa.js';
+import { desktopShell, isDesktop } from './desktop.js';
+import { quickCaptureLabel } from './desktop-integration.js';
 import { AMBIENT_SOUNDS, MAX_WORD_GOAL, normalizeAmbient, normalizeGoal } from './focus.js';
 import { MAX_IDLE_MINUTES, MIN_IDLE_MINUTES, normalizeIdleMinutes, normalizeScreensaver, screensaverOptions } from './screensaver.js';
 import { CUSTOM_LIMIT, normalizeCustoms } from './screensaver-custom.js';
@@ -46,6 +48,9 @@ export const OPTION_PREFS = Object.freeze([
   'name',
   'showWelcome',
   'customPrompts',
+  'launchAtLogin',
+  'trayIcon',
+  'desktopNotify',
 ]);
 
 const TABS = Object.freeze([
@@ -342,6 +347,28 @@ export function showOptions({ get, set, pickAccent, onPreview, onCustomize, onFo
     return group;
   }
 
+  // Desktop only: the shell's launch and tray settings, and native notices. The browser build shows none of them.
+  const desktopRows = isDesktop() ? [
+    toggle({
+      label: 'Start Quire when I sign in',
+      note: 'Opens Quire in the tray when the computer starts.',
+      read: (prefs) => Boolean(prefs.launchAtLogin),
+      write: (on) => ({ launchAtLogin: on }),
+    }),
+    toggle({
+      label: 'Keep Quire in the tray when I close it',
+      note: `Closing the window leaves Quire running in the tray (menu bar on Mac). ${quickCaptureLabel(desktopShell()?.platform)} starts a quick note from anywhere.`,
+      read: (prefs) => prefs.trayIcon === true,
+      write: (on) => ({ trayIcon: on }),
+    }),
+    toggle({
+      label: 'Reminders as system notifications',
+      note: 'The daily reminder uses the system notification center instead of the browser.',
+      read: (prefs) => prefs.desktopNotify !== false,
+      write: (on) => ({ desktopNotify: on }),
+    }),
+  ] : [];
+
   const panels = {
     general: [
       foldersRow(),
@@ -375,6 +402,7 @@ export function showOptions({ get, set, pickAccent, onPreview, onCustomize, onFo
           write: (value) => ({ ambientVolume: Math.min(1, Math.max(0, Number(value) / 100)) }),
         }),
       ]),
+      ...desktopRows,
     ],
     personal: [
       textField({

@@ -2,6 +2,13 @@
 //! native window. Entries stay in the webview's IndexedDB, so the app behaves
 //! as it does in the browser, offline included.
 
+mod quireautostart;
+mod quirefiles;
+mod quireintents;
+mod quirenotify;
+mod quiretray;
+mod quireupdater;
+mod shortcut;
 mod app;
 mod fonts;
 mod oauth;
@@ -33,7 +40,18 @@ fn is_app_url(url: &Url) -> bool {
 
 pub fn run() {
     tauri::Builder::default()
+        // Single instance first, so a second launch reaches this one.
+        .plugin(quirefiles::single_instance())
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_notification::init())
+        .plugin(tauri_plugin_autostart::init(tauri_plugin_autostart::MacosLauncher::LaunchAgent, None))
+        .plugin(shortcut::init())
+        .plugin(quireintents::init())
+        .plugin(quireautostart::init())
+        .plugin(quiretray::init())
+        .plugin(quirenotify::init())
+        .plugin(quirefiles::init())
+        .plugin(quireupdater::init())
         .plugin(app::init())
         .plugin(fonts::init())
         .plugin(oauth::init())
@@ -63,6 +81,7 @@ pub fn run() {
             window.build()?;
             Ok(())
         })
-        .run(tauri::generate_context!())
-        .expect("error while running the Quire desktop app");
+        .build(tauri::generate_context!())
+        .expect("error while building the Quire desktop app")
+        .run(|app, event| quirefiles::on_run_event(app, event));
 }
