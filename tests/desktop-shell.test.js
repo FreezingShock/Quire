@@ -105,6 +105,7 @@ test('every feature plugin has its Rust module, registration, command list and c
   assert.ok(features.includes('app.commands'));
   for (const file of features) {
     const name = file.slice(0, -'.commands'.length);
+    assert.match(name, /^[a-z0-9]+$/, `${file}: plugin names are lowercase letters and digits only`);
     assert.ok(existsSync(join(ROOT, 'src-tauri', 'src', `${name}.rs`)), `src-tauri/src/${name}.rs is missing`);
     assert.match(lib, new RegExp(`^mod ${name};$`, 'm'), `lib.rs needs mod ${name};`);
     assert.match(lib, new RegExp(`\\.plugin\\(${name}::init\\(\\)\\)`), `lib.rs needs .plugin(${name}::init())`);
