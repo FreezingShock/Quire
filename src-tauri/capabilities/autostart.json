@@ -1,0 +1,11 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "autostart",
+  "description": "Native autostart for the Quire window. Grants only this feature's commands.",
+  "windows": [
+    "main"
+  ],
+  "permissions": [
+    "quire-autostart:allow-set-enabled"
+  ]
+}

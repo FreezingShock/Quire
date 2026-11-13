@@ -12,6 +12,7 @@
  *   plugin:quire-autostart|set_enabled({ enabled })
  *   plugin:quire-tray|set_enabled({ enabled })
  *   plugin:quire-files|read_text({ path }) -> text of a file the user opened
+ *   plugin:quire-updater|check -> the newer version, or null; plugin:quire-updater|install
  * Live intents arrive as the window event `quire:intent`, with `detail` the intent.
  *
  * An intent is { name: 'new-entry' } | { name: 'quick-note' } | { name: 'open-file', path }.
@@ -34,15 +35,16 @@ export const DESKTOP_DEFAULTS = Object.freeze({
   dismissedUpdate: null,
 });
 
+export const DOWNLOAD_URL = 'https://github.com/FreezingShock/Quire/releases/latest';
+export const RELEASES_API = 'https://api.github.com/repos/FreezingShock/Quire/releases/latest';
+const VERSION = /^\d+(\.\d+){0,3}$/;
+
 /** The quick-capture shortcut as the platform shows it. The shell registers the same key. */
 export function quickCaptureLabel(platform = '') {
   return /mac|darwin/i.test(platform) ? 'Cmd+Option+Q' : 'Ctrl+Alt+Q';
 }
-export const DOWNLOAD_URL = 'https://github.com/FreezingShock/Quire/releases/latest';
-export const RELEASES_API = 'https://api.github.com/repos/FreezingShock/Quire/releases/latest';
 
 const INTENT_NAMES = new Set(['new-entry', 'quick-note', 'open-file']);
-const VERSION = /^\d+(\.\d+){0,3}$/;
 
 /** Calls a native command of the shell. Resolves to undefined outside the shell, and when the shell refuses. */
 export async function invokeShell(command, args = {}, scope = globalThis) {
@@ -102,8 +104,8 @@ function versionParts(value) {
 
 /**
  * The update notice for a GitHub release, or null when there is nothing newer
- * or the release does not look right. Quire is not signed, so the notice links
- * to the download page instead of installing anything.
+ * or the release does not look right. Used until the shell can install updates
+ * itself: the notice links to the download page instead.
  */
 export function updateNotice(release, current) {
   const version = String(release?.tag_name ?? '').trim().replace(/^v/i, '');

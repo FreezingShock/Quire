@@ -52,7 +52,7 @@ const DEFAULTS = Object.freeze({
   showWelcome: true,
   welcomeSeenDay: null,
   customPrompts: [],
-  // Desktop app only (see desktop-integration.js): launch at sign-in, keep in the tray, native reminders, and the update check.
+  // Desktop app only (see desktop-integration.js): launch at sign-in, keep in the tray, native reminders, and the daily update check.
   launchAtLogin: false,
   trayIcon: false,
   desktopNotify: true,

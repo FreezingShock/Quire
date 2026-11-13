@@ -1,0 +1,11 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "tray",
+  "description": "Native tray for the Quire window. Grants only this feature's commands.",
+  "windows": [
+    "main"
+  ],
+  "permissions": [
+    "quire-tray:allow-set-enabled"
+  ]
+}

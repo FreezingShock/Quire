@@ -1,0 +1,11 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "notify",
+  "description": "Native notify for the Quire window. Grants only this feature's commands.",
+  "windows": [
+    "main"
+  ],
+  "permissions": [
+    "quire-notify:allow-send"
+  ]
+}

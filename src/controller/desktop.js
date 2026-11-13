@@ -13,7 +13,6 @@ import { confirmDialog } from '../dialogs.js';
 import { localISODate } from '../model.js';
 import { desktopShell, isDesktop } from '../desktop.js';
 import {
-  DOWNLOAD_URL,
   RELEASES_API,
   baseName,
   invokeShell,
@@ -70,14 +69,28 @@ export const desktopMethods = {
   },
 
   /**
-   * Asks GitHub for the latest release, at most once a day. A newer one gets a
-   * dialog with a download link. "Later" waits for the next release, and the
-   * shell never installs anything, because the build is not signed.
+   * Checks for a newer build once a day. When the shell has an update signed
+   * with the Quire key, it installs it and restarts Quire, after saving. Until
+   * that key is set up, or when the shell cannot reach its update feed, the
+   * check falls back to a notice that links to the download page. Builds are
+   * not code-signed, so Windows and macOS may warn on the first install.
    */
   async checkForDesktopUpdate() {
     const today = localISODate();
     if (!shouldCheckUpdate(this.prefs.updateCheckDay, today)) return;
     this.setPref({ updateCheckDay: today });
+    const version = await invokeShell('plugin:quire-updater|check');
+    if (version) {
+      this.showStatus(`Quire ${version} is installing. It will restart to finish.`);
+      await this.persist();
+      await invokeShell('plugin:quire-updater|install');
+      return;
+    }
+    await this.offerDownloadNotice();
+  },
+
+  /** Asks GitHub for the latest release and offers the download page when it is newer. */
+  async offerDownloadNotice() {
     const release = await fetch(RELEASES_API, { headers: { Accept: 'application/vnd.github+json' } })
       .then((response) => (response.ok ? response.json() : null))
       .catch(() => null);
@@ -88,7 +101,7 @@ export const desktopMethods = {
       message: 'A newer version of Quire is ready. Download the installer from the release page. Your entries stay on this computer.',
       confirmLabel: 'Download',
     });
-    if (download) globalThis.open(DOWNLOAD_URL, '_blank', 'noopener');
+    if (download) globalThis.open(notice.url, '_blank', 'noopener');
     else this.setPref({ dismissedUpdate: notice.version });
   },
 };
