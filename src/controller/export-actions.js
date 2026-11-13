@@ -77,6 +77,7 @@ export const exportMethods = {
       setOn: (on) => {
         this.passcodeOn = on;
       },
+      isSignedIn: async () => Boolean((await this.store?.getAccount())?.session),
     });
   },
 

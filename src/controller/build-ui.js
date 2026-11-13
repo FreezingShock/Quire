@@ -179,6 +179,7 @@ export const buildUiMethods = {
           { label: 'Linked folders…', action: () => this.linkedFolders() },
           ...(installState() === 'installed' ? [] : ['sep', { label: 'Install Quire…', action: () => this.installQuire() }]),
           'sep',
+          { label: 'Account and sync…', action: () => this.accountSettings() },
           { label: 'Passcode lock…', action: () => this.passcodeSettings() },
           { label: 'Lock Quire now', disabled: !this.passcodeOn, action: () => lockNow(() => this.persist()) },
         ],

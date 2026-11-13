@@ -201,7 +201,7 @@ function setupLock({ store, flush, status, setOn }) {
       await flush();
       const { record, vault } = await createLock(passcode);
       // The record goes in first. If the run is interrupted, the lock is on, and the rows still open.
-      await store.setMeta(LOCK_META, record);
+      await store.setMeta(LOCK_META, { ...record, changedAt: new Date().toISOString() });
       await store.reseal(vault);
       setOn(true);
       status('Passcode lock is on. Entries are encrypted in this browser.');
@@ -227,20 +227,24 @@ function changePasscode({ store, flush, status }) {
       const problem = checkMatch(passcode, confirm);
       if (problem) return problem;
       await flush();
-      await store.setMeta(LOCK_META, await changeLock(vault, passcode));
+      // changedAt tells sync which copy of the lock is newer.
+      await store.setMeta(LOCK_META, { ...(await changeLock(vault, passcode)), changedAt: new Date().toISOString() });
       status('Passcode changed.');
       return null;
     },
   });
 }
 
-function turnOffLock({ store, flush, status, setOn }) {
+function turnOffLock(ctx) {
+  const { store, flush, status, setOn } = ctx;
   passcodeDialog({
     title: 'Turn off passcode lock',
     text: 'Entries will be stored without encryption again, so anyone who can open this browser profile can read them. Type the current passcode to confirm.',
     fields: [{ key: 'current', label: 'Current passcode', autocomplete: 'current-password' }],
     submitLabel: 'Turn off',
     onSubmit: async ({ current }) => {
+      // The account's sync needs this key, so the lock stays on while an account is signed in.
+      if (await ctx.isSignedIn?.()) return 'Sign out of your account before turning off the passcode lock.';
       const record = await store.getMeta(LOCK_META);
       if (!(await unlockLock(record, current))) return 'That is not your current passcode.';
       await flush();

@@ -11,6 +11,7 @@ mod quireupdater;
 mod shortcut;
 mod app;
 mod fonts;
+mod oauth;
 
 use tauri::{Url, WebviewUrl, WebviewWindowBuilder};
 use tauri_plugin_opener::OpenerExt;
@@ -53,6 +54,7 @@ pub fn run() {
         .plugin(quireupdater::init())
         .plugin(app::init())
         .plugin(fonts::init())
+        .plugin(oauth::init())
         .setup(|app| {
             let handle = app.handle().clone();
             let window = WebviewWindowBuilder::new(app, "main", WebviewUrl::App("index.html".into()))
