@@ -19,8 +19,8 @@ fn send<R: Runtime>(app: AppHandle<R>, title: String, body: String, tag: Option<
         .map_err(|error| error.to_string())
 }
 
-pub fn plugin<R: Runtime>() -> TauriPlugin<R> {
-    Builder::new("quire-notify")
+pub fn init<R: Runtime>() -> TauriPlugin<R> {
+    Builder::new("quirenotify")
         .invoke_handler(tauri::generate_handler![send])
         .build()
 }

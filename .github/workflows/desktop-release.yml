@@ -1,10 +1,15 @@
 name: Desktop installers
 
 # Builds the Quire desktop installers and attaches them to a GitHub Release.
-# Builds Windows (NSIS) and macOS (universal .dmg) installers. Runs when a version tag
-# (v1.2.3) is pushed, or on demand from the Actions tab (on demand builds only
-# upload workflow artifacts, with no release).
-# Installers are unsigned until a code-signing certificate is added. See docs/desktop.md.
+# Runs when a version tag (v1.2.3) is pushed, or on demand from the Actions tab
+# (on demand builds only upload workflow artifacts, with no release).
+#
+# Assets: Windows x64 NSIS installer; macOS .dmg for Apple silicon (aarch64) and
+# Intel (x64), built separately so each file name carries its architecture.
+# When the TAURI_SIGNING_PRIVATE_KEY secret is set, each release also gets latest.json
+# and signed update archives, which the in-app updater reads from
+# releases/latest/download/latest.json. Builds are unsigned by the OS.
+# See docs/desktop.md for the one-time key setup.
 
 on:
   push:
@@ -21,9 +26,14 @@ jobs:
       matrix:
         include:
           - os: windows-latest
+            target: ''
             args: ''
           - os: macos-latest
-            args: '--target universal-apple-darwin --bundles dmg'
+            target: aarch64-apple-darwin
+            args: '--target aarch64-apple-darwin --bundles dmg'
+          - os: macos-15-intel
+            target: x86_64-apple-darwin
+            args: '--target x86_64-apple-darwin --bundles dmg'
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -35,7 +45,7 @@ jobs:
       - name: Rust toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
-          targets: ${{ matrix.os == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+          targets: ${{ matrix.target }}
 
       - name: Rust cache
         uses: swatinem/rust-cache@v2
@@ -45,24 +55,41 @@ jobs:
       - name: Install dependencies
         run: npm install --no-package-lock --no-audit --no-fund
 
+      # The in-app updater needs the Tauri updater key (not an OS certificate). Without
+      # the secret the build still works, it just produces no update archives or latest.json.
+      - name: Check for the updater key
+        id: updater
+        env:
+          UPDATER_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+        run: |
+          if [ -n "$UPDATER_KEY" ]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+            echo "Updater signing is on: update archives and latest.json will be built."
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "No TAURI_SIGNING_PRIVATE_KEY secret: building installers without update archives."
+          fi
+
       - name: Build installers
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           tauriScript: npx tauri
-          args: ${{ matrix.args }}
+          args: ${{ matrix.args }} ${{ steps.updater.outputs.enabled == 'true' && '--config src-tauri/tauri.updater.conf.json' || '' }}
           releaseDraft: false
           prerelease: false
-          includeUpdaterJson: false
+          includeUpdaterJson: ${{ steps.updater.outputs.enabled == 'true' }}
           tagName: ${{ github.ref_name }}
           releaseName: 'Quire ${{ github.ref_name }}'
-          releaseBody: 'Desktop installers for Quire. Windows: the .exe installs for the current user. macOS: the universal .dmg (Intel and Apple silicon). Builds are not code-signed yet.'
+          releaseBody: 'Desktop installers for Quire. Windows: the .exe installs for the current user. macOS: the .dmg for Apple silicon or Intel. Builds are not code-signed by the OS yet.'
 
       - name: Keep the bundles as workflow artifacts
         if: github.ref_type != 'tag'
         uses: actions/upload-artifact@v4
         with:
-          name: quire-desktop-${{ matrix.os }}
-          path: src-tauri/target/**/bundle/*
+          name: quire-desktop-${{ matrix.os }}-${{ matrix.target || 'windows' }}
+          path: src-tauri/target/**/bundle/**
           if-no-files-found: warn

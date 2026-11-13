@@ -12,7 +12,7 @@ use tauri::{
     AppHandle, Manager, Runtime, State, WindowEvent,
 };
 
-use crate::intents;
+use crate::quireintents as intents;
 
 const TRAY_ID: &str = "quire";
 
@@ -92,8 +92,8 @@ fn build<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
     Ok(())
 }
 
-pub fn plugin<R: Runtime>() -> TauriPlugin<R> {
-    Builder::new("quire-tray")
+pub fn init<R: Runtime>() -> TauriPlugin<R> {
+    Builder::new("quiretray")
         .invoke_handler(tauri::generate_handler![set_enabled])
         .setup(|app, _| {
             app.manage(TrayFlag::default());

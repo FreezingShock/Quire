@@ -50,8 +50,8 @@ fn take(state: State<'_, Intents>) -> Vec<Value> {
     std::mem::take(&mut *lock(&state.queue))
 }
 
-pub fn plugin<R: Runtime>() -> TauriPlugin<R> {
-    Builder::new("quire-intents")
+pub fn init<R: Runtime>() -> TauriPlugin<R> {
+    Builder::new("quireintents")
         .invoke_handler(tauri::generate_handler![take])
         .setup(|app, _| {
             app.manage(Intents::default());

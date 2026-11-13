@@ -21,7 +21,7 @@ const shellScope = { __QUIRE_DESKTOP__: { shell: 'tauri', version: '0.4.0', plat
 test('shell commands do nothing in the browser', async () => {
   let called = false;
   const scope = { __TAURI_INTERNALS__: { invoke: async () => { called = true; return 'x'; } } };
-  assert.equal(await invokeShell('plugin:quire-intents|take', {}, scope), undefined);
+  assert.equal(await invokeShell('plugin:quireintents|take', {}, scope), undefined);
   assert.equal(called, false);
 });
 
@@ -31,14 +31,14 @@ test('shell commands go through the internals and survive a refusal', async () =
     ...shellScope,
     __TAURI_INTERNALS__: { invoke: async (command, args) => { calls.push([command, args]); return ['ok']; } },
   };
-  assert.deepEqual(await invokeShell('plugin:quire-intents|take', {}, scope), ['ok']);
-  assert.deepEqual(calls, [['plugin:quire-intents|take', {}]]);
+  assert.deepEqual(await invokeShell('plugin:quireintents|take', {}, scope), ['ok']);
+  assert.deepEqual(calls, [['plugin:quireintents|take', {}]]);
 
   const failing = { ...shellScope, __TAURI_INTERNALS__: { invoke: async () => { throw new Error('denied'); } } };
   const warn = console.warn;
   console.warn = () => {};
   try {
-    assert.equal(await invokeShell('plugin:quire-notify|send', { title: 'Quire' }, failing), undefined);
+    assert.equal(await invokeShell('plugin:quirenotify|send', { title: 'Quire' }, failing), undefined);
   } finally {
     console.warn = warn;
   }

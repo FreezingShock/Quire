@@ -7,12 +7,12 @@
  *
  * Detection and invoke come from src/desktop.js (see docs/desktop.md). The native
  * features are one Rust plugin each in src-tauri/src/, and their commands are:
- *   plugin:quire-intents|take -> [intent] queued while the page was locked or loading
- *   plugin:quire-notify|send({ title, body, tag })
- *   plugin:quire-autostart|set_enabled({ enabled })
- *   plugin:quire-tray|set_enabled({ enabled })
- *   plugin:quire-files|read_text({ path }) -> text of a file the user opened
- *   plugin:quire-updater|check -> the newer version, or null; plugin:quire-updater|install
+ *   plugin:quireintents|take -> [intent] queued while the page was locked or loading
+ *   plugin:quirenotify|send({ title, body, tag })
+ *   plugin:quireautostart|set_enabled({ enabled })
+ *   plugin:quiretray|set_enabled({ enabled })
+ *   plugin:quirefiles|read_text({ path }) -> text of a file the user opened
+ *   plugin:quireupdater|check -> the newer version, or null; plugin:quireupdater|install
  * Live intents arrive as the window event `quire:intent`, with `detail` the intent.
  *
  * An intent is { name: 'new-entry' } | { name: 'quick-note' } | { name: 'open-file', path }.

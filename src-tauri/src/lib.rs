@@ -2,13 +2,14 @@
 //! native window. Entries stay in the webview's IndexedDB, so the app behaves
 //! as it does in the browser, offline included.
 
-mod autostart;
-mod files;
-mod intents;
-mod notify;
+mod quireautostart;
+mod quirefiles;
+mod quireintents;
+mod quirenotify;
+mod quiretray;
+mod quireupdater;
 mod shortcut;
-mod tray;
-mod updater;
+mod app;
 
 use tauri::{Url, WebviewUrl, WebviewWindowBuilder};
 use tauri_plugin_opener::OpenerExt;
@@ -38,18 +39,18 @@ fn is_app_url(url: &Url) -> bool {
 pub fn run() {
     tauri::Builder::default()
         // Single instance first, so a second launch reaches this one.
-        .plugin(files::single_instance())
+        .plugin(quirefiles::single_instance())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_autostart::init(tauri_plugin_autostart::MacosLauncher::LaunchAgent, None))
-        .plugin(shortcut::plugin())
-        .plugin(intents::plugin())
-        .plugin(autostart::plugin())
-        .plugin(tray::plugin())
-        .plugin(notify::plugin())
-        .plugin(files::plugin())
-        .plugin(updater::plugin())
-        .setup(|app| {
+        .plugin(shortcut::init())
+        .plugin(quireintents::init())
+        .plugin(quireautostart::init())
+        .plugin(quiretray::init())
+        .plugin(quirenotify::init())
+        .plugin(quirefiles::init())
+        .plugin(quireupdater::init())
+        .plugin(app::init())        .setup(|app| {
             let handle = app.handle().clone();
             WebviewWindowBuilder::new(app, "main", WebviewUrl::App("index.html".into()))
                 .title("Quire")
@@ -71,5 +72,5 @@ pub fn run() {
         })
         .build(tauri::generate_context!())
         .expect("error while building the Quire desktop app")
-        .run(|app, event| files::on_run_event(app, event));
+        .run(|app, event| quirefiles::on_run_event(app, event));
 }

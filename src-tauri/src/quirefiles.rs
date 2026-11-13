@@ -17,7 +17,7 @@ use tauri::{
     AppHandle, Manager, Runtime, State,
 };
 
-use crate::{intents, tray};
+use crate::{quireintents as intents, quiretray as tray};
 
 /// The largest file Quire will read. A year of entries with pictures fits well under this.
 const MAX_BYTES: u64 = 64 * 1024 * 1024;
@@ -62,8 +62,8 @@ fn read_text(path: String, state: State<'_, Opened>) -> Result<String, String> {
 }
 
 /// Runs on every launch. The first instance's argv names a file when the user double-clicked one.
-pub fn plugin<R: Runtime>() -> TauriPlugin<R> {
-    Builder::new("quire-files")
+pub fn init<R: Runtime>() -> TauriPlugin<R> {
+    Builder::new("quirefiles")
         .invoke_handler(tauri::generate_handler![read_text])
         .setup(|app, _| {
             app.manage(Opened::default());

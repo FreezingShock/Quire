@@ -15,8 +15,8 @@ fn set_enabled<R: Runtime>(app: AppHandle<R>, enabled: bool) -> Result<(), Strin
     result.map_err(|error| error.to_string())
 }
 
-pub fn plugin<R: Runtime>() -> TauriPlugin<R> {
-    Builder::new("quire-autostart")
+pub fn init<R: Runtime>() -> TauriPlugin<R> {
+    Builder::new("quireautostart")
         .invoke_handler(tauri::generate_handler![set_enabled])
         .build()
 }

@@ -55,8 +55,8 @@ async fn install<R: Runtime>(app: AppHandle<R>, pending: State<'_, Pending>) -> 
     app.restart();
 }
 
-pub fn plugin<R: Runtime>() -> TauriPlugin<R> {
-    Builder::new("quire-updater")
+pub fn init<R: Runtime>() -> TauriPlugin<R> {
+    Builder::new("quireupdater")
         .invoke_handler(tauri::generate_handler![check, install])
         .setup(|app, _| {
             app.manage(Pending::default());

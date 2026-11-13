@@ -6,7 +6,7 @@ use serde_json::json;
 use tauri::{plugin::{Builder, TauriPlugin}, AppHandle, Runtime};
 use tauri_plugin_global_shortcut::{Code, Modifiers, Shortcut, ShortcutState};
 
-use crate::{intents, tray};
+use crate::{quireintents as intents, quiretray as tray};
 
 fn quick_capture() -> Shortcut {
     let modifiers = if cfg!(target_os = "macos") {
@@ -24,7 +24,7 @@ fn on_shortcut<R: Runtime>(app: &AppHandle<R>, shortcut: &Shortcut, event: tauri
     }
 }
 
-pub fn plugin<R: Runtime>() -> TauriPlugin<R> {
+pub fn init<R: Runtime>() -> TauriPlugin<R> {
     let shortcut = quick_capture();
     let builder = tauri_plugin_global_shortcut::Builder::new().with_handler(on_shortcut);
     match builder.with_shortcut(shortcut) {

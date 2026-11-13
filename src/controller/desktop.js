@@ -30,7 +30,7 @@ export const desktopMethods = {
       this.handleShellIntent(event.detail).catch((error) => this.showStatus(`Quire could not do that: ${error.message}`, true));
     });
     await this.applyShellSettings();
-    const queued = (await invokeShell('plugin:quire-intents|take')) ?? [];
+    const queued = (await invokeShell('plugin:quireintents|take')) ?? [];
     for (const raw of queued) await this.handleShellIntent(raw);
     this.checkForDesktopUpdate().catch((error) => console.warn('Update check failed:', error));
   },
@@ -38,8 +38,8 @@ export const desktopMethods = {
   /** Writes the launch-at-login and tray settings to the shell. Called at start and after each change. */
   async applyShellSettings() {
     if (!isDesktop()) return;
-    await invokeShell('plugin:quire-autostart|set_enabled', { enabled: Boolean(this.prefs.launchAtLogin) });
-    await invokeShell('plugin:quire-tray|set_enabled', { enabled: this.prefs.trayIcon === true });
+    await invokeShell('plugin:quireautostart|set_enabled', { enabled: Boolean(this.prefs.launchAtLogin) });
+    await invokeShell('plugin:quiretray|set_enabled', { enabled: this.prefs.trayIcon === true });
   },
 
   async handleShellIntent(raw) {
@@ -58,7 +58,7 @@ export const desktopMethods = {
       this.showStatus(`Quire cannot open ${name || 'that file'}. Choose a Quire backup, a Day One export, or Markdown.`, true);
       return;
     }
-    const text = await invokeShell('plugin:quire-files|read_text', { path });
+    const text = await invokeShell('plugin:quirefiles|read_text', { path });
     if (typeof text !== 'string') {
       this.showStatus(`Quire could not read ${name}.`, true);
       return;
@@ -79,11 +79,11 @@ export const desktopMethods = {
     const today = localISODate();
     if (!shouldCheckUpdate(this.prefs.updateCheckDay, today)) return;
     this.setPref({ updateCheckDay: today });
-    const version = await invokeShell('plugin:quire-updater|check');
+    const version = await invokeShell('plugin:quireupdater|check');
     if (version) {
       this.showStatus(`Quire ${version} is installing. It will restart to finish.`);
       await this.persist();
-      await invokeShell('plugin:quire-updater|install');
+      await invokeShell('plugin:quireupdater|install');
       return;
     }
     await this.offerDownloadNotice();
