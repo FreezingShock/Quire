@@ -1,0 +1,279 @@
+/*
+ * Window chrome for the desktop shell and the installed PWA (controller/window-chrome.js).
+ * Loaded last, so it can refine vista.css and the skins. Each skin sets its caption
+ * buttons as --wc-* tokens below, with a dark variant for each skin, and the rules
+ * after them only read those tokens. The browser layout is not changed: every rule
+ * here is scoped to data-shell="desktop" or data-shell="overlay".
+ */
+
+/* ---------- caption buttons, per skin (light, then dark) ---------- */
+
+:root {
+  --wc-w: 44px;
+  --wc-h: 26px;
+  --wc-radius: 0 0 4px 4px;
+  --wc-app-radius: 0;
+  --wc-glyph: 13px;
+}
+
+/* Aero: light glass buttons with dark glyphs. Close turns Windows' red on hover. */
+:root[data-skin="aero"] {
+  --wc-bg: linear-gradient(to bottom, rgba(255, 255, 255, 0.9), rgba(255, 255, 255, 0.25) 50%, rgba(255, 255, 255, 0.4));
+  --wc-bg-hover: linear-gradient(to bottom, #ffffff, rgba(205, 232, 255, 0.85) 50%, rgba(165, 213, 255, 0.85));
+  --wc-bg-press: linear-gradient(to bottom, rgba(140, 192, 240, 0.95), rgba(190, 224, 250, 0.9));
+  --wc-edge: rgba(20, 50, 90, 0.55);
+  --wc-ink: #1c2a3b;
+  --wc-close-hover: linear-gradient(to bottom, #f6b8a4, #e2683d 50%, #c9461d 51%, #de6a44);
+  --wc-close-press: linear-gradient(to bottom, #b8381a, #d9583a);
+  --wc-close-edge: #7a2a14;
+  --wc-close-ink: #ffffff;
+}
+
+:root[data-skin="aero"][data-theme="dark"] {
+  --wc-bg: linear-gradient(to bottom, rgba(120, 160, 215, 0.45), rgba(40, 70, 110, 0.3) 50%, rgba(30, 55, 90, 0.42));
+  --wc-bg-hover: linear-gradient(to bottom, rgba(175, 205, 242, 0.6), rgba(88, 124, 170, 0.55) 50%, rgba(70, 105, 150, 0.55));
+  --wc-bg-press: linear-gradient(to bottom, rgba(30, 60, 100, 0.8), rgba(44, 80, 126, 0.75));
+  --wc-edge: rgba(0, 12, 35, 0.7);
+  --wc-ink: #e8f0fb;
+  --wc-close-hover: linear-gradient(to bottom, #c8705c, #a8402a 50%, #8f2f1a 51%, #b5492d);
+  --wc-close-press: linear-gradient(to bottom, #7a2a18, #94381f);
+  --wc-close-edge: #3b1409;
+  --wc-close-ink: #ffffff;
+}
+
+/* Aero Basic: no glass. Buttons show a frame only on hover, the way Windows 7 Basic does. */
+:root[data-skin="basic"] {
+  --wc-bg: transparent;
+  --wc-bg-hover: linear-gradient(to bottom, #ffffff, #dfe9f5);
+  --wc-bg-press: linear-gradient(to bottom, #c6d7ea, #e4edf7);
+  --wc-edge: #7b93b0;
+  --wc-ink: #1d2d40;
+  --wc-close-hover: linear-gradient(to bottom, #eaa18b, #c94f3a);
+  --wc-close-press: linear-gradient(to bottom, #b2432f, #d9735e);
+  --wc-close-edge: #8b3424;
+  --wc-close-ink: #ffffff;
+}
+
+:root[data-skin="basic"][data-theme="dark"] {
+  --wc-bg-hover: linear-gradient(to bottom, #4a5d75, #33465c);
+  --wc-bg-press: linear-gradient(to bottom, #26364a, #2c3e55);
+  --wc-edge: #0c1523;
+  --wc-ink: #e6edf7;
+  --wc-close-hover: linear-gradient(to bottom, #c96a5a, #9e3b2c);
+  --wc-close-press: linear-gradient(to bottom, #7a2c20, #98402f);
+  --wc-close-edge: #3b1409;
+}
+
+/* XP Luna: rounded blue buttons with white glyphs, and an orange close button. */
+:root[data-skin="luna"] {
+  --wc-w: 22px;
+  --wc-h: 22px;
+  --wc-radius: 3px;
+  --wc-app-radius: 8px 8px 3px 3px;
+  --wc-glyph: 11px;
+  --wc-bg: linear-gradient(to bottom, #6aa8ff 0%, #3c84f2 45%, #2a6fe5 55%, #4b8ef6 100%);
+  --wc-bg-hover: linear-gradient(to bottom, #8fc1ff 0%, #5f9cf8 45%, #4a8af2 55%, #74a9fa 100%);
+  --wc-bg-press: linear-gradient(to bottom, #1d4fb8, #2b64d0);
+  --wc-edge: #ffffff;
+  --wc-ink: #ffffff;
+  --wc-close-hover: linear-gradient(to bottom, #f5b08f 0%, #e8743f 45%, #d9582a 55%, #ee8a58 100%);
+  --wc-close-press: linear-gradient(to bottom, #a8421b, #c4522a);
+  --wc-close-edge: #ffffff;
+  --wc-close-ink: #ffffff;
+}
+
+:root[data-skin="luna"][data-theme="dark"] {
+  --wc-bg: linear-gradient(to bottom, #4f78c5 0%, #2b4f9c 45%, #23447f 55%, #2f5aa7 100%);
+  --wc-bg-hover: linear-gradient(to bottom, #6a8fd6 0%, #3d64ad 45%, #36599a 55%, #4672b8 100%);
+  --wc-bg-press: linear-gradient(to bottom, #1c3868, #22447f);
+  --wc-edge: #9fb6de;
+  --wc-close-hover: linear-gradient(to bottom, #b8674f 0%, #9c4226 45%, #87351c 55%, #a64c2e 100%);
+  --wc-close-press: linear-gradient(to bottom, #6b2a16, #7e3520);
+  --wc-close-edge: #c9a090;
+}
+
+/* Classic 98: beveled grey squares, and a black glyph. The bevel is drawn in box-shadow from the skin's own colors. */
+:root[data-skin="classic"] {
+  --wc-w: 22px;
+  --wc-h: 20px;
+  --wc-radius: 0;
+  --wc-app-radius: 0;
+  --wc-glyph: 10px;
+  --wc-bg: var(--c-face);
+  --wc-bg-hover: var(--c-face);
+  --wc-bg-press: var(--c-face);
+  --wc-edge: var(--c-edge);
+  --wc-ink: var(--c-ink);
+  --wc-close-hover: var(--c-face);
+  --wc-close-press: var(--c-face);
+  --wc-close-edge: var(--c-edge);
+  --wc-close-ink: var(--c-ink);
+  --wc-bevel: inset -1px -1px var(--c-edge), inset 1px 1px var(--c-hi), inset -2px -2px var(--c-shade), inset 2px 2px var(--c-face-hi);
+  --wc-bevel-press: inset 1px 1px var(--c-shade), inset -1px -1px var(--c-hi);
+}
+
+/* ---------- title bar: the caption buttons sit at the right end of the bar ---------- */
+
+html[data-shell="desktop"] .titlebar {
+  padding-right: 0;
+  gap: 10px;
+  cursor: default;
+}
+
+/* Hidden in a browser tab. The desktop shell turns them on below. */
+.window-controls {
+  display: none;
+}
+
+html[data-shell="desktop"] .window-controls {
+  flex: none;
+  display: flex;
+  align-items: center;
+  align-self: stretch;
+  gap: 3px;
+  margin-left: 4px;
+  padding-right: 6px;
+}
+
+html[data-shell="desktop"] .wc-btn {
+  width: var(--wc-w);
+  height: var(--wc-h);
+  display: grid;
+  place-items: center;
+  padding: 0;
+  margin: 0;
+  border: 1px solid var(--wc-edge);
+  border-radius: var(--wc-radius);
+  background: var(--wc-bg);
+  color: var(--wc-ink);
+  box-shadow: var(--wc-bevel, inset 0 1px 0 rgba(255, 255, 255, 0.35));
+  text-shadow: none;
+  cursor: default;
+}
+
+html[data-shell="desktop"] .wc-btn:hover {
+  background: var(--wc-bg-hover);
+}
+
+html[data-shell="desktop"] .wc-btn:active {
+  background: var(--wc-bg-press);
+  box-shadow: var(--wc-bevel-press, none);
+}
+
+html[data-shell="desktop"] .wc-close:hover {
+  background: var(--wc-close-hover);
+  border-color: var(--wc-close-edge);
+  color: var(--wc-close-ink);
+}
+
+html[data-shell="desktop"] .wc-close:active {
+  background: var(--wc-close-press);
+  border-color: var(--wc-close-edge);
+  color: var(--wc-close-ink);
+}
+
+html[data-shell="desktop"] .wc-glyph {
+  width: var(--wc-glyph);
+  height: var(--wc-glyph);
+  display: block;
+}
+
+/* The maximize button holds both glyphs. Its state decides which one shows. */
+html[data-shell="desktop"] .wc-max .wc-glyph[data-glyph="restore"] { display: none; }
+html[data-shell="desktop"][data-window="maximized"] .wc-max .wc-glyph[data-glyph="restore"] { display: block; }
+html[data-shell="desktop"][data-window="maximized"] .wc-max .wc-glyph[data-glyph="maximize"] { display: none; }
+
+html[data-shell="desktop"] .wc-btn:focus-visible {
+  outline: 2px solid var(--focus-ring, var(--accent-lo));
+  outline-offset: -3px;
+}
+
+/* Mac: the traffic lights are drawn by the system at top left, so the title bar leaves room for them. */
+html[data-shell="desktop"][data-platform="mac"] .titlebar {
+  padding-left: 80px;
+}
+
+html[data-shell="desktop"][data-platform="mac"] .window-controls {
+  display: none;
+}
+
+/* ---------- the window: no page margin or wallpaper, and the frame stays on the edges ---------- */
+
+html[data-shell="desktop"] body,
+html[data-shell="desktop"].has-wallpaper body {
+  padding: 0;
+  background: var(--frame);
+}
+
+html[data-shell="desktop"] body::before,
+html[data-shell="desktop"] body::after {
+  display: none;
+}
+
+html[data-shell="desktop"] .app,
+html[data-shell="desktop"].has-wallpaper .app {
+  border: 1px solid var(--frame);
+  border-radius: var(--wc-app-radius);
+  box-shadow: none;
+  overflow: hidden;
+}
+
+html[data-shell="desktop"][data-window="maximized"] .app,
+html[data-shell="desktop"][data-window="maximized"].has-wallpaper .app {
+  border: 0;
+  border-radius: 0;
+}
+
+/* ---------- resize edges: thin hit areas on the window edge and corners ---------- */
+
+.resize-edge {
+  position: fixed;
+  z-index: 60;
+  display: none;
+}
+
+html[data-shell="desktop"] .resize-edge {
+  display: block;
+}
+
+html[data-shell="desktop"][data-window="maximized"] .resize-edge {
+  display: none;
+}
+
+.resize-edge[data-edge="n"],
+.resize-edge[data-edge="s"] { left: 8px; right: 8px; height: 5px; cursor: ns-resize; }
+.resize-edge[data-edge="n"] { top: 0; }
+.resize-edge[data-edge="s"] { bottom: 0; }
+
+.resize-edge[data-edge="e"],
+.resize-edge[data-edge="w"] { top: 8px; bottom: 8px; width: 5px; cursor: ew-resize; }
+.resize-edge[data-edge="e"] { right: 0; }
+.resize-edge[data-edge="w"] { left: 0; }
+
+.resize-edge[data-edge="ne"],
+.resize-edge[data-edge="nw"],
+.resize-edge[data-edge="se"],
+.resize-edge[data-edge="sw"] { width: 10px; height: 10px; }
+.resize-edge[data-edge="ne"] { top: 0; right: 0; cursor: nesw-resize; }
+.resize-edge[data-edge="sw"] { bottom: 0; left: 0; cursor: nesw-resize; }
+.resize-edge[data-edge="nw"] { top: 0; left: 0; cursor: nwse-resize; }
+.resize-edge[data-edge="se"] { bottom: 0; right: 0; cursor: nwse-resize; }
+
+/* ---------- installed PWA with window-controls-overlay: the system draws the buttons ---------- */
+
+html[data-shell="overlay"] .titlebar {
+  height: env(titlebar-area-height, 36px);
+  padding-left: calc(env(titlebar-area-x, 0px) + 12px);
+  padding-right: calc(100vw - env(titlebar-area-x, 0px) - env(titlebar-area-width, 100vw) + 12px);
+  -webkit-app-region: drag;
+  app-region: drag;
+}
+
+html[data-shell="overlay"] .titlebar :is(button, input, a) {
+  -webkit-app-region: no-drag;
+  app-region: no-drag;
+}
+
+html[data-shell="overlay"] .window-controls {
+  display: none;
+}

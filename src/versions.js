@@ -16,6 +16,7 @@ export const VERSION_REASONS = Object.freeze({
   manual: 'Saved by you',
   leave: 'Left the entry',
   restore: 'Before a restore',
+  sync: 'Kept when syncing',
 });
 
 export function describeReason(reason) {

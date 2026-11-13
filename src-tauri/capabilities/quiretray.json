@@ -1,0 +1,11 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "quiretray",
+  "description": "Native feature quiretray for the Quire window. Grants only this plugin's commands.",
+  "windows": [
+    "main"
+  ],
+  "permissions": [
+    "quiretray:default"
+  ]
+}

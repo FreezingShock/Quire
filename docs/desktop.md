@@ -47,7 +47,10 @@ Do not depend on `window.Quire`. Use `__QUIRE_DESKTOP__` or `src/desktop.js`.
 ## Adding native features (one feature, one set of files)
 
 Each feature is a Tauri plugin defined in this crate. Give it a name, such as
-`fonts`, and use that name everywhere below. Commands called from page code
+`fonts`, and use that name everywhere below. Plugin names use lowercase letters
+and digits only, with no hyphens or underscores (`quireintents`, not
+`quire-intents`). The Rust module, the file names and the plugin name must all match,
+and a Rust module name cannot contain a hyphen. Commands called from page code
 need a permission, which build.rs generates from a small list. Commands that only
 Rust calls need no list.
 

@@ -132,21 +132,24 @@ async function notify(body, tag) {
  * the same schedule. A time capsule that has arrived gets its notice through
  * `send(body, tag)`. Both only run while Quire is open.
  */
-export function startReminders({ getReminder, saveReminder, hasEntryOn, onCapsuleCheck }) {
+export function startReminders({ getReminder, saveReminder, hasEntryOn, onCapsuleCheck, native }) {
   let busy = false;
+  // The desktop shell sends notices itself when `native.enabled()` says so. Its permission is not the browser's.
+  const nativeOn = () => Boolean(native?.enabled());
+  const send = (body, tag) => (nativeOn() ? native.send(body, tag) : notify(body, tag));
   const check = async () => {
     if (busy) return;
     const reminder = getReminder() ?? REMINDER_DEFAULTS;
-    if (globalThis.Notification?.permission !== 'granted') return;
+    if (!nativeOn() && globalThis.Notification?.permission !== 'granted') return;
     busy = true;
     try {
       if (reminderDue(reminder)) {
         const today = localISODate();
         const wroteToday = await hasEntryOn(today).catch(() => false);
-        if (!wroteToday) await notify('Nothing written yet today. A line is enough.', `${TAG_PREFIX}-${today}`);
+        if (!wroteToday) await send('Nothing written yet today. A line is enough.', `${TAG_PREFIX}-${today}`);
         saveReminder({ ...reminder, lastDay: today });
       }
-      if (reminder.enabled && onCapsuleCheck) await onCapsuleCheck(notify);
+      if (reminder.enabled && onCapsuleCheck) await onCapsuleCheck(send);
     } catch (error) {
       console.warn('Reminder could not be shown:', error);
     } finally {

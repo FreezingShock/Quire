@@ -27,6 +27,7 @@ import { $, fillSelect } from './controller/helpers.js';
 import { mountDropdown } from './dropdown.js';
 import { routeEntryId } from './controller/routes.js';
 import { chromeMethods } from './controller/chrome.js';
+import { windowChromeMethods } from './controller/window-chrome.js';
 import { routingMethods } from './controller/routing.js';
 import { buildUiMethods } from './controller/build-ui.js';
 import { toolModeMethods } from './controller/tool-modes.js';
@@ -49,6 +50,9 @@ import { focusMethods } from './controller/focus-mode.js';
 import { navigationMethods } from './controller/navigation.js';
 import { capsuleActionMethods } from './controller/capsule-actions.js';
 import { mixtapeMethods } from './controller/mixtape.js';
+import { desktopMethods } from './controller/desktop.js';
+import { invokeShell, wantsNativeNotice } from './desktop-integration.js';
+import { accountMethods } from './controller/account-actions.js';
 import { MixtapeView } from './mixtape-view.js';
 import { mark } from './perf.js';
 
@@ -156,6 +160,7 @@ export class QuireApp {
     fillSelect(this.dom.mood, MOODS, 'Not set');
     fillSelect(this.dom.weather, WEATHERS, 'Not set');
     this.applyPrefs();
+    this.initWindowChrome();
     this.buildToolbox();
     this.buildSwatches();
     this.buildMenus();
@@ -213,12 +218,19 @@ export class QuireApp {
     this.home.setNote((await this.store.getNote()) ?? '');
     this.home.setHabits(await this.store.getHabits());
     this.home.setSavedSearches(await this.loadSavedSearches());
+    // Finishes a sign-in that came back from a redirect, and starts background sync. Not awaited, so the first paint does not wait on the network.
+    this.startAccount().catch((error) => console.warn('Account sync could not start.', error));
     startPwa({ onReady: () => this.showStatus('Quire is ready to work offline', false, 'saved') });
     startReminders({
       getReminder: () => this.prefs.reminder ?? REMINDER_DEFAULTS,
       saveReminder: (reminder) => this.setPref({ reminder }),
       hasEntryOn: async (day) => (await this.store.list()).some((entry) => entry.date === day),
       onCapsuleCheck: (send) => this.announceArrivedCapsules(send),
+      // In the desktop app, reminders go out through the shell's notice area when the pref is on.
+      native: {
+        enabled: () => wantsNativeNotice(this.prefs),
+        send: (body, tag) => invokeShell('plugin:quirenotify|send', { title: 'Quire', body, tag }),
+      },
     });
     this.screensaver = startScreensaver({
       getPrefs: () => this.prefs,
@@ -237,6 +249,8 @@ export class QuireApp {
     } else {
       await this.showHome({ history: 'replace', entries });
     }
+    // Tray, shortcut and file-open intents wait until the library is open. That keeps them behind the passcode.
+    this.startDesktop().catch((error) => console.warn('Desktop integration could not start:', error));
     mark('quire:ready');
   }
 
@@ -257,6 +271,7 @@ export class QuireApp {
 }
 
 Object.assign(QuireApp.prototype, chromeMethods);
+Object.assign(QuireApp.prototype, windowChromeMethods);
 
 Object.assign(QuireApp.prototype, routingMethods);
 
@@ -298,3 +313,6 @@ Object.assign(QuireApp.prototype, navigationMethods);
 Object.assign(QuireApp.prototype, capsuleActionMethods);
 
 Object.assign(QuireApp.prototype, mixtapeMethods);
+
+Object.assign(QuireApp.prototype, desktopMethods);
+Object.assign(QuireApp.prototype, accountMethods);

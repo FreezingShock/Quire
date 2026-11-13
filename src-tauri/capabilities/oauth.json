@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "oauth",
+  "description": "Sign-in redirect for accounts: a loopback listener and opening Supabase's sign-in page.",
+  "windows": ["main"],
+  "permissions": ["oauth:default"]
+}

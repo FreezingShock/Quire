@@ -1,0 +1,11 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "quireintents",
+  "description": "Native feature quireintents for the Quire window. Grants only this plugin's commands.",
+  "windows": [
+    "main"
+  ],
+  "permissions": [
+    "quireintents:default"
+  ]
+}
