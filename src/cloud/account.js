@@ -16,11 +16,14 @@ import { createAuth } from './auth.js';
 import { CloudError } from './http.js';
 import { challengeFor, randomVerifier } from './pkce.js';
 import { decodeLock, encodeLock } from './codec.js';
+import { desktopInvoke, isDesktop } from '../desktop.js';
 import { createRemote } from './remote.js';
 import { KeyMismatchError, syncOnce } from './sync-engine.js';
 
 const VERIFIER_KEY = 'quire-pkce-verifier';
 const REFRESH_MARGIN_MS = 60 * 1000;
+/** The desktop app's sign-in port. Supabase's redirect allow list must name it. See src-tauri/src/oauth.rs. */
+const DESKTOP_REDIRECT = 'http://127.0.0.1:53847/callback';
 
 /** This device has no lock yet, and the account already has one. The caller asks for that passcode. */
 export class NeedsAccountPasscode extends Error {
@@ -46,7 +49,22 @@ function client() {
 }
 
 export function redirectTarget() {
+  if (isDesktop()) return DESKTOP_REDIRECT;
   return CLOUD.redirectTo || `${location.origin}${location.pathname}`;
+}
+
+/** In the desktop app, the sign-in redirect comes back to a listener on this computer. Start it before the browser is sent away. */
+async function prepareRedirect() {
+  if (isDesktop()) await desktopInvoke('plugin:oauth|listen');
+}
+
+/** Opens a sign-in page: in the system browser on desktop, in this tab on the web. */
+export async function openSignInPage(url) {
+  if (isDesktop()) {
+    await desktopInvoke('plugin:oauth|open_in_browser', { url });
+    return;
+  }
+  location.assign(url);
 }
 
 async function saveSession(store, session) {
@@ -88,6 +106,7 @@ export async function createAccountWithPassword(store, { email, password }) {
 
 /** Emails a sign-in link. The link has to be opened in this same browser, because the verifier stays here. */
 export async function sendMagicLink({ email }) {
+  await prepareRedirect();
   const verifier = randomVerifier();
   sessionStorage.setItem(VERIFIER_KEY, verifier);
   await client().sendMagicLink({ email, redirectTo: redirectTarget(), codeChallenge: await challengeFor(verifier) });
@@ -95,6 +114,7 @@ export async function sendMagicLink({ email }) {
 
 /** Starts Google sign-in. Returns the address to open; the caller moves the page there. */
 export async function googleSignInUrl() {
+  await prepareRedirect();
   const verifier = randomVerifier();
   sessionStorage.setItem(VERIFIER_KEY, verifier);
   return client().googleUrl({ redirectTo: redirectTarget(), codeChallenge: await challengeFor(verifier) });
