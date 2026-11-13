@@ -15,6 +15,7 @@ import { installState, promptInstall, showInstallHelp } from '../pwa.js';
 import { playSound } from '../sound.js';
 import { MAX_VERSIONS } from '../versions.js';
 import { parseImportFile } from '../import.js';
+import { requestAccess } from '../folders.js';
 
 export const exportMethods = {
   // ---------- export, backup, restore ----------
@@ -79,8 +80,18 @@ export const exportMethods = {
     });
   },
 
+  /** Back up all entries. Writes to the backup folder when one is linked, and downloads the file otherwise. */
   async backup() {
     await this.persist();
+    const folder = await this.backupFolder();
+    if (folder) {
+      if (await requestAccess(folder.handle, 'readwrite')) {
+        const { entries, versions } = await this.writeBackupTo(folder);
+        this.showStatus(`Backed up ${entries} entries and ${versions} versions to ${folder.name}`);
+        return;
+      }
+      this.showStatus(`Quire cannot write to ${folder.name} yet. The backup was downloaded instead.`, true);
+    }
     const entries = await this.store.listFull();
     const versions = await this.store.listAllVersions();
     const habits = await this.store.getHabits();

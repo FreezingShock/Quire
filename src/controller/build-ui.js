@@ -176,6 +176,7 @@ export const buildUiMethods = {
           { label: 'Back up all entries…', action: () => this.backup() },
           { label: 'Restore from backup…', action: () => this.restore() },
           { label: 'Import entries…', action: () => this.importEntries() },
+          { label: 'Linked folders…', action: () => this.linkedFolders() },
           ...(installState() === 'installed' ? [] : ['sep', { label: 'Install Quire…', action: () => this.installQuire() }]),
           'sep',
           { label: 'Passcode lock…', action: () => this.passcodeSettings() },
@@ -245,6 +246,7 @@ export const buildUiMethods = {
         scope: 'editor',
         items: () => [
           { label: 'Image…', disabled: !this.entry, action: () => this.pickImages() },
+          { label: 'Picture from linked folder…', disabled: !this.entry || !this.folderSupported(), action: () => this.pictureFromFolder() },
           { label: 'Sketch between paragraphs', disabled: !this.entry, action: () => this.insertSketch() },
           { label: this.voice ? 'Stop voice note' : 'Voice note', disabled: !this.entry && !this.voice, action: () => this.toggleVoiceNote() },
           { label: 'Song for the mixtape…', disabled: !this.entry, action: () => this.addSong() },
