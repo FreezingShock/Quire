@@ -1,0 +1,7 @@
+# One command per line. Each becomes permission allow-<command> for plugin "folders".
+pick_folder
+forget_folder
+list_folder
+stat_file
+read_file
+write_file

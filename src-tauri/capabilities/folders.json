@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "folders",
+  "description": "Linked folders on Mac and Linux: the native folder picker and reads and writes inside folders the person picked.",
+  "windows": ["main"],
+  "permissions": ["folders:default"]
+}

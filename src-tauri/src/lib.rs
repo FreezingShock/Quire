@@ -10,6 +10,7 @@ mod quiretray;
 mod quireupdater;
 mod shortcut;
 mod app;
+mod folders;
 mod fonts;
 mod oauth;
 
@@ -53,6 +54,8 @@ pub fn run() {
         .plugin(quirefiles::init())
         .plugin(quireupdater::init())
         .plugin(app::init())
+        .plugin(tauri_plugin_dialog::init())
+        .plugin(folders::init())
         .plugin(fonts::init())
         .plugin(oauth::init())
         .setup(|app| {

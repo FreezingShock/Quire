@@ -104,6 +104,7 @@ const SHELL = [
   './src/dropdown.js',
   './src/export.js',
   './src/folders.js',
+  './src/folders-native.js',
   './src/folders-dialog.js',
   './src/vault-sync.js',
   './src/focus.js',
