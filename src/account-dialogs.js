@@ -149,6 +149,7 @@ function signedInDialog(ctx, state) {
 }
 
 function signedOutDialog(ctx) {
+  let signInButton = null;
   const email = textInput({ type: 'email', autocomplete: 'email', 'aria-label': 'Email', placeholder: 'you@example.com' });
   const password = textInput({ type: 'password', autocomplete: 'current-password', 'aria-label': 'Password', minlength: 8 });
   const error = el('p', { class: 'dialog-error', role: 'alert' });
@@ -232,7 +233,6 @@ function signedOutDialog(ctx) {
       ),
     ),
   );
-  let signInButton = null;
   return dialog;
 }
 
